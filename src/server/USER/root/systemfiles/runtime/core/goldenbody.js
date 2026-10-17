@@ -1795,7 +1795,6 @@
                     if (btnAppId === appId) {
                       btn.classList.remove('task-active', 'task-open');
                       btn.classList.add('task-closed');
-                      btn.appactive = false;
                       if (btn.dataset.pinned !== 'true') {
                         removeTaskButton(btn);
                       }

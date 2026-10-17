@@ -476,7 +476,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
   async function showConfirmationDialog(container, zipData, folderName, packageMetadata) {
     const requiresJsApi = Boolean(packageMetadata?.entryData && packageMetadata.entryData.requestAdminPerm === true);
     const baseFolder = `/systemfiles/runtime/apps/${folderName}`;
-    const exists = await window.protectedGlobals.FolderExists(baseFolder).catch(() => false);
+    const exists = window.protectedGlobals.apps.find((a) => a.folderName === folderName) || false;
 
     // If no special confirmation is required, proceed immediately
     if (!requiresJsApi && !exists) {

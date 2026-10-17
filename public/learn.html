@@ -152,9 +152,25 @@
     </div>
 
     <script>
-        const width = screen.availWidth;
-        const height = screen.availHeight;
-
+        const musicToggle = document.createElement('button');
+        musicToggle.textContent = 'Onlypuppy\'s Theme';
+        musicToggle.className = 'action-btn secondary';
+        musicToggle.onclick = () => {
+          if (window.backgroundMusic && !window.backgroundMusic.paused) {
+            window.backgroundMusic.pause();
+            localStorage.setItem('musicEnabled', 'false');
+          } else {
+            if (!window.backgroundMusic) {
+              window.backgroundMusic = new Audio("https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/onlypuppy'sTheme.mp3");
+              window.backgroundMusic.loop = true;
+            }
+            window.backgroundMusic.play();
+            localStorage.setItem('musicEnabled', 'true');
+          }
+        };
+        if (localStorage.getItem('musicEnabled') === 'true') {
+            document.addEventListener('pointerdown', () => {musicToggle.click();}, { once: true });
+        }
         function playAudio(url) {
           let audio = new Audio(url);
           audio.play();
@@ -190,6 +206,7 @@
         b.className = 'action-btn secondary';
         b.onclick = () => launchHomepage(true);
         actions.appendChild(b);
+        document.querySelector('.actions').appendChild(musicToggle);
     </script>
 </body>
 </html>

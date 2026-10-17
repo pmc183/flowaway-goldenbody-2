@@ -92,7 +92,8 @@ This is copied directly from the dev docs in the settings app
     API key to run. (system apps has those keys too, but they are written when ur acc is created)
 </p>
 <h4>Admin app strategy</h4>
-<p>Admin apps should be designed differently from iframe apps:</p>
+<p>Admin apps should be designed differently from iframe apps (It is not recommended to be used other than the system developer who understands all the apis):</p>
+<p>The system apis will not be listed in here because of the amount of them, but you can find them in the source code of the runtime. Admin apps can:</p>
 <ul>
     <li>They can access the runtime directly once verified.</li>
     <li>They are not limited by the sandboxed APIs.</li>
@@ -277,6 +278,10 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
         <code>self.api.pasteFolder(destination, clipboard, options)</code> - copy or move items.
     </li>
     <li><code>self.api.launchApp(appId, args)</code> - launch another app from the worker.</li>
+    <li><code>self.api.watchFile(path, callback, options)</code> - watch a file for changes, renames, and deletes.</li>
+    <li><code>self.api.watchFolder(path, callback, options)</code> - watch a folder tree and receive change events.</li>
+    <li><code>self.api.closeWatch(watchId)</code> - stop a specific watcher created by this worker.</li>
+    <li><code>self.api.clearAllWatchers()</code> - stop every watcher registered by this worker instance.</li>
     <li>
         <code>self.api.writeline(...args)</code> - print a terminal-style line, including optional text color, size, and
         font.
@@ -334,6 +339,10 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>showOpenFilePicker(options)</code> - let the user pick a file or folder and return a permission handle.</li>
     <li><code>showSaveFilePicker(options)</code> - let the user choose a save target and return a handle.</li>
     <li><code>showDirectoryPicker(options)</code> - let the user pick a directory and return a handle.</li>
+    <li><code>watchFile(pathOrHandle, callback, options)</code> - watch a file for changes, renames, and deletes.</li>
+    <li><code>watchFolder(pathOrHandle, callback, options)</code> - watch a folder tree and receive change events.</li>
+    <li><code>closeWatch(watchId)</code> - stop a specific watcher by the id returned when it was created.</li>
+    <li><code>clearAllWatchers()</code> - stop every watcher owned by this iframe app instance.</li>
     <li><code>closeWindow()</code> - request the runtime to close the current instance window.</li>
     <li><code>getBounds()</code> - get the current app window bounds as an object with x, y, width, and height.</li>
     <li><code>setBounds(bounds)</code> - resize or reposition the current app window, including maximize/minimize states.</li>
@@ -391,6 +400,63 @@ await window.__goldenbodyAPI.setTitlebarVisibility(true);
     most common app-window and theme calls.
 </p>
 <p>These methods send a message to the host frame and return a promise.</p>
+<h3>Watcher API and close-code handling</h3>
+<p>
+    File watchers are app-relative, not raw server paths. When you call <code>watchFile()</code>,
+    <code>watchFolder()</code>, the path is resolved against the current app root
+    before the runtime opens the watch socket. The app callback payload is also normalized back to the app-local form,
+    so the callback path is intentionally not the same as the server-side internal VFS path.<br />
+    A handle-based call is also accepted when the app is using a picked file or folder permission.
+</p>
+<p>
+    <strong>Important:</strong> the watcher may stop unexpectedly. It is stateful, not a permanently-open channel, and
+    app code must release watcher state when the app closes or the worker is terminated. Do not assume the watch stays
+    alive across app reloads, reconnects, or worker restarts.
+</p>
+<pre><code>// iframe app
+const watch = window.__goldenbodyAPI.watchFile('./notes.txt', (event) => {
+    if (!event || event.closed) return;
+    console.log(event.type, event.path, event.changeType);
+});
+// close the watcher
+watch.close();
+
+// admin app / trusted runtime app
+const adminWatch = window.protectedGlobals.WatchFolder('./data', (event) => {
+    console.log('folder event', event);
+});
+// close the watcher
+adminWatch.close();
+
+// terminal worker
+const workerWatch = self.api.watchFolder('./data', (event) => {
+    console.log('worker watch event', event);
+});
+// close the watcher
+workerWatch.close();
+</code></pre>
+<p>
+    The runtime strips the internal app-root prefix from callback payloads so app code receives a stable,
+    app-scoped path. This means <code>event.path</code> is intentionally app-local and is not always the same literal
+    path string used inside the server watcher logic.
+</p>
+<ul>
+    <li><code>1008</code> - watcher rejected by the server: missing username, invalid token, invalid path, or requested path does not exist.</li>
+    <li><code>1010</code> - max watcher count exceeded for the account.</li>
+    <li><code>1013</code> - socket idled too long and was closed for inactivity.</li>
+    <li><code>1014</code> - server-side rate limit rejected the watch connection.</li>
+</ul>
+<p>
+    The underlying browser/server websocket may also surface close codes such as <code>1009</code>, <code>1011</code>,
+    or <code>1012</code> when the socket fails or the runtime is restarting. Those are connection-level events, not the
+    server-side watch validation contract. Treat them as a closure signal and decide in your app whether to reconnect,
+    but do not assume the runtime will reconnect automatically for every close code.
+</p>
+<p>
+    In other words, a watcher socket is not a permanent channel. It can close at any time for auth, policy, quota,
+    inactivity, rate-limit, or unrelated network/server reasons, so every app and worker should handle <code>close</code>,
+    release stale state, and reestablish the watch intentionally when the app wants to resume watching.
+</p>
 <h3>Quick FS API Introduction</h3>
 <p>
     This section teaches the full VFS surface available to app authors. Read it end-to-end if you haven't written apps

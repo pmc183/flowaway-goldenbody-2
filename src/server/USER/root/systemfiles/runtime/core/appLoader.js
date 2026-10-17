@@ -76,7 +76,7 @@
         knownAppFuncs.push(entryObj.functionName);
         knownAppGlobals.push(entryObj.globalVarObjectString);
       }
-    }
+    } else alert(`App ${entryObj.label || entryObj.id || folderName} has invalid entry.json. Please fix the errors and try again.`);
     try {
       let iconFileContents = await window.protectedGlobals.ReadFile(`/systemfiles/runtime/apps/${folderName}/${entryObj.iconFile}`, { buffer: true, direct: true });
       let iconFileContentText = new TextDecoder().decode(iconFileContents);
@@ -1331,6 +1331,9 @@
             confirmed = await window.protectedGlobals.showConfirmDialog("Close App", "Are you sure you want to close this app instance? Changes may not be saved.", "Close", "Cancel");
           }
           if (!confirmed) return;
+          if (window.protectedGlobals.clearAppInstanceWatchers) {
+            window.protectedGlobals.clearAppInstanceWatchers(iframe.contentWindow);
+          }
           origClose(force);
           clearInterval(pingInterval);
           window.removeEventListener("message", pongHandler);

@@ -1,6 +1,7 @@
 "use strict";
 
 window.protectedGlobals.missingFolders = window.protectedGlobals.missingFolders || new Set();
+window.protectedGlobals.activeWebSockets = window.protectedGlobals.activeWebSockets || new Set();
 window.protectedGlobals.normalizeFsPath = function (path, {
   allowRoot = false
 } = {}) {
@@ -218,6 +219,24 @@ window.protectedGlobals.WatchFile = function (relPath, callback, options = {}) {
     }).toString();
 
     const ws = new WebSocket(serverUrl.toString());
+    window.protectedGlobals.activeWebSockets.add(ws);
+    let heartbeatTimer = null;
+
+    const startHeartbeat = () => {
+      if (heartbeatTimer) return;
+      heartbeatTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "watch",
+            event: "ping",
+            path: normalizedPath,
+            timestamp: Date.now(),
+          }));
+        }
+      }, 3000);
+    };
+
+    ws.addEventListener("open", startHeartbeat);
 
     ws.addEventListener("message", (event) => {
       try {
@@ -229,7 +248,14 @@ window.protectedGlobals.WatchFile = function (relPath, callback, options = {}) {
     });
 
     ws.addEventListener("close", async (event) => {
-      if (event.code === 1008) {
+      window.protectedGlobals.activeWebSockets.delete(ws);
+
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+
+      if (event.code === 1009) {
         callback({
           error: event.reason || "Session expired",
           code: event.code,
@@ -1116,7 +1142,8 @@ document.addEventListener("keydown", (e) => {
 window.protectedGlobals.deleteApp = async function (obj, cleanupOnly = false) {
   if (!obj) return;
   if (!cleanupOnly) {
-    await window.protectedGlobals.DeleteFolder(`/systemfiles/runtime/apps/${obj.folderName}`);
+    const result = await window.protectedGlobals.DeleteFolder(`/systemfiles/runtime/apps/${obj.folderName}`);
+    if (!result.success) alert("App folder not found: " + obj.folderName + ". A common reason is you renamed the folder manually. Please delete again after restarting the system.");
     await window.protectedGlobals.removeShortcutsForApp(obj.id).catch(() => {});
     delete window.protectedGlobals.appPerms[obj.id];
     window.protectedGlobals.saveAppPermissions();
@@ -1137,6 +1164,10 @@ window.protectedGlobals.deleteApp = async function (obj, cleanupOnly = false) {
       }
       [...window.protectedGlobals.taskbuttonsContainer.querySelectorAll("button")].forEach(b => {
         if (b.dataset.appId === element.id && (b.dataset.pinned !== 'true' || !cleanupOnly)) b.remove();
+        else if (b.dataset.appId === element.id && b.dataset.pinned === 'true' && cleanupOnly) {
+          b.classList.remove('task-active', 'task-open');
+          b.classList.add('task-closed');
+        }
       });
       window.protectedGlobals.taskbuttons = [...window.protectedGlobals.taskbuttonsContainer.querySelectorAll("button")];
       window.protectedGlobals.saveTaskButtons();
@@ -1172,11 +1203,8 @@ window.protectedGlobals.installApp = async function (folderName, options = {}) {
   if (options.update) {
     let targetApp = window.protectedGlobals.apps.find((a) => a.folderName === folderName);
     if (!targetApp) {
-      // perform a search in the app dir
-      const entries = await window.protectedGlobals.ReadFolder("/systemfiles/runtime/apps").catch(() => []);
-      const targetAppfoldername = entries.find((e) => e === folderName);
-      const targetAppId = JSON.parse(await window.protectedGlobals.ReadFile(`/systemfiles/runtime/apps/${targetAppfoldername}/entry.json`, { text: true, direct: true }))?.id;
-      targetApp = window.protectedGlobals.apps.find((a) => a.id === targetAppId);
+      alert("Could not find the app to update. A common reason is you renamed the folder manually. To fix this, do not delete the app, install after restarting the system. Otherwise please try reinstalling it.");
+      throw new Error("Could not find the app to update. A common reason is you renamed the folder manually. To fix this, do not delete the app, install after restarting the system. Otherwise please try reinstalling it.");
     }
     window.protectedGlobals.deleteApp(targetApp, true);
   }
