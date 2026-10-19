@@ -167,7 +167,7 @@ async function syncTemplateAppTree(srcDir, dstDir) {
   }
 }
 
-async function updateUserSystemApps(username) {
+async function updateUserSystemApps(username, forceUpdate = false) {
   if (!username || typeof username !== 'string') {
     return { ok: false, updated: false, reason: 'missing_username' };
   }
@@ -214,8 +214,8 @@ async function updateUserSystemApps(username) {
     ? profileData.autoupdate
     : defaultProfile().autoupdate;
 
-  if (!autoupdateEnabled) {
-    return { ok: true, updated: false, reason: 'autoupdate_disabled', username };
+  if (!autoupdateEnabled && !forceUpdate) {
+    return { ok: true, updated: false, reason: 'autoupdate_disabled', username, forceUpdate };
   }
 
   const systemEntries = await fsp.readdir(templateAppsPath, { withFileTypes: true });

@@ -184,3 +184,9 @@
 ## V 2.6.0
 - perms/full system profile file purge after app deletion.
 - **filesystem watchers.**
+
+## V 2.6.1
+- testing fs watchers
+- added disable notifications
+- added an update system button for those who dont use autoupdate
+- reminder: you can take screenshot via ctrl+shift+s, it is saved in /screenshot now.

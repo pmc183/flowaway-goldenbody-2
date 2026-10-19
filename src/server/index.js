@@ -238,6 +238,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
                     const parsed = new URL(req.url, 'http://localhost');
                     const username = parsed.searchParams.get('username');
                     const password = parsed.searchParams.get('password');
+                    const forceUpdate = ['1', 'true', 'yes'].includes(String(parsed.searchParams.get('forceUpdate') || '').toLowerCase());
 
                     if (!username) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -251,7 +252,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
                         return;
                     }
 
-                    const result = await updateUserSystemApps(username);
+                    const result = await updateUserSystemApps(username, forceUpdate);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify(result));
                 } catch (e) {

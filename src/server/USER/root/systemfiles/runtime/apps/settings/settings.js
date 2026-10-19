@@ -1333,6 +1333,27 @@ window.settings = function (posX = 50, posY = 50) {
 
   mainContainer.append(dragThresholdLabel, dragThresholdInput);
 
+  // disableNotifications
+  const disableNotificationsRow = document.createElement("div");
+  disableNotificationsRow.style.alignItems = "center";
+  disableNotificationsRow.style.marginTop = "8px";
+
+  const disableNotificationsLabel = document.createElement("div");
+  disableNotificationsLabel.textContent = "Disable Notifications";
+  disableNotificationsLabel.style.fontSize = "13px";
+
+  const disableNotificationsToggle = document.createElement("input");
+  disableNotificationsToggle.type = "checkbox";
+  disableNotificationsToggle.checked = !!window.protectedGlobals.data.disableNotifications;
+
+  /* Toggle handler */
+  disableNotificationsToggle.onchange = async () => {
+    window.protectedGlobals.data.disableNotifications = disableNotificationsToggle.checked;
+    await window.settingsGlobals.persistSettingsProfilePatch({ disableNotifications: !!window.protectedGlobals.data.disableNotifications });
+  };
+
+  disableNotificationsRow.append(disableNotificationsLabel, disableNotificationsToggle);
+  mainContainer.appendChild(disableNotificationsRow);
   /* =========================================================
      🗑️ DANGER ZONE — DELETE ACCOUNT
   ========================================================= */

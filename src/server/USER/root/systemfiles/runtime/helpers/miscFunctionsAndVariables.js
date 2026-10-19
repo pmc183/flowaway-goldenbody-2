@@ -174,6 +174,12 @@ window.protectedGlobals.buildPersistableUserProfile = async function (overrides 
         : typeof runtime.compactTaskbar === "boolean"
           ? runtime.compactTaskbar
           : false,
+    disableNotifications:
+      typeof overrides.disableNotifications === "boolean"
+        ? overrides.disableNotifications
+        : typeof runtime.disableNotifications === "boolean"
+          ? runtime.disableNotifications
+          : false,
   };
 };
 
@@ -196,6 +202,7 @@ console.error(
 }
 
 window.protectedGlobals.showModal = function(title, body, level) {
+  if (window.protectedGlobals.data.disableNotifications) return;
   var isDark = true;
   var darkVal = null;
   if (typeof window.protectedGlobals.data.dark !== "undefined") darkVal = window.protectedGlobals.data.dark;

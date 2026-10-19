@@ -38,17 +38,17 @@ window.protectedGlobals.takeScreenshot = async () => {
 
         const a = new Date();
         let fileName = `Screenshot ${a.toLocaleDateString().replace(/\//g, '-')} ${String(a.getHours()).padStart(2,'0')}:${String(a.getMinutes()).padStart(2,'0')}.png`;
-        if (await window.protectedGlobals.FileExists('/systemfiles/screenshot/' + fileName)) {
+        if (await window.protectedGlobals.FileExists('/screenshot/' + fileName)) {
             let counter = 1;
             let newFileName;
             do {
                 newFileName = `Screenshot ${a.toLocaleDateString().replace(/\//g, '-')} ${String(a.getHours()).padStart(2,'0')}:${String(a.getMinutes()).padStart(2,'0')} (${counter}).png`;
                 counter++;
-            } while (await window.protectedGlobals.FileExists('/systemfiles/screenshot/' + newFileName));
+            } while (await window.protectedGlobals.FileExists('/screenshot/' + newFileName));
             fileName = newFileName;
         }
         if (typeof window.protectedGlobals.WriteFile === 'function') {
-            await window.protectedGlobals.WriteFile('/systemfiles/screenshot/' + fileName, bytes, { replace: true });
+            await window.protectedGlobals.WriteFile('/screenshot/' + fileName, bytes, { replace: true });
         } else {
             console.warn('WriteFile not available on protectedGlobals');
         }
@@ -62,8 +62,6 @@ window.protectedGlobals.takeScreenshot = async () => {
 window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (window.protectedGlobals && typeof window.protectedGlobals.takeScreenshot === 'function') {
-            window.protectedGlobals.takeScreenshot();
-        }
+        window.protectedGlobals.takeScreenshot();
     }
 });

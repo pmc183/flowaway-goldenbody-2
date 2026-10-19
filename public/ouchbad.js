@@ -81,7 +81,7 @@ window.protectedGlobals.firstlogin = false;
       <button id="recovery-load" style="width:100%;margin-top:6px">
         Load Recovery Options
       </button>
-
+      <button id="update-system" style="width:100%;margin-top:6px">Update System</button>
       <select id="recovery-app-select" style="width:100%;padding:8px;margin:6px 0;box-sizing:border-box;display:block">
         <option value="" disabled selected>Enter recovery credentials to load system apps</option>
       </select>
@@ -135,7 +135,36 @@ window.protectedGlobals.firstlogin = false;
 
     await ensureRecoveryCatalog(true);
   };
+  document.getElementById('update-system').onclick = async () => {
+    recoveryMsg.textContent = 'Updating system...';
+    recoveryMsg.style.color = '#ffd166';
+    const username = document.getElementById('zmc-user').value;
+    const password = document.getElementById('zmc-pass').value;
 
+    let result = null;
+    try {
+      const res = await fetch('/server/updatesystem?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&forceUpdate=true');
+      result = await res.json();
+    } catch (err) {
+      console.error(err);
+      result = { ok: false, updated: false, reason: 'server_error' };
+    }
+
+    const message = (() => {
+      if (!result || typeof result !== 'object') return 'Failed to update system';
+      if (result.updated) return 'System updated successfully.';
+      if (result.reason === 'autoupdate_disabled') return 'System updates are disabled for this account.';
+      if (result.reason === 'unauthorized') return 'Authentication failed.';
+      if (result.reason === 'missing_username') return 'Missing username.';
+      if (result.reason === 'server_error') return 'Server error while updating system.';
+      if (result.reason === 'missing_user_root') return 'User root not found.';
+      if (result.reason === 'missing_template_systemfiles') return 'System template files are missing.';
+      return result.reason || 'Failed to update system';
+    })();
+
+    recoveryMsg.textContent = message;
+    recoveryMsg.style.color = result && result.ok && result.updated ? 'lime' : result && result.ok ? '#ffd166' : 'red';
+  };
   function populateSelect(select, items, emptyMessage) {
     if (!items || !items.length) {
       resetSelectPlaceholder(select, emptyMessage);
