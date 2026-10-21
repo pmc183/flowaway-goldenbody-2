@@ -406,7 +406,7 @@ window.protectedGlobals.WriteFile = async function (
       return { error: "unauthorized" };
     }
     else if (response.status === 403) {
-      window.protectedGlobals.notification(body.error || "Access denied.");
+      alert(body.error || "Access denied.");
     }
     return {
       response,
@@ -535,7 +535,7 @@ window.protectedGlobals.zmcdpost = async function (data) {
   extractAuthTokenFromResponse(body);
   var zmcdErrorMessage = body && body.error ? String(body.error) : "";
   if (res.status === 403 || /denied/i.test(zmcdErrorMessage)) {
-    window.protectedGlobals.notification(zmcdErrorMessage || "Access denied.");
+    alert(zmcdErrorMessage || "Access denied.");
   }
   return body;
 }
@@ -811,7 +811,7 @@ window.protectedGlobals.filePost = async function filePost(data) {
   extractAuthTokenFromResponse(body);
   var fileErrorMessage = body && body.error ? String(body.error) : "";
   if (res.status === 403 || /denied/i.test(fileErrorMessage)) {
-    window.protectedGlobals.notification(fileErrorMessage || "Access denied.");
+    alert(fileErrorMessage || "Access denied.");
   }
   if (res.status === 401 && !window.protectedGlobals.firstlogin) {
     const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
@@ -850,7 +850,7 @@ window.protectedGlobals.downloadPost = async function downloadPost(data) {
   let body = await res.json();
   extractAuthTokenFromResponse(body);
   if (res.status === 200) {
-    window.protectedGlobals.notification("Download successful! Filename: " + data.filename + ". Check your downloads folder.");
+    alert("Download successful! Filename: " + data.filename + ". Check your downloads folder.");
   }
   if (res.status === 401) {
     const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
@@ -988,28 +988,28 @@ window.protectedGlobals.changeBackground = async function () {
   try {
     const selectedPath = await window.protectedGlobals.pickFile({ accept: "file", startPath: "/" }).catch((e) => {
       console.error("Failed to open background picker", e);
-      window.protectedGlobals.notification("Failed to open background picker.");
+      alert("Failed to open background picker.");
       return null;
     });
     if (!selectedPath) {
-      window.protectedGlobals.notification("No image selected.");
+      alert("No image selected.");
       return false;
     }
     alert("Changing background...");
     const backgroundBuffer = await window.protectedGlobals.ReadFile(selectedPath, { buffer: true, direct: true });
     if (!backgroundBuffer) {
-      window.protectedGlobals.notification?.("Could not read the selected image.");
+      alert("Could not read the selected image.");
       return false;
     }
 
     await window.protectedGlobals.DeleteFile("systemfiles/background/background.png").catch(() => {});
     await window.protectedGlobals.WriteFile("systemfiles/background/background.png", backgroundBuffer, { replace: true });
     await window.protectedGlobals.refreshBackground(backgroundBuffer);
-    window.protectedGlobals.notification?.("Background updated.");
+    alert("Background updated.");
     return true;
   } catch (e) {
     console.error("Failed to change background", e);
-    window.protectedGlobals.notification?.("Failed to change background.");
+    alert("Failed to change background.");
     return false;
   }
 };
@@ -1017,11 +1017,11 @@ window.protectedGlobals.resetBackground = async function () {
   try {
     await window.protectedGlobals.DeleteFile("systemfiles/background/background.png").catch(() => {});
     await window.protectedGlobals.refreshBackground();
-    window.protectedGlobals.notification?.("Background reset.");
+    alert("Background reset.");
     return true;
   } catch (e) {
     console.error("Failed to reset background", e);
-    window.protectedGlobals.notification?.("Failed to reset background.");
+    alert("Failed to reset background.");
     return false;
   }
 };

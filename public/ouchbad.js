@@ -25,7 +25,7 @@ if (!window.persistGlobals.__ouchbad_preinit_done) {
 }
 window.protectedGlobals.filePost = async function (data) {
   const headers = { 'Content-Type': 'application/json' };
-  if (window.protectedGlobals.data.authToken) headers.Authorization = 'Bearer ' + window.protectedGlobals.data.authToken;
+  headers.Authorization = 'Bearer ' + window.protectedGlobals.data.authToken;
   const res = await fetch(window.protectedGlobals.SERVER, {
     method: 'POST',
     headers,
@@ -240,6 +240,9 @@ window.protectedGlobals.firstlogin = false;
       a.textContent = res;
       document.body.appendChild(a);
       box.remove();
+      // wipe box from memory
+      box.innerHTML = '';
+      box = null;
     });
   }
 

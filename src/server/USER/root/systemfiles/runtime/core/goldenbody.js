@@ -816,14 +816,14 @@
   // Also wrap window.alert to record alerts in the stack while keeping existing behavior
   (function wrapAlert() {
     let origAlert = window.alert && window.alert.bind(window);
+    let origSoftAlert = window.softAlert && window.softAlert.bind(window);
     window.alert = function (msg) {
       try { window.protectedGlobals.stackNotification(String(msg)); } catch (e) {}
       origAlert(String(msg));
     };
-    let origNotification = window.protectedGlobals.notification;
-    window.protectedGlobals.notification = function (msg) {
+    window.softAlert = function (msg) {
       try { window.protectedGlobals.stackNotification(String(msg)); } catch (e) {}
-      origNotification(String(msg));
+      origSoftAlert(String(msg));
     };
   })();
 
@@ -1345,7 +1345,7 @@
       _hideTimer = null;
     }
     // remove listeners added when enabled
-    if (window.protectedGlobals.systemAPIs && window.protectedGlobals.systemAPIs.autohideCleanup) {
+    if (window.protectedGlobals.systemAPIs.autohideCleanup) {
       window.protectedGlobals.systemAPIs.autohideCleanup();
       delete window.protectedGlobals.systemAPIs.autohideCleanup;
     } else {

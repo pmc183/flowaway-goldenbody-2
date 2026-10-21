@@ -20,14 +20,14 @@ window.taskManager = function (posX = 50, posY = 50) {
     posX = pos.x;
     posY = pos.y;
   }
-  const root = document.createElement("div");
+  let root = document.createElement("div");
   root.className = "app-root app-window-root";
   Object.assign(root.style, {
     position: "fixed",
     top: posY + "px",
     left: posX + "px",
-    width: "1000px",
-    height: "640px",
+    width: "850px",
+    height: "580px",
     boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
     borderRadius: "10px",
     overflow: "hidden",
@@ -197,6 +197,8 @@ window.taskManager = function (posX = 50, posY = 50) {
     if ((window.protectedGlobals.removeAllEventListenersForApp)) {
       window.protectedGlobals.removeAllEventListenersForApp(scopedListenerName);
     }
+    root.innerHTML = "";
+    root = null;
   }
 
   function closeAll() {

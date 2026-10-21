@@ -74,7 +74,7 @@ async function syncAppJsKey(appDirPath, masterKey) {
   }
 }
 
-async function copyDirRecursiveExcludeJsKey(srcDir, dstDir) {
+async function copyDirRecursiveExcludeJsKey(srcDir, dstDir, forceUpdate = false) {
   if (!srcDir || !(await pathExists(srcDir))) return;
   await fsp.mkdir(dstDir, { recursive: true });
   const entries = await fsp.readdir(srcDir, { withFileTypes: true });
@@ -83,10 +83,10 @@ async function copyDirRecursiveExcludeJsKey(srcDir, dstDir) {
     const srcPath = path.join(srcDir, entry.name);
     const dstPath = path.join(dstDir, entry.name);
     if (entry.isDirectory()) {
-      await copyDirRecursiveExcludeJsKey(srcPath, dstPath);
+      await copyDirRecursiveExcludeJsKey(srcPath, dstPath, forceUpdate);
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
-      if (ext !== '.js') continue;
+      if (ext !== '.js' && !forceUpdate) continue;
       await fsp.mkdir(path.dirname(dstPath), { recursive: true });
       await fsp.copyFile(srcPath, dstPath);
     }
@@ -232,7 +232,7 @@ async function updateUserSystemApps(username, forceUpdate = false) {
     const userAppPath = path.join(userAppsPath, appName);
     try {
       if (!(await pathExists(userAppPath))) {
-        await copyDirRecursiveExcludeJsKey(templateAppPath, userAppPath);
+        await copyDirRecursiveExcludeJsKey(templateAppPath, userAppPath, forceUpdate);
       } else {
         await syncTemplateAppTree(templateAppPath, userAppPath);
       }

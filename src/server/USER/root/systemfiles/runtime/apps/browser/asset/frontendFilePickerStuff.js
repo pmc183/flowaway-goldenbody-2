@@ -603,7 +603,7 @@
               const targetFrame = sentreqframe; // snapshot iframe
 
               if (!selections.length)
-                return window.protectedGlobals.notification(
+                return alert(
                   "Select a file or folder",
                 );
               if (!targetFrame) {
@@ -838,7 +838,7 @@
             const basePath = savePickerCurrentPath.slice(1).join("/");
             const fname = (nameInput.value || "").trim();
             if (!fname) {
-              window.protectedGlobals.notification("Enter a filename");
+              alert("Enter a filename");
               return;
             }
             let chosen;
@@ -849,7 +849,7 @@
               const isFolder = Array.isArray(sel[1]);
               if (isFolder) chosen = (basePath ? basePath + "/" : "") + fname;
               else
-                window.protectedGlobals.notification(
+                alert(
                   "Select a folder to save into",
                 );
             }
@@ -1060,7 +1060,7 @@
             }
 
             if (!selectedNode) {
-              window.protectedGlobals.notification(
+              alert(
                 "Selected directory not found",
               );
               return;

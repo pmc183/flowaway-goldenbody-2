@@ -17,14 +17,14 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
   let isMaximized = false;
   let _isMinimized = false;
   let disposed = false;
-  const root = document.createElement("div");
+  let root = document.createElement("div");
   root.className = "app-root app-window-root";
   Object.assign(root.style, {
     position: "fixed",
     top: posY + "px",
     left: posX + "px",
-    width: "1000px",
-    height: "640px",
+    width: "850px",
+    height: "580px",
     boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
     borderRadius: "10px",
     overflow: "hidden",
@@ -177,7 +177,6 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
     if (disposed) return;
     disposed = true;
     root.remove();
-
     const index = window.explorerGlobals.allExplorers.findIndex(
       (instance) => instance.rootElement === root,
     );
@@ -186,6 +185,8 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
     if ((window.protectedGlobals.removeAllEventListenersForApp)) {
       window.protectedGlobals.removeAllEventListenersForApp(scopedListenerName);
     }
+    root.innerHTML = "";
+    root = null;
   }
 
   function closeAll() {
@@ -2021,7 +2022,7 @@ function makeIcon(type, size = 16) {
         clipboardTotal += getNodeSize(item.node);
       }
       if (currentUsed + clipboardTotal > STORAGE_QUOTA_BYTES) {
-        window.protectedGlobals.notification("Cannot paste — storage quota would be exceeded.");
+        alert("Cannot paste — storage quota would be exceeded.");
         return;
       }
 
@@ -2031,7 +2032,7 @@ function makeIcon(type, size = 16) {
 
         // ❌ Prevent circular paste
         if (item.isFolder && targetFullPath.startsWith(sourceFullPath + "/")) {
-          window.protectedGlobals.notification(
+          alert(
             `Cannot paste folder "${item.name}" into itself or a subfolder.`,
           );
           continue;
@@ -2764,7 +2765,7 @@ function makeIcon(type, size = 16) {
     const allowed = [];
     for (const f of files) {
       if (currentUsed + f.size > STORAGE_QUOTA_BYTES) {
-        window.protectedGlobals.notification(
+        alert(
           `Cannot upload "${f.name}" — storage quota would be exceeded.`,
         );
         continue;

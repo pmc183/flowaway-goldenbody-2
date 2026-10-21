@@ -1818,6 +1818,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
     return instance;
   } catch (err) {
     console.error('terminal app failed to start', err);
-    window.protectedGlobals.notification('Terminal failed to start: ' + String(err));
+    alert('Terminal failed to start: ' + String(err));
   }
 };

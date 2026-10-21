@@ -300,8 +300,8 @@ window.protectedGlobals.initAppTools = function () {
     root.style.position = "fixed";
     root.style.left = Number.isFinite(Number(posX)) ? String(Number(posX)) + "px" : "70px";
     root.style.top = Number.isFinite(Number(posY)) ? String(Number(posY)) + "px" : "70px";
-    root.style.width = typeof width === "number" ? String(width) + "px" : "1000px";
-    root.style.height = typeof height === "number" ? String(height) + "px" : "640px";
+    root.style.width = typeof width === "number" ? String(width) + "px" : "850px";
+    root.style.height = typeof height === "number" ? String(height) + "px" : "580px";
     document.body.appendChild(root);
     ensureResizeHandles(root);
     root._cancelResize = function () {
@@ -784,6 +784,8 @@ window.protectedGlobals.initAppTools = function () {
           instances.splice(idx, 1);
         }
       }
+      instance.rootElement.innerHTML = "";
+      instance.rootElement = null;
     };
 
     instance.showAll = function () {

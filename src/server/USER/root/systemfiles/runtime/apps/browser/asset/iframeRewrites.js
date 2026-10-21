@@ -430,7 +430,7 @@ async function iframePatches() {
 
     let removeNodeItem = addContextMenuItem("Remove element", () => {
       if (contextData.target == iframeDocument.body) {
-        window.protectedGlobals.notification("Cannot remove <body> element");
+        alert("Cannot remove <body> element");
         return;
       }
       contextData.target.remove();
@@ -439,7 +439,7 @@ async function iframePatches() {
       patchedTab.iframe.contentWindow.elementTemp = patchedTab.iframe.contentWindow.elementTemp || [];
       patchedTab.iframe.contentWindow.elementTemp.push(contextData.target);
       patchedTab.iframe.contentWindow.console.log(contextData.target);
-      window.protectedGlobals.notification(`Element stored as global variable: elementTemp[${patchedTab.iframe.contentWindow.elementTemp.length - 1}]`);
+      alert(`Element stored as global variable: elementTemp[${patchedTab.iframe.contentWindow.elementTemp.length - 1}]`);
     });
     addInspectContextMenuItem();
     

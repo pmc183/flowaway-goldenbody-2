@@ -358,7 +358,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             } else if (window.protectedGlobals.appPerms[appName].notification === "false") {
                 return;
             }
-            window.protectedGlobals.notification(`"${appName}" says: ${e.detail.data.message}`);
+            softAlert(`"${appName}" says: ${e.detail.data.message}`);
             return;
         }
 

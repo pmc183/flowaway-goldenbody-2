@@ -17,14 +17,14 @@ window.settings = function (posX = 50, posY = 50) {
   }
   let isMaximized = false;
   let _isMinimized = false;
-  const root = document.createElement("div");
+  let root = document.createElement("div");
   root.className = "app-root app-window-root";
   Object.assign(root.style, {
     position: "fixed",
     top: posY + "px",
     left: posX + "px",
-    width: "1000px",
-    height: "640px",
+    width: "850px",
+    height: "580px",
     boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
     borderRadius: "10px",
     overflow: "hidden",
@@ -146,6 +146,8 @@ window.settings = function (posX = 50, posY = 50) {
     );
     if (index !== -1) window.settingsGlobals.allSettings.splice(index, 1);
     window.protectedGlobals.removeAllEventListenersForApp("settings" + root.goldenbodyId);
+    root.innerHTML = "";
+    root = null;
   }
 
   function hideWindow() {
@@ -783,6 +785,7 @@ window.settings = function (posX = 50, posY = 50) {
   }
 
   function createAppItem(appMeta, refreshList) {
+    const isInvalidPackage = !!appMeta.invalidPackage || !!appMeta.invalidApp;
     const appWrapper = document.createElement("div");
     appWrapper.dataset.appItem = "true";
 
@@ -814,7 +817,12 @@ window.settings = function (posX = 50, posY = 50) {
     iconWrapper.style.overflow = "hidden";
     iconWrapper.style.flexShrink = "0";
 
-    const iconMode = appMeta.pngEnabled ? "img" : appMeta.iconType || "text";
+    const displayName = appMeta.folderName || appMeta.label || appMeta.id || "Unknown App";
+    const iconTextValue = isInvalidPackage
+      ? (String(displayName).trim().charAt(0) || "!").toUpperCase()
+      : (appMeta.icon || "");
+
+    const iconMode = isInvalidPackage ? "text" : (appMeta.pngEnabled ? "img" : appMeta.iconType || "text");
     if (iconMode === "img" && appMeta.icon) {
       const img = document.createElement("img");
       img.src = appMeta.icon.startsWith("data:image/") ? appMeta.icon : `data:image/png;base64,${appMeta.icon}`;
@@ -824,7 +832,7 @@ window.settings = function (posX = 50, posY = 50) {
       iconWrapper.appendChild(img);
     } else {
       const text = document.createElement("div");
-      text.textContent = appMeta.icon;
+      text.textContent = isInvalidPackage ? iconTextValue : (appMeta.icon || "");
       text.style.fontSize = "16px";
       text.style.fontWeight = "700";
       iconWrapper.appendChild(text);
@@ -838,7 +846,7 @@ window.settings = function (posX = 50, posY = 50) {
     label.style.fontSize = "14px";
     label.style.fontWeight = "600";
     label.style.color = window.protectedGlobals.data.dark ? "#fff" : "#111";
-    label.textContent = appMeta.label;
+    label.textContent = displayName;
 
     left.append(iconWrapper, label);
 
@@ -847,25 +855,9 @@ window.settings = function (posX = 50, posY = 50) {
     right.style.alignItems = "center";
     right.style.gap = "8px";
 
-    const forceQuitBtn = document.createElement("button");
-    forceQuitBtn.dataset.appRowForceQuit = "true";
-    forceQuitBtn.textContent = "Force Quit";
-    forceQuitBtn.style.background = window.protectedGlobals.data.dark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.14)";
-    forceQuitBtn.style.color = window.protectedGlobals.data.dark ? "#fff" : "#111";
-    forceQuitBtn.style.border = "1px solid rgba(251, 191, 36, 0.45)";
-    forceQuitBtn.style.padding = "6px 10px";
-    forceQuitBtn.style.borderRadius = "6px";
-    forceQuitBtn.style.cursor = "pointer";
-    forceQuitBtn.style.whiteSpace = "nowrap";
-    forceQuitBtn.addEventListener("click", async () => {
-      const result = await window.protectedGlobals.showConfirmDialog("Force Quit App", "Are you sure you want to force quit this app? This will terminate the all app processes and it may lose unsaved data.");
-      if (!result) return;
-      window.protectedGlobals.forceStopApp(appMeta);
-    });
-
     const deleteBtn = document.createElement("button");
     deleteBtn.dataset.appRowDelete = "true";
-    deleteBtn.textContent = "Delete";
+    deleteBtn.textContent = isInvalidPackage ? "Delete Folder" : "Delete";
     deleteBtn.style.background = "#c0392b";
     deleteBtn.style.color = "white";
     deleteBtn.style.border = "none";
@@ -874,28 +866,101 @@ window.settings = function (posX = 50, posY = 50) {
     deleteBtn.style.cursor = "pointer";
     deleteBtn.style.whiteSpace = "nowrap";
 
-    applyAppRowTheme(row, label, iconWrapper, deleteBtn, null, null, null, null, null, forceQuitBtn);
+    if (!isInvalidPackage) {
+      const forceQuitBtn = document.createElement("button");
+      forceQuitBtn.dataset.appRowForceQuit = "true";
+      forceQuitBtn.textContent = "Force Quit";
+      forceQuitBtn.style.background = window.protectedGlobals.data.dark ? "rgba(245, 158, 11, 0.22)" : "rgba(245, 158, 11, 0.14)";
+      forceQuitBtn.style.color = window.protectedGlobals.data.dark ? "#fff" : "#111";
+      forceQuitBtn.style.border = "1px solid rgba(251, 191, 36, 0.45)";
+      forceQuitBtn.style.padding = "6px 10px";
+      forceQuitBtn.style.borderRadius = "6px";
+      forceQuitBtn.style.cursor = "pointer";
+      forceQuitBtn.style.whiteSpace = "nowrap";
+      forceQuitBtn.addEventListener("click", async () => {
+        const result = await window.protectedGlobals.showConfirmDialog("Force Quit App", "Are you sure you want to force quit this app? This will terminate the all app processes and it may lose unsaved data.");
+        if (!result) return;
+        window.protectedGlobals.forceStopApp(appMeta);
+      });
+      applyAppRowTheme(row, label, iconWrapper, deleteBtn, null, null, null, null, null, forceQuitBtn);
+      right.append(forceQuitBtn);
+    } else {
+      applyAppRowTheme(row, label, iconWrapper, deleteBtn, null, null, null, null, null, null);
+    }
 
     deleteBtn.addEventListener("click", async () => {
-      let userConfirm = await window.protectedGlobals.showConfirmDialog("Delete App", "This will delete this app and all the data it wrote in it's own folder. (Note: If you accidentally deleted a system app you can recover it in the login page in the Reset System App section)");
+      const targetFolder = appMeta.folderName || "";
+      const deleteMessage = isInvalidPackage
+        ? `This folder is not a valid installed app package. Deleting it will remove the folder from /systemfiles/runtime/apps.`
+        : "This will delete this app and all the data it wrote in it's own folder. (Note: If you accidentally deleted a system app you can recover it in the login page in the Reset System App section)";
+      const userConfirm = await window.protectedGlobals.showConfirmDialog(isInvalidPackage ? "Delete App Folder" : "Delete App", deleteMessage);
       if (!userConfirm) return;
       deleteBtn.disabled = true;
       deleteBtn.textContent = "Deleting...";
       try {
-        await window.protectedGlobals.deleteApp(appMeta);
+        if (isInvalidPackage) {
+          await window.protectedGlobals.DeleteFolder(`/systemfiles/runtime/apps/${targetFolder}`);
+        } else {
+          await window.protectedGlobals.deleteApp(appMeta);
+        }
         await refreshAppList();
       } catch (err) {
         deleteBtn.disabled = false;
-        deleteBtn.textContent = "Delete";
+        deleteBtn.textContent = isInvalidPackage ? "Delete Folder" : "Delete";
         alert(`Failed to delete app folder: ${err.message || err}`);
       }
     });
 
-    right.append(forceQuitBtn, deleteBtn);
+    right.append(deleteBtn);
     row.append(left, right);
     appWrapper.appendChild(row);
 
-    if (appMeta.requestAdminPerm) {
+    if (isInvalidPackage) {
+      const detailsContainer = document.createElement("div");
+      detailsContainer.dataset.appRowPermsContainer = "true";
+      detailsContainer.style.display = "none";
+      detailsContainer.style.padding = "0 10px 8px 46px";
+      detailsContainer.style.fontSize = "12px";
+      detailsContainer.style.gap = "8px";
+      detailsContainer.style.flexDirection = "column";
+
+      const detailsText = document.createElement("div");
+      detailsText.textContent = "This app is not installed because its package is invalid or incomplete. The folder exists in /systemfiles/runtime/apps, but it did not pass the app validation checks required to register it as a usable application.";
+      detailsText.style.lineHeight = "1.5";
+
+      const folderText = document.createElement("div");
+      folderText.textContent = `Folder: ${appMeta.path || `/systemfiles/runtime/apps/${appMeta.folderName || "unknown"}`}`;
+      folderText.style.opacity = "0.8";
+      folderText.style.wordBreak = "break-word";
+
+      detailsContainer.append(detailsText, folderText);
+
+      const detailsBtn = document.createElement("button");
+      detailsBtn.dataset.appRowPermsToggle = "true";
+      detailsBtn.textContent = "Details";
+      detailsBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+      detailsBtn.style.borderRadius = "4px";
+      detailsBtn.style.padding = "3px 8px";
+      detailsBtn.style.fontSize = "11px";
+      detailsBtn.style.cursor = "pointer";
+      detailsBtn.style.background = window.protectedGlobals.data.dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)";
+      detailsBtn.style.color = "inherit";
+
+      detailsBtn.addEventListener("click", () => {
+        const isVisible = detailsContainer.style.display !== "none";
+        detailsContainer.style.display = isVisible ? "none" : "flex";
+        detailsBtn.dataset.expanded = String(!isVisible);
+        if (!isVisible) {
+          setTimeout(() => {
+            appWrapper.scrollIntoView({ behavior: "smooth", block: "end" });
+          }, 100);
+        }
+        applyAppRowTheme(row, label, iconWrapper, deleteBtn, null, null, null, null, detailsContainer, null);
+      });
+
+      right.appendChild(detailsBtn);
+      appWrapper.appendChild(detailsContainer);
+    } else if (appMeta.requestAdminPerm) {
       const adminPermsContainer = document.createElement("div");
       adminPermsContainer.dataset.appRowAdminPermsContainer = "true";
       adminPermsContainer.style.display = "none";
@@ -1070,16 +1135,43 @@ window.settings = function (posX = 50, posY = 50) {
     loading.style.color = window.protectedGlobals.data.dark ? "#ccc" : "#555";
     container.appendChild(loading);
     try {
-      const apps = window.protectedGlobals.apps;
+      const installedApps = Array.isArray(window.protectedGlobals.apps) ? [...window.protectedGlobals.apps] : [];
+      const installedNames = new Set(
+        installedApps
+          .map((app) => String(app.folderName || app.id || "").trim())
+          .filter(Boolean),
+      );
+
+      const folderEntries = await window.protectedGlobals.ReadFolder("/systemfiles/runtime/apps", { detail: true }).catch(() => []);
+      const invalidAppFolders = [];
+      for (const entry of folderEntries) {
+        const folderName = String((entry && entry.path) || "").split("/").pop();
+        if (!folderName || entry.type !== "folder") continue;
+        if (!installedNames.has(folderName)) {
+          invalidAppFolders.push({
+            folderName,
+            path: `/systemfiles/runtime/apps/${folderName}`,
+            invalidPackage: true,
+            requestAdminPerm: false,
+          });
+        }
+      }
+
+      const appList = [...installedApps, ...invalidAppFolders].sort((a, b) => {
+        const left = String(a.folderName || a.label || a.id || "").toLowerCase();
+        const right = String(b.folderName || b.label || b.id || "").toLowerCase();
+        return left.localeCompare(right);
+      });
+
       container.innerHTML = "";
-      if (!apps.length) {
+      if (!appList.length) {
         const empty = document.createElement("div");
         empty.textContent = "No installed apps found.";
         empty.style.color = window.protectedGlobals.data.dark ? "#ccc" : "#555";
         container.appendChild(empty);
         return;
       }
-      for (const appMeta of apps) {
+      for (const appMeta of appList) {
         container.appendChild(createAppItem(appMeta, refreshAppList));
       }
     } catch (e) {
@@ -1339,7 +1431,7 @@ window.settings = function (posX = 50, posY = 50) {
   disableNotificationsRow.style.marginTop = "8px";
 
   const disableNotificationsLabel = document.createElement("div");
-  disableNotificationsLabel.textContent = "Disable Notifications";
+  disableNotificationsLabel.textContent = "Disable Non-System Notifications";
   disableNotificationsLabel.style.fontSize = "13px";
 
   const disableNotificationsToggle = document.createElement("input");

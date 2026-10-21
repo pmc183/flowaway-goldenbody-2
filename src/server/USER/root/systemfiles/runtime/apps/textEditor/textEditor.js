@@ -134,7 +134,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
   window.protectedGlobals.startMenu.style.display = "none";
   let isMaximized = false;
   let _isMinimized = false;
-  const root = document.createElement("div");
+  let root = document.createElement("div");
   if (posX == 50 && posY == 50) {
     let pos = window.protectedGlobals.getNextWindowXY();
     posX = pos.x;
@@ -145,8 +145,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     position: "fixed",
     top: posY + "px",
     left: posX + "px",
-    width: "1000px",
-    height: "640px",
+    width: "850px",
+    height: "580px",
     boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
     borderRadius: "10px",
     overflow: "hidden",
@@ -268,6 +268,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     );
     if (index !== -1) window.textEditorGlobals.allTextEditors.splice(index, 1);
     window.protectedGlobals.removeAllEventListenersForApp("textEditor" + root._goldenbodyId);
+    root.innerHTML = "";
+    root = null;
   }
 
   function hideWindow() {
@@ -1015,8 +1017,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     applySavePickerTheme();
 
     const getUIMessage = (msg) => {
-      if ((window.protectedGlobals.notification)) window.protectedGlobals.notification(msg);
-      else window.protectedGlobals.notification(msg);
+      alert(msg);
     };
 
     return new Promise((resolve) => {
@@ -1044,7 +1045,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
             if (pickerCurrentPath.length === 1 && !selections.length)
               chosen = fname;
             else {
-              window.protectedGlobals.notification("Cannot select a file for save destination");
+              alert("Cannot select a file for save destination");
               throw new Error("Cannot select a file for save destination");
             }
           }
@@ -1261,7 +1262,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
       btnOpen.onclick = () => {
         const selections = [...pickerSelection];
-        if (!selections.length) return window.protectedGlobals.notification("Select a file or folder");
+        if (!selections.length) return alert("Select a file or folder");
 
         // Compute a full path for each selected item using the current picker path
         const basePath = pickerCurrentPath.slice(1).join("/");
@@ -1317,7 +1318,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
           break;
         }
       }
-      if (!picked) return window.protectedGlobals.notification("Please select a file to open");
+      if (!picked) return alert("Please select a file to open");
 
       // reconstruct path using the picker node path data
       const fullPath =

@@ -168,7 +168,7 @@ const saveTaskButtons = window.protectedGlobals.saveTaskButtons = function saveT
       }
     }
   }
-  if (!silence) window.protectedGlobals.notification("taskbuttons saved!");
+  if (!silence) alert("taskbuttons saved!");
   window.protectedGlobals.posttaskbuttons(postdata);
 }
 const bringToFront = window.protectedGlobals.bringToFront = function (el) {
@@ -700,36 +700,6 @@ setTimeout(() => {
 document.documentElement.style.filter = `brightness(${window.protectedGlobals.statusData && window.protectedGlobals.statusData.brightness}%)`;
 }, 1000);
 
-// Global window.protectedGlobals.notification helper: call window.protectedGlobals.notification("message") to show a temporary toast for 3s
-window.protectedGlobals.notification = function(message, options) {
-    if (!message && message !== 0) return;
-    options = options || {};
-
-    // theme detection: explicit option > data-theme attributes > protected theme state > data-dark flag > default
-    var dataDark = null;
-    if (window.protectedGlobals.data.dark !== undefined) dataDark = window.protectedGlobals.data.dark;
-    var themeCandidate = options.theme || (document.documentElement && document.documentElement.getAttribute('data-theme')) || (document.body && (document.body.getAttribute('data-theme') || document.body.dataset.theme)) || window.protectedGlobals.flowawayTheme || dataDark || null;
-    var theme = themeCandidate;
-
-    // normalize bool-like values
-    if (theme === true || theme === false) theme = theme ? 'dark' : 'light';
-    var t = String(theme).trim().toLowerCase();
-    if (t === 'true' || t === '1' || t === 'yes' || t === 'on') theme = 'dark';
-    else if (t === 'false' || t === '0' || t === 'no' || t === 'off') theme = 'light';
-    else theme = t;
-
-    if (!theme) {
-      var dd = (document.documentElement && document.documentElement.dataset && document.documentElement.dataset.dark) || (document.body && document.body.dataset && document.body.dataset.dark);
-      if (dd === true || dd === 1 || dd === 'true' || dd === '1' || dd === 'yes' || dd === 'on') {
-        theme = 'dark';
-      } else {
-        theme = 'light';
-      }
-    }
-
-    window.protectedGlobals.showModal("Notification", String(message), options.level || "info");
-    return null;
-  }
   let currentWindowXY = { x: 50, y: 50 };
   let cnt = -1;
   const dx = 50;

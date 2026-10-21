@@ -711,7 +711,7 @@ const showAppContextMenu = async function (x, y, app, canPin) {
         switchTab('pinned');
       } else if (action === 'unpin' || action === 'remove') {
         removeFromStartMenu(appId);
-        if (window.protectedGlobals.startMenu && window.protectedGlobals.startMenu.style.display !== 'none') {
+        if (window.protectedGlobals.startMenu.style.display !== 'none') {
           switchTab('pinned');
         }
       }

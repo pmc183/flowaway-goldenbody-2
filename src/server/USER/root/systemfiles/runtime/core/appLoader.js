@@ -18,55 +18,55 @@
   async function checkEntryObject(entryObj, folderName) {
     let status = true;
     if (!entryObj.id) {
-      window.protectedGlobals.notification("Invalid app ID");
+      alert("Invalid app ID");
       status = false;
     }
     if (entryObj.id.toLowerCase().includes("<script")) {
-      window.protectedGlobals.notification("App id cannot contain script tags");
+      alert("App id cannot contain script tags");
       status = false;
     }
     if (knownAppId.includes(entryObj.id)) {
-      window.protectedGlobals.notification(`Identifier ${entryObj.id} is already declared`);
+      alert(`Identifier ${entryObj.id} is already declared`);
       status = false;
     }
 
     if (!entryObj.jsFile) {
-      window.protectedGlobals.notification("Invalid app JS file");
+      alert("Invalid app JS file");
       status = false;
     }
     if (!entryObj.label && !entryObj.headless) {
-      window.protectedGlobals.notification("Invalid app label");
+      alert("Invalid app label");
       status = false;
     }
     if (entryObj.label && entryObj.label.toLowerCase().includes("<script")) {
-      window.protectedGlobals.notification("App label cannot contain script tags");
+      alert("App label cannot contain script tags");
       status = false;
     }
     if (!entryObj.iconFile && !entryObj.headless) {
-      window.protectedGlobals.notification("Invalid app icon file");
+      alert("Invalid app icon file");
       status = false;
     }
     if (entryObj.requestAdminPerm) {
       if (!entryObj.allAppArrayString) {
-        window.protectedGlobals.notification("Invalid app allAppArrayString");
+        alert("Invalid app allAppArrayString");
         status = false;
       }
 
       if (!entryObj.functionName) {
-        window.protectedGlobals.notification("Invalid app functionName");
+        alert("Invalid app functionName");
         status = false;
       }
       if (knownAppFuncs.includes(entryObj.functionName)) {
-        window.protectedGlobals.notification(`Identifier ${entryObj.functionName} is already declared`);
+        alert(`Identifier ${entryObj.functionName} is already declared`);
         status = false;
       }
 
       if (!entryObj.globalVarObjectString) {
-        window.protectedGlobals.notification("Invalid app globalVarObjectString");
+        alert("Invalid app globalVarObjectString");
         status = false;
       }
       if (knownAppGlobals.includes(entryObj.globalVarObjectString)) {
-        window.protectedGlobals.notification(`Identifier ${entryObj.globalVarObjectString} is already declared`);
+        alert(`Identifier ${entryObj.globalVarObjectString} is already declared`);
         status = false;
       }
     }
@@ -81,7 +81,7 @@
       let iconFileContents = await window.protectedGlobals.ReadFile(`/systemfiles/runtime/apps/${folderName}/${entryObj.iconFile}`, { buffer: true, direct: true });
       let iconFileContentText = new TextDecoder().decode(iconFileContents);
       if (iconFileContentText.toLowerCase().includes("<script")) {
-        window.protectedGlobals.notification("App icon file cannot contain script tags");
+        alert("App icon file cannot contain script tags");
         status = false;
         let indexes = [knownAppId.indexOf(entryObj.id), knownAppFuncs.indexOf(entryObj.functionName), knownAppGlobals.indexOf(entryObj.globalVarObjectString)];
         for (let i = 0; i < indexes.length; i++) {
@@ -222,7 +222,7 @@
     panel.style.minWidth = "400px";
     panel.style.maxWidth = "45vw";
     panel.style.maxHeight = "75vh";
-    panel.style.width = "640px";
+    panel.style.width = "580px";
     panel.style.resize = "both";
     panel.style.overflow = "hidden";
     panel.style.display = "flex";
@@ -662,7 +662,7 @@
       let entryObj = getEntryObj();
       window[entryObj.functionName] = function () {
         console.warn("App integrity check failed: jsKey.txt does not match master key for " + String(folderName));
-        window.protectedGlobals.notification(`unable to start app "${entryObj.label}" because of JS key check error, if you believe this is a mistake, use the fix account feature of the login page. (CODE: JSKEYMISMATCH)`);
+        alert(`unable to start app "${entryObj.label}" because of JS key check error, if you believe this is a mistake, use the fix account feature of the login page. (CODE: JSKEYMISMATCH)`);
       };
     }
     async function createIframeContainerAppFunction() {
@@ -1025,6 +1025,7 @@
         const pingInterval = setInterval(() => {
           try {
             if (pageHidden) return;
+            if (!iframe.isConnected) instance.closeWindow(true);
             // Keep pinging the app once per second.
             iframe.contentWindow.postMessage(
               {
@@ -1331,9 +1332,7 @@
             confirmed = await window.protectedGlobals.showConfirmDialog("Close App", "Are you sure you want to close this app instance? Changes may not be saved.", "Close", "Cancel");
           }
           if (!confirmed) return;
-          if (window.protectedGlobals.clearAppInstanceWatchers) {
-            window.protectedGlobals.clearAppInstanceWatchers(iframe.contentWindow);
-          }
+          window.protectedGlobals.clearAppInstanceWatchers(iframe.contentWindow);
           origClose(force);
           clearInterval(pingInterval);
           window.removeEventListener("message", pongHandler);

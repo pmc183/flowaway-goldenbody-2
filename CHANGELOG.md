@@ -190,3 +190,9 @@
 - added disable notifications
 - added an update system button for those who dont use autoupdate
 - reminder: you can take screenshot via ctrl+shift+s, it is saved in /screenshot now.
+
+## V 2.6.2
+- Fixed some memory leak to the best of my ability.
+- malformed app packages will also show in the app list in settings.
+- various bug fixes.
+- tweaked default window sizes.

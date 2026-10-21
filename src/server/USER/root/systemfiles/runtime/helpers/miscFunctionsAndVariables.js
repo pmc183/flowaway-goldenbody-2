@@ -201,8 +201,8 @@ console.error(
 );
 }
 
-window.protectedGlobals.showModal = function(title, body, level) {
-  if (window.protectedGlobals.data.disableNotifications) return;
+window.protectedGlobals.showModal = function(title, body, level, forceModal) {
+  if (window.protectedGlobals.data.disableNotifications && !forceModal) return;
   var isDark = true;
   var darkVal = null;
   if (typeof window.protectedGlobals.data.dark !== "undefined") darkVal = window.protectedGlobals.data.dark;
@@ -311,9 +311,11 @@ window.protectedGlobals.showModal = function(title, body, level) {
 }
 
 window.alert = function (message) {
-  window.protectedGlobals.showModal("Notification", String(message || ""), "info");
+  window.protectedGlobals.showModal("System Notification", String(message || ""), "info", true);
 };
-
+window.softAlert = function (message) {
+  window.protectedGlobals.showModal("Notification", String(message || ""), "info", false);
+}
 window.protectedGlobals.showConfirmDialog = (title, message, okText, cancelText) => {
     return new Promise((resolve) => {
       document.getElementById("confirm-dialog")?.remove();
@@ -447,6 +449,7 @@ window.protectedGlobals.rebuildhandler = function () {
     f.src = "about:blank";
     f.contentWindow && f.contentWindow.close && f.contentWindow.close();
     if ((f.remove)) f.remove();
+    f = null;
   });
 
   if (
@@ -522,19 +525,24 @@ window.protectedGlobals.rebuildhandler = function () {
     delete window.protectedGlobals.systemAPIs.applyTaskButtonsRetryTimer;
   }
 
-  // Remove all children from the documentElement (head/body) to get a clean slate
-  var docEl = document.documentElement;
-  while (docEl.firstChild) docEl.removeChild(docEl.firstChild);
+  // remove body
+  document.body.innerHTML = "";
+(() => {
+  // 1. Track down your old body references
+  let oldBody = document.body;
 
-  // Recreate minimal head and body so we can inject ouchbad.js reliably
-  var head = document.createElement("head");
-  var meta = document.createElement("meta");
-  meta.setAttribute("charset", "utf-8");
-  head.appendChild(meta);
-  docEl.appendChild(head);
+  // 2. Create the new body
+  const newBody = document.createElement('body');
+  // ... set up newBody contents ...
 
-  var body = document.createElement("body");
-  docEl.appendChild(body);
+  // 3. Swap them in the document element (<html>)
+  document.documentElement.replaceChild(newBody, oldBody);
+
+  // 4. CRITICAL: Break the memory chains
+  oldBody.innerHTML = ''; // Wipes out all child nodes from memory
+  oldBody = null;         // Nullifies your primary variable reference
+})();
+
   // Inject homepage loader
   var script = document.createElement("script");
   script.src = "ouchbad.js";

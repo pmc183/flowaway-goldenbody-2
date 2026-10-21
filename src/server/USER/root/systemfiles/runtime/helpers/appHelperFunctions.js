@@ -34,7 +34,7 @@ window.protectedGlobals.resolveApptoolsContext = function (appId, rootElement) {
 
 window.protectedGlobals.launchApp = async function (appId, args) {
   if (!window.protectedGlobals.appsButtonsApplied) {
-    window.protectedGlobals.notification("Apps are still loading, please wait a moment and try again.");
+    alert("Apps are still loading, please wait a moment and try again.");
     return;
   }
   var app = (window.protectedGlobals.apps || []).find((a) => window.protectedGlobals.appMatchesIdentifier(a, appId));
@@ -297,7 +297,7 @@ window.protectedGlobals.applyWindowControlIcon = function (button, iconName, opt
     };
 
     // Add a resize handler that reapplies sizing to tracked controls
-    if (window.protectedGlobals.systemAPIs && window.protectedGlobals.systemAPIs.onResize)
+    if (window.protectedGlobals.systemAPIs.onResize)
       window.removeEventListener("resize", window.protectedGlobals.systemAPIs.onResize);
     window.protectedGlobals.systemAPIs = window.protectedGlobals.systemAPIs || {};
     window.protectedGlobals.systemAPIs.onResize = function () {
@@ -599,7 +599,7 @@ window.protectedGlobals.showUnifiedAppContextMenu = function (e, appOverride = n
     if (menuClosed) return;
     menuClosed = true;
     nativeMenuRemove();
-    if (window.protectedGlobals.systemAPIs && window.protectedGlobals.systemAPIs.onAppMenuOutsidePointerDown) {
+    if (window.protectedGlobals.systemAPIs.onAppMenuOutsidePointerDown) {
       document.removeEventListener(
         "pointerdown",
         window.protectedGlobals.systemAPIs.onAppMenuOutsidePointerDown,
@@ -607,7 +607,7 @@ window.protectedGlobals.showUnifiedAppContextMenu = function (e, appOverride = n
       );
       delete window.protectedGlobals.systemAPIs.onAppMenuOutsidePointerDown;
     }
-    if (window.protectedGlobals.systemAPIs && window.protectedGlobals.systemAPIs.onAppMenuEscapeKey) {
+    if (window.protectedGlobals.systemAPIs.onAppMenuEscapeKey) {
       document.removeEventListener(
         "keydown",
         window.protectedGlobals.systemAPIs.onAppMenuEscapeKey,

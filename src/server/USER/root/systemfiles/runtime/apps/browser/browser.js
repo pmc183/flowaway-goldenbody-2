@@ -67,7 +67,7 @@ window.browser = async function (
       posX = pos.x;
       posY = pos.y;
     }
-    if (!window.browserGlobals.allocateBrowserGoldenbodyId) window.protectedGlobals.notification("There's a problem with the browser app. Please restart the runtime and try again.");
+    if (!window.browserGlobals.allocateBrowserGoldenbodyId) alert("There's a problem with the browser app. Please restart the runtime and try again.");
     let assignedId = window.browserGlobals.allocateBrowserGoldenbodyId();
     let scopedListenerId = "Browser" + assignedId;
     let getRoot = () => {};
@@ -603,7 +603,7 @@ setTimeout(() => {
           btnCreate.onclick = async () => {
             const name = String(nameInput.value || "").trim();
             const script = String(scriptArea.value || "");
-            if (!name) return window.protectedGlobals.notification && window.protectedGlobals.notification("Name required");
+            if (!name) return alert("Name required");
             btnCreate.disabled = true;
             btnCreate.textContent = "Creating...";
             btnCreate.style.opacity = "0.8";
@@ -616,7 +616,7 @@ setTimeout(() => {
                 if (sub && Array.isArray(sub)) already = true;
               } catch (e) { already = false; }
               if (already) {
-                window.protectedGlobals.notification && window.protectedGlobals.notification("Folder already exists");
+                alert("Folder already exists");
                 btnCreate.disabled = false;
                 btnCreate.textContent = "Create";
                 btnCreate.style.opacity = "1";
@@ -628,14 +628,14 @@ setTimeout(() => {
               await window.protectedGlobals.WriteFile(folderPath + "/active.txt", "true", { text: true });
               if (activatedUserscriptNames.indexOf(safeFolder) === -1) activatedUserscriptNames.push(safeFolder);
               try { window.browserGlobals.userscripts = window.browserGlobals.userscripts || {}; window.browserGlobals.userscripts[safeFolder] = script || ""; } catch (e) {}
-              window.protectedGlobals.notification && window.protectedGlobals.notification("Created");
+              alert("Created");
               dlg.remove();
               resolve({ name, script, created: true });
             } catch (e) {
               btnCreate.disabled = false;
               btnCreate.textContent = "Create";
               btnCreate.style.opacity = "1";
-              window.protectedGlobals.notification && window.protectedGlobals.notification("Error creating userscript");
+              alert("Error creating userscript");
             }
           };
           btnRow.appendChild(btnCancel);
@@ -777,9 +777,9 @@ setTimeout(() => {
               // remove from in-memory map when deactivated
               try { if (window.browserGlobals && window.browserGlobals.userscripts) delete window.browserGlobals.userscripts[entry]; } catch (e) {}
             }
-            try { window.protectedGlobals.notification && window.protectedGlobals.notification("Saved"); } catch (e) {}
+            try { alert("Saved"); } catch (e) {}
           } catch (e) {
-            try { window.protectedGlobals.notification && window.protectedGlobals.notification("Error saving active state"); } catch (er) {}
+            try { alert("Error saving active state"); } catch (er) {}
           }
         });
 
@@ -851,7 +851,7 @@ setTimeout(() => {
               btnSave.onclick = () => {
                 const name = String(nameInput.value || "").trim();
                 const script = String(scriptArea.value || "");
-                if (!name) return window.protectedGlobals.notification && window.protectedGlobals.notification("Name required");
+                if (!name) return alert("Name required");
                 dlg.remove();
                 resolve({ name, script });
               };
@@ -868,11 +868,11 @@ setTimeout(() => {
               await window.protectedGlobals.WriteFile(folderPath + "/name.txt", data.name, { text: true });
                 // update in-memory copy immediately
                 try { window.browserGlobals.userscripts = window.browserGlobals.userscripts || {}; window.browserGlobals.userscripts[entry] = data.script || ""; } catch (e) {}
-              window.protectedGlobals.notification && window.protectedGlobals.notification("Saved");
+              alert("Saved");
               panel.remove();
               showUserscriptDialogue();
             } catch (e) {
-              window.protectedGlobals.notification && window.protectedGlobals.notification("Error saving userscript");
+              alert("Error saving userscript");
             }
           }
         };
@@ -886,11 +886,11 @@ setTimeout(() => {
                 const di = activatedUserscriptNames.indexOf(entry);
                 if (di !== -1) activatedUserscriptNames.splice(di, 1);
                 try { if (window.browserGlobals && window.browserGlobals.userscripts) delete window.browserGlobals.userscripts[entry]; } catch (e) {}
-                window.protectedGlobals.notification && window.protectedGlobals.notification("Deleted");
+                alert("Deleted");
                 panel.remove();
                 showUserscriptDialogue();
               } catch (e) {
-                window.protectedGlobals.notification && window.protectedGlobals.notification("Error deleting userscript");
+                alert("Error deleting userscript");
               }
             },
           });
@@ -964,7 +964,7 @@ setTimeout(() => {
           btnCreate.style.cssText = "background:#4c8bf5;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;";
           btnCreate.onclick = async () => {
             const name = String(nameInput.value || "").trim();
-            if (!name) return window.protectedGlobals.notification && window.protectedGlobals.notification("Name required");
+            if (!name) return alert("Name required");
             btnCreate.disabled = true;
             btnCreate.textContent = "Creating...";
             btnCreate.style.opacity = "0.8";
@@ -1003,14 +1003,14 @@ setTimeout(() => {
               const lines = content.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
               if (lines.indexOf(safeName) === -1) lines.push(safeName);
               await window.protectedGlobals.WriteFile(listPath, lines.join("\n"), { text: true });
-              window.protectedGlobals.notification && window.protectedGlobals.notification("Profile created");
+              alert("Profile created");
               dlg.remove();
               resolve({ name, created: true });
             } catch (e) {
               btnCreate.disabled = false;
               btnCreate.textContent = "Create";
               btnCreate.style.opacity = "1";
-              window.protectedGlobals.notification && window.protectedGlobals.notification("Error creating profile");
+              alert("Error creating profile");
             }
           };
           btnRow.appendChild(btnCancel);
@@ -1167,9 +1167,9 @@ setTimeout(() => {
             try {
               await window.protectedGlobals.WriteFile(defaultPath, p, { text: true });
             } catch (e) {}
-            window.protectedGlobals.notification && window.protectedGlobals.notification("Switched profile to " + p + ". Reload tabs for it to take effect.");
+            alert("Switched profile to " + p + ". Reload tabs for it to take effect.");
           } catch (e) {
-            window.protectedGlobals.notification && window.protectedGlobals.notification("Switched profile to " + p);
+            alert("Switched profile to " + p);
           }
           panel.remove();
         };
@@ -1195,11 +1195,11 @@ setTimeout(() => {
                   if (idx !== -1) lines2.splice(idx, 1);
                   await window.protectedGlobals.WriteFile(listPath, lines2.join("\n"), { text: true });
                 } catch (e) {}
-                window.protectedGlobals.notification && window.protectedGlobals.notification("Deleted profile " + p);
+                alert("Deleted profile " + p);
                 panel.remove();
                 showProfileDialogue();
               } catch (e) {
-                window.protectedGlobals.notification && window.protectedGlobals.notification("Error deleting profile");
+                alert("Error deleting profile");
               }
             },
           });
@@ -1518,7 +1518,7 @@ setTimeout(() => {
             loadingText: "Clearing...",
             onConfirm: async () => {
               await window.browserGlobals.clearCookiesForSite(website);
-              window.protectedGlobals.notification("cookies cleared for this site");
+              alert("cookies cleared for this site");
             },
           },
         );
@@ -1534,7 +1534,7 @@ setTimeout(() => {
             loadingText: "Clearing...",
             onConfirm: async () => {
               await window.browserGlobals.clearLocalStorageForSite(website);
-              window.protectedGlobals.notification(
+              alert(
                 "localstorage cleared for this site",
               );
             },
@@ -1552,7 +1552,7 @@ setTimeout(() => {
             loadingText: "Clearing...",
             onConfirm: async () => {
               await window.protectedGlobals.DeleteFolder("/systemfiles/runtime/apps/browser/" + getCurProfileName() + "/localstorage/indexedDB/" + new URL(website).hostname);
-              window.protectedGlobals.notification(
+              alert(
                 "indexeddb cleared for this site",
               );
             },
@@ -1592,7 +1592,7 @@ setTimeout(() => {
 
     apply.onclick = () => {
       // ===== LOGIC HOOK (YOU IMPLEMENT) =====
-      window.protectedGlobals.notification(
+      alert(
         "reload this page to apply your updated settings!",
       );
 
@@ -1635,8 +1635,8 @@ setTimeout(() => {
       position: "fixed",
       top: posY + "px",
       left: posX + "px",
-      width: "1000px",
-      height: "640px",
+      width: "850px",
+      height: "580px",
       boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
       borderRadius: "10px",
       overflow: "hidden",
@@ -2101,6 +2101,7 @@ setTimeout(() => {
         root.dataset.appId + root._goldenbodyId,
       );
       window.browserGlobals.releaseBrowserGoldenbodyId(root);
+      root.innerHTML = "";
       root = null;
     }
 
@@ -2311,18 +2312,18 @@ setTimeout(() => {
       btnDownload.style.color = "#fff";
       btnDownload.onclick = async () => {
         const url = (input.value || "").trim();
-        if (!url) return window.protectedGlobals.notification("Enter a URL");
+        if (!url) return alert("Enter a URL");
         const filename = computeName(url);
         try {
           if ((window.protectedGlobals.downloadPost)) {
             await window.protectedGlobals.downloadPost({ href: url, filename });
-            window.protectedGlobals.notification("Download request sent");
+            alert("Download request sent");
           } else {
-            window.protectedGlobals.notification("downloadPost not available");
+            alert("downloadPost not available");
           }
         } catch (e) {
           console.error("downloadPost error", e);
-          window.protectedGlobals.notification("Download failed to start");
+          alert("Download failed to start");
         }
         cleanup();
       };
@@ -2693,7 +2694,7 @@ setTimeout(() => {
             window.browserGlobals.profileState.siteZoom = {};
             await window.browserGlobals.clearAllCookies();
             await window.browserGlobals.clearAllLocalStorage();
-            window.protectedGlobals.notification(
+            alert(
               "site data cleared! please close all browser windows!",
             );
           },
@@ -3552,7 +3553,7 @@ setTimeout(() => {
           return;
         } catch (e) {
           tab.history.suppressNextRecord = false;
-          window.protectedGlobals.notification(
+          alert(
             "Unable to open file from history",
           );
           return;
@@ -3717,6 +3718,8 @@ setTimeout(() => {
       cleanupLocalFileNav(tabs[idx]);
       tabs[idx].iframe.src = "about:blank";
       tabs[idx].iframe.remove();
+      // wipe out iframe from memory
+      tabs[idx].iframe = null;
       tabs.splice(idx, 1);
 
       if (removingActive) {
@@ -3922,7 +3925,7 @@ setTimeout(() => {
       const tab = tabs[tabIndex];
       const input = String(rawUrl || "").trim();
       if (!input) {
-        window.protectedGlobals.notification("Enter a URL or file path");
+        alert("Enter a URL or file path");
         return;
       }
 
@@ -3952,7 +3955,7 @@ setTimeout(() => {
           urlInput.value = localNav.displayUrl;
           return;
         } catch (err) {
-          window.protectedGlobals.notification(
+          alert(
             `Unable to open file: ${String(err && err.message ? err.message : err)}`,
           );
           return;
@@ -4037,7 +4040,7 @@ setTimeout(() => {
           tab.history.currentCanonical = prevHistorySnapshot.currentCanonical;
           tab.history.suppressNextRecord =
             prevHistorySnapshot.suppressNextRecord;
-          window.protectedGlobals.notification("Navigation failed");
+          alert("Navigation failed");
           return;
         }
       }
