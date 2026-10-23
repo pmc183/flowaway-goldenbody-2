@@ -213,17 +213,54 @@ function decodeUTF8(bytes) {
    ZIP STRUCTURES
 ========================================================= */
 
-function createLocalHeader(nameBytes, crc, size) {
+function normalizeCompressionLevel(value) {
+    const numeric = Number(value);
+
+    if (!Number.isFinite(numeric) || !Number.isInteger(numeric)) {
+        return 0;
+    }
+
+    return Math.max(0, Math.min(9, numeric));
+}
+
+async function compressZipPayload(data, level = 0) {
+    if (!data || data.length === 0 || level === 0) {
+        return {
+            method: 0,
+            bytes: new Uint8Array(data || [])
+        };
+    }
+
+    if (!("CompressionStream" in window)) {
+        return {
+            method: 0,
+            bytes: new Uint8Array(data || [])
+        };
+    }
+
+    const stream = new Blob([data])
+        .stream()
+        .pipeThrough(new CompressionStream("deflate-raw"));
+
+    const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+
+    return {
+        method: 8,
+        bytes: compressed
+    };
+}
+
+function createLocalHeader(nameBytes, crc, compressedSize, uncompressedSize, method = 0) {
     return concatBytes(
         u32(0x04034b50),
         u16(20),
         u16(0),
-        u16(0),
+        u16(method),
         u16(0),
         u16(0),
         u32(crc),
-        u32(size),
-        u32(size),
+        u32(compressedSize),
+        u32(uncompressedSize),
         u16(nameBytes.length),
         u16(0),
         nameBytes
@@ -233,20 +270,22 @@ function createLocalHeader(nameBytes, crc, size) {
 function createCentralHeader(
     nameBytes,
     crc,
-    size,
-    offset
+    compressedSize,
+    uncompressedSize,
+    offset,
+    method = 0
 ) {
     return concatBytes(
         u32(0x02014b50),
         u16(20),
         u16(20),
         u16(0),
-        u16(0),
+        u16(method),
         u16(0),
         u16(0),
         u32(crc),
-        u32(size),
-        u32(size),
+        u32(compressedSize),
+        u32(uncompressedSize),
         u16(nameBytes.length),
         u16(0),
         u16(0),
@@ -335,9 +374,11 @@ async function collectFolderFiles(folderHandle, relativePath = "") {
    CREATE ZIP
 ========================================================= */
 
-async function createZip(sourceHandle, sourceType) {
+async function createZip(sourceHandle, sourceType, compressionLevel = 0) {
     const localParts = [];
     const centralParts = [];
+
+    const effectiveLevel = normalizeCompressionLevel(compressionLevel);
 
     let offset = 0;
     let entryCount = 0;
@@ -452,14 +493,20 @@ async function createZip(sourceHandle, sourceType) {
                         }
                     );
 
-                const data =
+                const rawData =
                     new Uint8Array(
                         fileResult.fileContent ||
                         fileResult
                     );
 
+                const compressed =
+                    await compressZipPayload(
+                        rawData,
+                        effectiveLevel
+                    );
+
                 const checksum =
-                    crc32(data);
+                    crc32(rawData);
 
                 const nameBytes =
                     textBytes(archivePath);
@@ -468,20 +515,24 @@ async function createZip(sourceHandle, sourceType) {
                     createLocalHeader(
                         nameBytes,
                         checksum,
-                        data.length
+                        compressed.bytes.length,
+                        rawData.length,
+                        compressed.method
                     );
 
                 const centralHeader =
                     createCentralHeader(
                         nameBytes,
                         checksum,
-                        data.length,
-                        offset
+                        compressed.bytes.length,
+                        rawData.length,
+                        offset,
+                        compressed.method
                     );
 
                 localParts.push(
                     localHeader,
-                    data
+                    compressed.bytes
                 );
 
                 centralParts.push(
@@ -490,7 +541,7 @@ async function createZip(sourceHandle, sourceType) {
 
                 offset +=
                     localHeader.length +
-                    data.length;
+                    compressed.bytes.length;
 
                 entryCount++;
             }
@@ -524,14 +575,20 @@ async function createZip(sourceHandle, sourceType) {
                 }
             );
 
-        const data =
+        const rawData =
             new Uint8Array(
                 fileResult.fileContent ||
                 fileResult
             );
 
+        const compressed =
+            await compressZipPayload(
+                rawData,
+                effectiveLevel
+            );
+
         const checksum =
-            crc32(data);
+            crc32(rawData);
 
         const nameBytes =
             textBytes(name);
@@ -540,20 +597,24 @@ async function createZip(sourceHandle, sourceType) {
             createLocalHeader(
                 nameBytes,
                 checksum,
-                data.length
+                compressed.bytes.length,
+                rawData.length,
+                compressed.method
             );
 
         const centralHeader =
             createCentralHeader(
                 nameBytes,
                 checksum,
-                data.length,
-                offset
+                compressed.bytes.length,
+                rawData.length,
+                offset,
+                compressed.method
             );
 
         localParts.push(
             localHeader,
-            data
+            compressed.bytes
         );
 
         centralParts.push(
@@ -562,7 +623,7 @@ async function createZip(sourceHandle, sourceType) {
 
         offset +=
             localHeader.length +
-            data.length;
+            compressed.bytes.length;
 
         entryCount = 1;
     }
@@ -645,6 +706,8 @@ async function zipFile() {
     updateButtons();
 
     try {
+        const level = normalizeCompressionLevel(compressionLevelInput.value);
+
         /*
          * IMPORTANT:
          * This function ONLY calls showOpenFilePicker().
@@ -664,7 +727,8 @@ async function zipFile() {
         const result =
             await createZip(
                 fileHandle,
-                "file"
+                "file",
+                level
             );
 
         setStatus(
@@ -700,6 +764,8 @@ async function zipFolder() {
     updateButtons();
 
     try {
+        const level = normalizeCompressionLevel(compressionLevelInput.value);
+
         /*
          * IMPORTANT:
          * This function ONLY calls showDirectoryPicker().
@@ -719,7 +785,8 @@ async function zipFolder() {
         const result =
             await createZip(
                 folderHandle,
-                "folder"
+                "folder",
+                level
             );
 
         setStatus(
@@ -1356,6 +1423,41 @@ const sectionTitle =
         }
     );
 
+const compressionLabel =
+    el(
+        "div",
+        {
+            textContent: "Compression level (0-9)",
+            style: {
+                color: "#d1d5db",
+                fontSize: "13px",
+                marginBottom: "8px"
+            }
+        }
+    );
+
+const compressionLevelInput =
+    el(
+        "input",
+        {
+            type: "number",
+            min: "0",
+            max: "9",
+            step: "1",
+            value: "0",
+            style: {
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid #4b5563",
+                background: "#0f172a",
+                color: "#f3f4f6",
+                marginBottom: "16px"
+            }
+        }
+    );
+
 const zipButtons =
     el(
         "div",
@@ -1497,6 +1599,8 @@ info.textContent =
     "ZIP64 archives are not supported.";
 
 card.appendChild(sectionTitle);
+card.appendChild(compressionLabel);
+card.appendChild(compressionLevelInput);
 card.appendChild(zipButtons);
 card.appendChild(extractTitle);
 card.appendChild(unzipButton);

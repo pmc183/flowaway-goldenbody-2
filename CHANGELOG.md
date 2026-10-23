@@ -196,3 +196,8 @@
 - malformed app packages will also show in the app list in settings.
 - various bug fixes.
 - tweaked default window sizes.
+
+## V 2.6.3
+- Fixed a docs mismatch with the real writeline api in CLI.
+- removed legacy trailing /root/ in front of path more.
+- added zip and unzip for zipUtility app.

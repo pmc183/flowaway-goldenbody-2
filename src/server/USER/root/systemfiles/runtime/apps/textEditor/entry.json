@@ -14,6 +14,11 @@
   ,
   "commands": [
     {
+      "name": "help",
+      "src": "commands/help.js",
+      "receive_onkill_handler": false
+    },
+    {
       "name": "writefile",
       "src": "commands/writefile.js",
       "receive_onkill_handler": false

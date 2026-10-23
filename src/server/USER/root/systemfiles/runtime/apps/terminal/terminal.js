@@ -113,55 +113,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
       prompt.style.paddingTop = input.style.paddingTop;
     }
 
-    function normalizeLineStyleArgs(text, arg2, arg3, arg4) {
-      const value = text === null || typeof text === 'undefined' ? '' : String(text);
-      let font = '';
-      let color = '';
-      let size = null;
-
-      if (arguments.length > 1 && (typeof arg2 === 'string' || typeof arg2 === 'number' || arg2 === null || typeof arg2 === 'undefined')) {
-        if (arguments.length >= 4 && (typeof arg4 === 'number' || arg4 === null || typeof arg4 === 'undefined') && (typeof arg3 === 'string' || arg3 === null || typeof arg3 === 'undefined')) {
-          font = String(arg2 || '');
-          color = String(arg3 || '');
-          size = Number.isFinite(Number(arg4)) ? Number(arg4) : null;
-        } else if (typeof arg2 === 'string' && String(arg2).trim() !== '' && (typeof arg3 === 'string' || arg3 === null || typeof arg3 === 'undefined')) {
-          const maybeFont = String(arg2 || '');
-          const maybeColor = String(arg3 || '');
-          const maybeSize = arguments.length >= 4 ? (Number.isFinite(Number(arg4)) ? Number(arg4) : null) : null;
-          if (maybeColor && (maybeColor.toLowerCase().includes('rgb') || maybeColor.startsWith('#') || maybeColor.startsWith('hsl') || maybeColor.startsWith('var(') || maybeColor.includes('white') || maybeColor.includes('black') || maybeColor.includes('green') || maybeColor.includes('red') || maybeColor.includes('blue') || maybeColor.includes('gray'))) {
-            color = maybeColor;
-            font = maybeFont;
-            size = maybeSize;
-          } else {
-            color = maybeFont;
-            font = maybeColor;
-            size = maybeSize;
-          }
-        } else if (typeof arg2 === 'string' || arg2 === null || typeof arg2 === 'undefined') {
-          color = String(arg2 || '');
-          if (typeof arg3 === 'number' || arg3 === null || typeof arg3 === 'undefined') {
-            size = Number.isFinite(Number(arg3)) ? Number(arg3) : null;
-          }
-          if (typeof arg4 === 'string' || arg4 === null || typeof arg4 === 'undefined') {
-            font = String(arg4 || '');
-          }
-        }
-      }
-
-      if (typeof arg2 === 'number' || typeof arg3 === 'number' || typeof arg4 === 'number') {
-        const numeric = [arg2, arg3, arg4].find((entry) => typeof entry === 'number' && Number.isFinite(Number(entry)));
-        if (typeof numeric === 'number') size = Number(numeric);
-      }
-
-      if (typeof arg2 === 'string' && typeof arg3 === 'string' && typeof arg4 === 'number') {
-        font = String(arg2 || '');
-        color = String(arg3 || '');
-        size = Number.isFinite(Number(arg4)) ? Number(arg4) : null;
-      }
-
-      return { text: value, font: String(font || input.style.fontFamily || 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace'), color: String(color || input.style.color || '#e6e6e6'), size: Number.isFinite(Number(size)) ? Number(size) : null };
-    }
-
     function renderCommandEcho(commandText) {
       const raw = String(commandText ?? "").trim();
       if (!raw) return;
@@ -392,11 +343,10 @@ window.terminal = function (path, posX = 50, posY = 50) {
       };
 
       const updateStyle = (nextText, nextFont, nextColor, nextSize) => {
-        const resolved = normalizeLineStyleArgs(nextText, nextFont, nextColor, nextSize);
-        state.text = resolved.text;
-        state.font = resolved.font;
-        state.color = resolved.color;
-        state.size = Number.isFinite(Number(resolved.size)) ? Number(resolved.size) : null;
+        state.text = nextText;
+        state.font = nextFont;
+        state.color = nextColor;
+        state.size = Number.isFinite(Number(nextSize)) ? Number(nextSize) : 14;
 
         lineElement.textContent = state.text;
         lineElement.style.color = state.color;
@@ -421,7 +371,12 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     function printLine(text, klass, styleOptions = {}) {
-      const resolved = normalizeLineStyleArgs(text, styleOptions && styleOptions.font, styleOptions && styleOptions.color, styleOptions && styleOptions.size);
+      const resolved = {
+        text: String(text || ''),
+        font: styleOptions && styleOptions.font ? String(styleOptions.font) : input.style.fontFamily,
+        color: styleOptions && styleOptions.color ? String(styleOptions.color) : input.style.color,
+        size: Number.isFinite(Number(styleOptions && styleOptions.size)) ? Number(styleOptions.size) : 14
+      };
       const line = document.createElement("div");
       line.textContent = resolved.text;
       if (klass) line.className = klass;
@@ -444,11 +399,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
       output.scrollTop = output.scrollHeight;
       if (input && typeof input.scrollIntoView === 'function') input.scrollIntoView();
       return createLineHandle(line, resolved.text, { font: resolved.font, color: resolved.color, size: resolved.size });
-    }
-
-    function writeline(text, arg2, arg3, arg4) {
-      const resolved = normalizeLineStyleArgs(text, arg2, arg3, arg4);
-      return printLine(resolved.text, "", { color: resolved.color, size: resolved.size, font: resolved.font });
     }
 
     function printError(err) {
@@ -750,44 +700,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
           const _promptPending = new Map();
           const _lineHandles = new Map();
           function nextId(){ return String(++_reqId); }
-          function normalizeLineArgs(text, arg2, arg3, arg4) {
-            const value = text === null || typeof text === 'undefined' ? '' : String(text);
-            let color = '';
-            let size = null;
-            let font = '';
-
-            if (arguments.length > 1 && (typeof arg2 === 'string' || typeof arg2 === 'number' || arg2 === null || typeof arg2 === 'undefined')) {
-              if (arguments.length >= 4 && (typeof arg4 === 'number' || arg4 === null || typeof arg4 === 'undefined') && (typeof arg3 === 'string' || arg3 === null || typeof arg3 === 'undefined')) {
-                font = String(arg2 || '');
-                color = String(arg3 || '');
-                size = Number.isFinite(Number(arg4)) ? Number(arg4) : null;
-              } else if (typeof arg2 === 'string' && (typeof arg3 === 'string' || arg3 === null || typeof arg3 === 'undefined')) {
-                const candidateColor = String(arg2 || '');
-                const candidateFont = String(arg3 || '');
-                const numericSize = arguments.length >= 4 ? (Number.isFinite(Number(arg4)) ? Number(arg4) : null) : null;
-                if (candidateColor && (candidateColor.toLowerCase().includes('rgb') || candidateColor.startsWith('#') || candidateColor.startsWith('hsl') || candidateColor.startsWith('var(') || candidateColor.includes('white') || candidateColor.includes('black') || candidateColor.includes('green') || candidateColor.includes('red') || candidateColor.includes('blue') || candidateColor.includes('gray'))) {
-                  color = candidateColor;
-                  font = candidateFont;
-                  size = numericSize;
-                } else {
-                  color = candidateFont || candidateColor;
-                  font = candidateColor && candidateFont ? candidateFont : '';
-                  size = numericSize;
-                }
-              } else if (typeof arg2 === 'string' || arg2 === null || typeof arg2 === 'undefined') {
-                color = String(arg2 || '');
-                if (typeof arg3 === 'number' || arg3 === null || typeof arg3 === 'undefined') size = Number.isFinite(Number(arg3)) ? Number(arg3) : null;
-                if (typeof arg4 === 'string' || arg4 === null || typeof arg4 === 'undefined') font = String(arg4 || '');
-              }
-            }
-
-            if (typeof arg2 === 'number' || typeof arg3 === 'number' || typeof arg4 === 'number') {
-              const numeric = [arg2, arg3, arg4].find((entry) => typeof entry === 'number' && Number.isFinite(Number(entry)));
-              if (typeof numeric === 'number') size = Number(numeric);
-            }
-
-            return { text: value, font: String(font || ''), color: String(color || ''), size: Number.isFinite(Number(size)) ? Number(size) : null };
-          }
           function makeLineHandle(id, initialText, initialArgs) {
             const handle = {
               id,
@@ -796,7 +708,12 @@ window.terminal = function (path, posX = 50, posY = 50) {
               color: initialArgs && initialArgs.color ? String(initialArgs.color) : '',
               size: Number.isFinite(Number(initialArgs && initialArgs.size)) ? Number(initialArgs.size) : null,
               rewriteLine: function (...args) {
-                const spec = normalizeLineArgs(args[0], args[1], args[2], args[3]);
+                const spec = {
+                  text: args[0] !== undefined && args[0] !== null ? String(args[0]) : this.text,
+                  font: args[1] !== undefined && args[1] !== null ? String(args[1]) : this.font,
+                  color: args[2] !== undefined && args[2] !== null ? String(args[2]) : this.color,
+                  size: Number.isFinite(Number(args[3])) ? Number(args[3]) : this.size,
+                }
                 postMessage({ type: 'lineUpdate', id, text: spec.text, font: spec.font, color: spec.color, size: spec.size });
                 this.text = spec.text;
                 this.font = spec.font;
@@ -944,7 +861,12 @@ window.terminal = function (path, posX = 50, posY = 50) {
             },
             writeline: function (...args) {
               const id = nextId();
-              const spec = normalizeLineArgs(args[0], args[1], args[2], args[3]);
+              const spec = {
+                text: args[0] !== undefined && args[0] !== null ? String(args[0]) : '',
+                font: args[1] !== undefined && args[1] !== null ? String(args[1]) : '',
+                color: args[2] !== undefined && args[2] !== null ? String(args[2]) : '',
+                size: Number.isFinite(Number(args[3])) ? Number(args[3]) : null,
+              }
               postMessage({ type: 'lineCreate', id, text: spec.text, font: spec.font, color: spec.color, size: spec.size });
               return makeLineHandle(id, spec.text, spec);
             },
@@ -1262,7 +1184,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
           killActiveProcess({ graceful: terminalWorkerGracefulKill });
           return;
         }
-        printError('A process is alive rn, plz wait or kill it.');
+        printError('A Process is Live Right Now, Please Wait or Kill it by Ctrl+C.');
         return;
       }
 

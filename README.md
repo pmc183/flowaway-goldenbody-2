@@ -298,10 +298,10 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     new line. The handle exposes <code>.update(...args)</code> and <code>.rewriteLine(...args)</code>, and it also keeps
     the original DOM element at <code>.element</code>.
 </p>
-<pre><code>const status = await api.writeline('Downloading...', '#ffcc66', 14, 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace'); status.update('Downloading... 25%', '#3ddc97', 14); await new Promise((resolve) =&gt; setTimeout(resolve, 1000)); status.rewriteLine('Downloading... 100%', '#3ddc97', 16, 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace');</code></pre>
+<pre><code>const status = await api.writeline('Downloading...', 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace', '#ffcc66', 14); status.update('Downloading... 25%', 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace', '#3ddc97', 14); await new Promise((resolve) =&gt; setTimeout(resolve, 1000)); status.rewriteLine('Downloading... 100%', 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace', '#3ddc97', 16);</code></pre>
 <p>
     The first argument can be a string and the optional arguments are the same as terminal styling:
-    <code>(text, color, size, font)</code>. This is the easiest way to make progress indicators or status rows that
+    <code>(text, font, color, size)</code>. This is the easiest way to make progress indicators or status rows that
     update live without spamming the terminal output.
 </p>
 <p>
@@ -493,10 +493,10 @@ workerWatch.close();
 </p>
 <h4>Paths vs Handles (picker results)</h4>
 <p>
-    Every file/folder argument can be either a plain VFS string like <code>/root/path/file.txt</code> or a handle object
+    Every file/folder argument can be either a plain VFS string like <code>/path/file.txt</code> or a handle object
     produced by the runtime pickers. A handle is shaped like:
 </p>
-<pre><code>{ kind: 'file'|'directory', path: '/root/whatever', key: 'uuid-permission-key', name: 'prettyname.txt' }</code></pre>
+<pre><code>{ kind: 'file'|'directory', path: '/whatever', key: 'uuid-permission-key', name: 'prettyname.txt' }</code></pre>
 <p>
     Use strings for simple read-only operations against known paths. Use handles when you need persistent write
     permission to a user-selected target — keep the handle object and pass it back to subsequent calls.
@@ -521,7 +521,7 @@ workerWatch.close();
 <p>There are two common patterns:</p>
 <ol>
     <li>
-        <strong>Plain path</strong>: use a normal string such as <code>/root/demo/notes.txt</code> when the target is
+        <strong>Plain path</strong>: use a normal string such as <code>/demo/notes.txt</code> when the target is
         already known and you are not using a picker token. This is the simplest pattern for paths you already know.
     </li>
     <li>
@@ -542,9 +542,9 @@ workerWatch.close();
     <li><code>{ direct: true }</code> — return raw response value.</li>
 </ul>
 <p>Example (simple):</p>
-<pre><code>const { fileSize, fileContent } = await window.__goldenbodyAPI.readFile('/root/doc.txt', { text: true }); console.log('size', fileSize, 'contents', fileContent);</code></pre>
+<pre><code>const { fileSize, fileContent } = await window.__goldenbodyAPI.readFile('/doc.txt', { text: true }); console.log('size', fileSize, 'contents', fileContent);</code></pre>
 <p>Example (streaming large files):</p>
-<pre><code>const stream = await window.__goldenbodyAPI.readFile('/root/big.bin', { stream: true }); const reader = stream.getReader(); let received = 0; while (true) { const { done, value } = await reader.read(); if (done) break; received += value.byteLength; // process chunk } console.log('received', received);</code></pre>
+<pre><code>const stream = await window.__goldenbodyAPI.readFile('/big.bin', { stream: true }); const reader = stream.getReader(); let received = 0; while (true) { const { done, value } = await reader.read(); if (done) break; received += value.byteLength; // process chunk } console.log('received', received);</code></pre>
 <h4>WriteFile (options, chunking, and retries)</h4>
 <p>Signature: <code>writeFile(pathOrHandle, contents, options)</code>. Important options:</p>
 <ul>
@@ -557,7 +557,7 @@ workerWatch.close();
     <li><code>{ password: '...' }</code> — forwarded for server-side protected writes when supported.</li>
 </ul>
 <p>The runtime uploads large files in ~10MB chunks with robust retry logic. Example:</p>
-<pre><code>// small text write await window.__goldenbodyAPI.writeFile('/root/notes.txt', 'hello world', { replace: true });
+<pre><code>// small text write await window.__goldenbodyAPI.writeFile('/notes.txt', 'hello world', { replace: true });
 
 // write using a picked handle
 await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true });</code></pre>
@@ -566,10 +566,10 @@ await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true }
     Signature: <code>readFolder(pathOrHandle, { detail: false, directoryDetail: false })</code>. When
     <code>detail: true</code> the runtime returns entries with <code>{ path, type }</code>. Example:
 </p>
-<pre><code>const names = await window.__goldenbodyAPI.readFolder('/root/projects'); const detailed = await window.__goldenbodyAPI.readFolder('/root/projects', { detail: true });</code></pre>
+<pre><code>const names = await window.__goldenbodyAPI.readFolder('/projects'); const detailed = await window.__goldenbodyAPI.readFolder('/projects', { detail: true });</code></pre>
 <h4>WriteFolder / Create folder</h4>
 <p>Signature: <code>writeFolder(pathOrHandle, options)</code>. Use to create a new folder. Example:</p>
-<pre><code>await window.__goldenbodyAPI.writeFolder('/root/projects/new-app'); // or with a picked folder handle (reuses permission) await window.__goldenbodyAPI.writeFolder(folderHandle);</code></pre>
+<pre><code>await window.__goldenbodyAPI.writeFolder('/projects/new-app'); // or with a picked folder handle (reuses permission) await window.__goldenbodyAPI.writeFolder(folderHandle);</code></pre>
 <h4>Exists, Delete, Rename</h4>
 <ul>
     <li><code>fileExists(pathOrHandle)</code> / <code>folderExists(pathOrHandle)</code> — resolves boolean.</li>
@@ -583,9 +583,9 @@ await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true }
 <p>
     These APIs are used to copy or move clipboard-style payloads into a destination folder. The
     <code>clipboard</code> array contains objects like
-    <code>{ path: '/root/source/thing.txt', kind: 'file' }</code>. Example:
+    <code>{ path: '/source/thing.txt', kind: 'file' }</code>. Example:
 </p>
-<pre><code>await window.__goldenbodyAPI.pasteFile('/root/dest', { path: '/root/source/template.txt', kind: 'file' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/root/source/template.txt', kind: 'file' }, { move: false });</code></pre>
+<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt', kind: 'file' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source/template.txt', kind: 'file' }, { move: false });</code></pre>
 <h4>Permission note</h4>
 <p>
     Read-like operations such as <code>readFile</code>, <code>readFolder</code>, <code>fileExists</code>, and
@@ -754,7 +754,7 @@ console.log(listing);
 
 await window.__goldenbodyAPI.renameFolder(folderHandle, 'new-name');
 </code></pre>
-<pre><code>const targetFolder = '/root/demo'; const clipboard = { path: '/root/demo/template.txt', kind: 'file' };
+<pre><code>const targetFolder = '/demo'; const clipboard = { path: '/demo/template.txt', kind: 'file' };
 
 await window.__goldenbodyAPI.pasteFile(
 targetFolder,

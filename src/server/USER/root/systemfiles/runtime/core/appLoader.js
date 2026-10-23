@@ -246,7 +246,12 @@
     const list = document.createElement("div");
     list.style.flex = "1";
     list.style.overflow = "auto";
+    list.style.overflowY = "auto";
+    list.style.overflowX = "hidden";
     list.style.padding = "0 20px 12px";
+    list.style.scrollbarWidth = "auto";
+    list.style.scrollbarColor = "rgba(128,128,128,0.7) transparent";
+    list.style.msOverflowStyle = "auto";
     panel.appendChild(list);
 
     let saveInput = null;

@@ -8,6 +8,23 @@
   "openfileCapability": [".zip"],
   "enableDebugging": false,
   "headless": false,
+  "commands": [
+    {
+      "name": "help",
+      "src": "commands/help.js",
+      "receive_onkill_handler": false
+    },
+    {
+      "name": "zip",
+      "src": "commands/zip.js",
+      "receive_onkill_handler": false
+    },
+    {
+      "name": "unzip",
+      "src": "commands/unzip.js",
+      "receive_onkill_handler": false
+    }
+  ],
   "startupPos": {
     "width": 760,
     "height": 560
