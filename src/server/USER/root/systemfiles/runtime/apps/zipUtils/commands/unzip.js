@@ -1,466 +1,545 @@
 (async () => {
-  try {
-    const rawArgs = (self._startArgs && typeof self._startArgs === 'object') ? self._startArgs : (Array.isArray(self._startArgs) ? self._startArgs : []);
-    const positional = Array.isArray(rawArgs) ? rawArgs.slice() : [];
-    const named = (rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)) ? rawArgs : {};
+  const log = async (message, color = '#b20a0a') => {
+    try {
+      await self.api.writeline(String(message), undefined, color);
+    } catch (_) {}
+  };
 
-    const firstNonEmpty = (...values) => {
+  try {
+    // Conservative limits to reduce memory pressure.
+    const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
+    const MAX_ENTRY_BYTES = 256 * 1024 * 1024;
+    const MAX_TOTAL_BYTES = 800 * 1024 * 1024;
+    const MAX_ENTRIES = 100000;
+
+    const api = self.api;
+    const raw = self._startArgs;
+    const args = Array.isArray(raw) ? raw : [];
+    const named = raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw
+      : {};
+
+    const first = (...values) => {
       for (const value of values) {
-        if (value === undefined || value === null) continue;
-        const text = String(value).trim();
-        if (text) return text;
+        if (value == null) continue;
+        const s = String(value).trim();
+        if (s) return s;
       }
       return '';
     };
 
-    const sourceArg = firstNonEmpty(
-      named.src,
-      named.source,
-      named.path,
-      named.file,
-      named.target,
-      named.s,
-      positional[0]
+    const srcArg = first(
+      named.src, named.source, named.path, named.file,
+      named.target, named.s, args[0]
     );
 
-    const destArg = firstNonEmpty(
-      named.dest,
-      named.destination,
-      named.path,
-      named.target,
-      named.d,
-      positional[1]
+    const dstArg = first(
+      named.dest, named.destination, args[1]
     );
 
-    const levelArg = firstNonEmpty(
-      named.lv,
-      named.level,
-      named.l,
-      named.compression,
-      named.compressionLevel,
-      positional[2]
-    );
-
-    const normalizeCloudPath = (pathValue) => {
-      if (pathValue === undefined || pathValue === null) return '/';
-      const value = String(pathValue).replace(/\\/g, '/').trim();
-      if (!value) return '/';
+    const normalize = value => {
       const parts = [];
-      for (const part of value.split('/')) {
+      for (const part of String(value ?? '/').replace(/\\/g, '/').trim().split('/')) {
         if (!part || part === '.') continue;
         if (part === '..') {
           if (parts.length) parts.pop();
-          continue;
+        } else {
+          parts.push(part);
         }
-        parts.push(part);
       }
       return '/' + parts.join('/');
     };
 
-    const joinAndNormalize = (base, rel) => {
-      try {
-        const baseNorm = normalizeCloudPath(base || '/');
-        const baseParts = baseNorm === '/' ? [] : baseNorm.slice(1).split('/');
-        const relParts = String(rel || '').replace(/\\/g, '/').split('/');
-        const out = baseParts.slice();
-        for (const part of relParts) {
-          if (!part || part === '.') continue;
-          if (part === '..') {
-            if (out.length) out.pop();
-            continue;
-          }
-          out.push(part);
-        }
-        return '/' + out.join('/');
-      } catch (e) {
-        return normalizeCloudPath(rel.startsWith('/') ? rel : '/' + rel);
+    const cwdInfo = typeof api.cwd === 'function'
+      ? await api.cwd()
+      : { full: '/' };
+
+    const cwd = normalize(cwdInfo?.full || '/');
+
+    const resolve = (value, fallback = '') => {
+      const input = String(value ?? '').trim() || fallback;
+      if (!input) throw new Error('Missing path.');
+      if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
+        throw new Error('URL paths are not supported.');
       }
+      return normalize(
+        input.startsWith('/') || input.startsWith('\\')
+          ? input
+          : cwd + '/' + input
+      );
     };
 
-    const parseCompressionLevel = (value) => {
-      const number = Number(value);
-      if (!Number.isFinite(number) || !Number.isInteger(number)) return 0;
-      return (number >= 0 && number <= 9) ? number : 0;
-    };
+    if (!srcArg) throw new Error('Provide the ZIP source path.');
 
-    const compressBuffer = async (payload, level) => {
-      const targetLevel = parseCompressionLevel(level);
-      if (!payload || payload.length === 0 || targetLevel === 0) {
-        return { method: 0, bytes: new Uint8Array(payload || []) };
-      }
-      if (!('CompressionStream' in self)) {
-        return { method: 0, bytes: new Uint8Array(payload || []) };
-      }
-      const stream = new Blob([payload]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-      const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
-      return { method: 8, bytes: compressed };
-    };
+    const source = resolve(srcArg);
+    const outputDir = resolve(dstArg, cwd);
 
-    const cwdInfo = (typeof self.api.cwd === 'function') ? await self.api.cwd() : { full: '/' };
-    const cwd = String((cwdInfo && cwdInfo.full) ? cwdInfo.full : '/');
+    if (source === '/' || outputDir === source ||
+        outputDir.startsWith(source + '/')) {
+      throw new Error('Invalid source or destination path.');
+    }
 
-    const resolvePath = (value, fallback) => {
-      const raw = String(value ?? '').trim();
-      const target = raw || fallback;
-      const normalized = normalizeCloudPath(target);
-      if (target.startsWith('/')) return normalized;
-      return joinAndNormalize(cwd, target);
-    };
+    const join = (...parts) =>
+      normalize(parts.filter(Boolean).join('/'));
 
-    const sourcePath = resolvePath(sourceArg, cwd);
-    const destinationPath = resolvePath(destArg, cwd);
-    const compressionLevel = parseCompressionLevel(levelArg);
-
-    const basename = (pathValue) => String(pathValue || '').split('/').filter(Boolean).pop() || '';
-    const dirname = (pathValue) => {
-      const parts = String(pathValue || '').split('/').filter(Boolean);
+    const dirname = path => {
+      const parts = path.split('/').filter(Boolean);
       parts.pop();
       return '/' + parts.join('/');
     };
-    const joinPath = (...parts) => {
-      const filtered = parts.filter((part) => part !== undefined && part !== null && String(part) !== '');
-      return '/' + filtered.map((part) => String(part).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
-    };
 
-    const readAsArrayBuffer = async (path) => {
-      const result = await self.api.readFile(path, { buffer: true, direct: true });
-      if (result && typeof result === 'object' && typeof result.fileContent !== 'undefined') {
-        return result.fileContent;
+    const toBytes = value => {
+      if (value instanceof Uint8Array) {
+        return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
       }
-      if (result instanceof ArrayBuffer) return result;
-      return result;
+      if (value instanceof ArrayBuffer) return new Uint8Array(value);
+      if (ArrayBuffer.isView(value)) {
+        return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      }
+      if (Array.isArray(value)) return Uint8Array.from(value);
+      throw new Error('Could not read ZIP binary data.');
     };
 
-    const ensureFolder = async (path) => {
-      if (!path || path === '/') return true;
-      const normalized = normalizeCloudPath(path);
-      const parts = normalized.split('/').filter(Boolean);
+    const readBytes = async path => {
+      const result = await api.readFile(path, {
+        buffer: true,
+        direct: true
+      });
+      const content = result && typeof result === 'object' &&
+        'fileContent' in result ? result.fileContent : result;
+      return toBytes(content);
+    };
+
+    const ensureFolder = async path => {
+      if (!path || path === '/') return;
       let current = '';
-      for (const part of parts) {
-        current = joinPath(current, part);
-        const exists = await self.api.folderExists(current);
-        if (!exists) {
-          await self.api.writeFolder(current);
+      for (const part of normalize(path).split('/').filter(Boolean)) {
+        current += '/' + part;
+        if (!(await api.folderExists(current))) {
+          await api.writeFolder(current);
         }
       }
-      return true;
     };
 
-    const writeBinaryFile = async (path, bytes) => {
-      await self.api.writeFile(path, bytes, { replace: true });
-    };
+    const hasRange = (bytes, offset, length) =>
+      Number.isSafeInteger(offset) &&
+      Number.isSafeInteger(length) &&
+      offset >= 0 && length >= 0 &&
+      offset <= bytes.length &&
+      length <= bytes.length - offset;
 
-    const u16 = (value) => {
-      const b = new Uint8Array(2);
-      const view = new DataView(b.buffer);
-      view.setUint16(0, value >>> 0, true);
-      return b;
-    };
-
-    const u32 = (value) => {
-      const b = new Uint8Array(4);
-      const view = new DataView(b.buffer);
-      view.setUint32(0, value >>> 0, true);
-      return b;
-    };
-
-    const concatBytes = (...arrays) => {
-      let total = 0;
-      for (const array of arrays) total += array.length;
-      const out = new Uint8Array(total);
-      let offset = 0;
-      for (const array of arrays) {
-        out.set(array, offset);
-        offset += array.length;
+    const u16 = (view, offset) => {
+      if (offset < 0 || offset + 2 > view.byteLength) {
+        throw new Error('ZIP structure is truncated.');
       }
-      return out;
+      return view.getUint16(offset, true);
     };
 
-    const textBytes = (text) => new TextEncoder().encode(text);
-    const decodeUTF8 = (bytes) => new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    const u32 = (view, offset) => {
+      if (offset < 0 || offset + 4 > view.byteLength) {
+        throw new Error('ZIP structure is truncated.');
+      }
+      return view.getUint32(offset, true);
+    };
 
-    const crc32Table = new Uint32Array(256);
-    for (let i = 0; i < 256; i++) {
-      let c = i;
-      for (let j = 0; j < 8; j++) {
+    const crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) {
         c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
       }
-      crc32Table[i] = c >>> 0;
+      crcTable[n] = c >>> 0;
     }
-    const crc32 = (bytes) => {
+
+    const crc32 = bytes => {
       let crc = 0xffffffff;
-      for (let i = 0; i < bytes.length; i++) {
-        crc = (crc32Table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8)) >>> 0;
+      for (const byte of bytes) {
+        crc = crcTable[(crc ^ byte) & 255] ^ (crc >>> 8);
       }
       return (crc ^ 0xffffffff) >>> 0;
     };
 
-    const createLocalHeader = (nameBytes, crc, compressedSize, uncompressedSize, method) => concatBytes(
-      u32(0x04034b50),
-      u16(20),
-      u16(0),
-      u16(method || 0),
-      u16(0),
-      u16(0),
-      u32(crc),
-      u32(compressedSize),
-      u32(uncompressedSize),
-      u16(nameBytes.length),
-      u16(0),
-      nameBytes
-    );
+    const findEOCD = bytes => {
+      const view = new DataView(
+        bytes.buffer, bytes.byteOffset, bytes.byteLength
+      );
+      const start = Math.max(0, bytes.length - 22 - 0xffff);
 
-    const createCentralHeader = (nameBytes, crc, compressedSize, uncompressedSize, offset, method) => concatBytes(
-      u32(0x02014b50),
-      u16(20),
-      u16(20),
-      u16(0),
-      u16(method || 0),
-      u16(0),
-      u16(0),
-      u32(crc),
-      u32(compressedSize),
-      u32(uncompressedSize),
-      u16(nameBytes.length),
-      u16(0),
-      u16(0),
-      u16(0),
-      u16(0),
-      u32(0),
-      u32(offset),
-      nameBytes
-    );
-
-    const createEndRecord = (entryCount, centralSize, centralOffset) => concatBytes(
-      u32(0x06054b50),
-      u16(0),
-      u16(0),
-      u16(entryCount),
-      u16(entryCount),
-      u32(centralSize),
-      u32(centralOffset),
-      u16(0)
-    );
-
-    const normalizeArchivePath = (pathValue) => {
-      let value = String(pathValue || '').replace(/\\/g, '/');
-      value = value.replace(/^\/+/, '');
-      const parts = [];
-      for (const part of value.split('/')) {
-        if (!part || part === '.') continue;
-        if (part === '..') {
-          if (parts.length) parts.pop();
-          continue;
+      for (let i = bytes.length - 22; i >= start; i--) {
+        if (
+          bytes[i] === 0x50 && bytes[i + 1] === 0x4b &&
+          bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06
+        ) {
+          if (i + 22 > bytes.length) continue;
+          const commentLength = u16(view, i + 20);
+          if (i + 22 + commentLength === bytes.length) return i;
         }
-        parts.push(part);
       }
-      return parts.join('/');
+      throw new Error('Invalid ZIP file or missing end record.');
     };
 
-    const parseCentralDirectory = (bytes) => {
-      const minimumSize = 22;
-      const maximumComment = 0xffff;
-      const start = Math.max(0, bytes.length - minimumSize - maximumComment);
-      let eocd = -1;
-      for (let i = bytes.length - minimumSize; i >= start; i--) {
-        if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06) {
-          eocd = i;
-          break;
-        }
+    const decodeName = (bytes, utf8) => {
+      try {
+        return new TextDecoder(utf8 ? 'utf-8' : 'windows-1252', {
+          fatal: true
+        }).decode(bytes);
+      } catch (_) {
+        throw new Error('A ZIP filename has invalid encoding.');
       }
-      if (eocd < 0) throw new Error('This does not appear to be a valid ZIP file.');
-      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-      const count = view.getUint16(eocd + 10, true);
-      const centralSize = view.getUint32(eocd + 12, true);
-      const centralOffset = view.getUint32(eocd + 16, true);
-      if (count === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff) {
-        throw new Error('ZIP64 archives are not supported.');
+    };
+
+    const safeName = name => {
+      const value = String(name).replace(/\\/g, '/');
+      if (!value || value.startsWith('/') ||
+          /^[a-z]:/i.test(value) || value.includes('\0')) {
+        throw new Error('Unsafe ZIP path: ' + JSON.stringify(name));
       }
+
+      const parts = value.split('/');
+      if (parts.some(part =>
+        part === '..' || part.includes(':') ||
+        /[\x00-\x1f\x7f]/.test(part)
+      )) {
+        throw new Error('Unsafe ZIP path: ' + JSON.stringify(name));
+      }
+
+      const safe = parts.filter(part => part && part !== '.').join('/');
+      if (!safe) throw new Error('Empty ZIP entry path.');
+      return safe;
+    };
+
+    const parse = bytes => {
+      if (bytes.length < 22) throw new Error('ZIP file is too small.');
+
+      const view = new DataView(
+        bytes.buffer, bytes.byteOffset, bytes.byteLength
+      );
+      const eocd = findEOCD(bytes);
+      const disk = u16(view, eocd + 4);
+      const centralDisk = u16(view, eocd + 6);
+      const diskCount = u16(view, eocd + 8);
+      const count = u16(view, eocd + 10);
+      const size = u32(view, eocd + 12);
+      const offset = u32(view, eocd + 16);
+
+      if (disk || centralDisk || diskCount !== count) {
+        throw new Error('Multi-disk ZIP files are unsupported.');
+      }
+      if (count === 0xffff || size === 0xffffffff ||
+          offset === 0xffffffff) {
+        throw new Error('ZIP64 files are unsupported.');
+      }
+      if (count > MAX_ENTRIES) throw new Error('Too many ZIP entries.');
+      if (!hasRange(bytes, offset, size) || offset + size > eocd) {
+        throw new Error('Invalid ZIP directory bounds.');
+      }
+
       const entries = [];
-      let pos = centralOffset;
+      const offsets = new Set();
+      let pos = offset;
+      const end = offset + size;
+
       for (let i = 0; i < count; i++) {
-        if (view.getUint32(pos, true) !== 0x02014b50) {
-          throw new Error('Invalid ZIP central directory.');
+        if (pos + 46 > end || u32(view, pos) !== 0x02014b50) {
+          throw new Error('Invalid ZIP directory entry.');
         }
-        const compression = view.getUint16(pos + 10, true);
-        const compressedSize = view.getUint32(pos + 20, true);
-        const uncompressedSize = view.getUint32(pos + 24, true);
-        const nameLength = view.getUint16(pos + 28, true);
-        const extraLength = view.getUint16(pos + 30, true);
-        const commentLength = view.getUint16(pos + 32, true);
-        const localOffset = view.getUint32(pos + 42, true);
+
+        const flags = u16(view, pos + 8);
+        const method = u16(view, pos + 10);
+        const crc = u32(view, pos + 16);
+        const compressedSize = u32(view, pos + 20);
+        const uncompressedSize = u32(view, pos + 24);
+        const nameLength = u16(view, pos + 28);
+        const extraLength = u16(view, pos + 30);
+        const commentLength = u16(view, pos + 32);
+        const diskStart = u16(view, pos + 34);
+        const external = u32(view, pos + 38);
+        const localOffset = u32(view, pos + 42);
+        const recordLength = 46 + nameLength + extraLength + commentLength;
+
+        if (pos + recordLength > end) {
+          throw new Error('Truncated ZIP directory entry.');
+        }
+        if (diskStart !== 0) throw new Error('Multi-disk entries are unsupported.');
+        if (compressedSize === 0xffffffff ||
+            uncompressedSize === 0xffffffff ||
+            localOffset === 0xffffffff) {
+          throw new Error('ZIP64 entries are unsupported.');
+        }
+        if (offsets.has(localOffset)) {
+          throw new Error('ZIP entries share a local header.');
+        }
+        offsets.add(localOffset);
+
+        if (flags & ((1 << 0) | (1 << 6) | (1 << 13))) {
+          throw new Error('Encrypted ZIP entries are unsupported.');
+        }
+        if (flags & (1 << 5)) throw new Error('Patched ZIP entries are unsupported.');
+        if (method !== 0 && method !== 8) {
+          throw new Error('Unsupported compression method: ' + method);
+        }
+        if (method === 0 && compressedSize !== uncompressedSize) {
+          throw new Error('Invalid stored-entry size.');
+        }
+
         const nameBytes = bytes.slice(pos + 46, pos + 46 + nameLength);
+        const name = decodeName(nameBytes, !!(flags & (1 << 11)));
+
         entries.push({
-          name: decodeUTF8(nameBytes),
-          compression,
-          compressedSize,
-          uncompressedSize,
-          localOffset,
+          name, flags, method, crc, compressedSize,
+          uncompressedSize, localOffset,
+          isDirectory: name.endsWith('/') || name.endsWith('\\') ||
+            ((external >>> 16) & 0xf000) === 0x4000
         });
-        pos += 46 + nameLength + extraLength + commentLength;
+
+        pos += recordLength;
       }
-      return entries;
+
+      if (pos !== end) throw new Error('ZIP directory size mismatch.');
+
+      // Reject overlapping local-header/data ranges.
+      const ranges = [];
+      for (const entry of entries) {
+        const o = entry.localOffset;
+        if (!hasRange(bytes, o, 30) || u32(view, o) !== 0x04034b50) {
+          throw new Error('Invalid local header: ' + entry.name);
+        }
+
+        const flags = u16(view, o + 6);
+        const method = u16(view, o + 8);
+        const nameLength = u16(view, o + 26);
+        const extraLength = u16(view, o + 28);
+
+        if (flags !== entry.flags || method !== entry.method) {
+          throw new Error('Inconsistent local header: ' + entry.name);
+        }
+        if (!hasRange(bytes, o + 30, nameLength + extraLength)) {
+          throw new Error('Truncated local header.');
+        }
+
+        const localName = decodeName(
+          bytes.slice(o + 30, o + 30 + nameLength),
+          !!(flags & (1 << 11))
+        );
+        if (localName !== entry.name) {
+          throw new Error('ZIP filename mismatch.');
+        }
+
+        const dataStart = o + 30 + nameLength + extraLength;
+        const dataEnd = dataStart + entry.compressedSize;
+        if (!hasRange(bytes, dataStart, entry.compressedSize) ||
+            dataEnd > offset) {
+          throw new Error('Invalid compressed data bounds: ' + entry.name);
+        }
+
+        ranges.push({ start: o, end: dataEnd, name: entry.name });
+      }
+
+      ranges.sort((a, b) => a.start - b.start);
+      for (let i = 1; i < ranges.length; i++) {
+        if (ranges[i].start < ranges[i - 1].end) {
+          throw new Error('ZIP entries overlap: ' + ranges[i].name);
+        }
+      }
+
+      return { entries, view, centralOffset: offset };
     };
 
-    const extractZipEntry = async (bytes, entry) => {
-      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const extractEntry = async (bytes, entry, view) => {
       const offset = entry.localOffset;
-      if (view.getUint32(offset, true) !== 0x04034b50) {
-        throw new Error(`Invalid local header for ${entry.name}`);
-      }
-      const nameLength = view.getUint16(offset + 26, true);
-      const extraLength = view.getUint16(offset + 28, true);
-      const dataStart = offset + 30 + nameLength + extraLength;
-      const compressed = bytes.slice(dataStart, dataStart + entry.compressedSize);
+      const nameLength = u16(view, offset + 26);
+      const extraLength = u16(view, offset + 28);
+      const start = offset + 30 + nameLength + extraLength;
+      const compressed = bytes.slice(start, start + entry.compressedSize);
+      let output;
 
-      if (entry.compression === 0) return compressed;
-      if (entry.compression === 8) {
-        if (!('DecompressionStream' in self)) {
-          throw new Error('This runtime does not support DEFLATE extraction.');
-        }
-        const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-        const buffer = await new Response(stream).arrayBuffer();
-        return new Uint8Array(buffer);
-      }
-      throw new Error(`Unsupported compression method ${entry.compression} in ${entry.name}`);
-    };
-
-    const extractZipArchive = async (zipPath, outputPath) => {
-      const bytes = new Uint8Array(await readAsArrayBuffer(zipPath));
-      const entries = parseCentralDirectory(bytes);
-
-      if (!entries.length) {
-        throw new Error('The ZIP archive contains no entries.');
-      }
-
-      for (const entry of entries) {
-        const safeName = normalizeArchivePath(entry.name);
-        if (!safeName) continue;
-        const fullOutput = joinPath(outputPath, safeName);
-        const isDirectory = entry.name.endsWith('/') || safeName.endsWith('/');
-        if (isDirectory) {
-          await ensureFolder(fullOutput);
-          continue;
-        }
-        const parent = dirname(fullOutput);
-        if (parent && parent !== '/') {
-          await ensureFolder(parent);
-        }
-        const data = await extractZipEntry(bytes, entry);
-        await writeBinaryFile(fullOutput, data);
-      }
-      return entries.length;
-    };
-
-    const collectFolderEntries = async (folderPath, relativePath = '') => {
-      const results = [];
-      const entries = await self.api.readFolder(folderPath, { detail: true });
-      for (const entry of entries) {
-        const name = entry.name || entry.path.split('/').filter(Boolean).pop();
-        if (!name) continue;
-        const childPath = joinPath(folderPath, name);
-        const archivePath = relativePath ? joinPath(relativePath, name) : name;
-        const isDirectory = entry.type === 'folder' || entry.type === 'directory';
-        if (isDirectory) {
-          results.push({ type: 'directory', name: archivePath + '/' });
-          const nested = await collectFolderEntries(childPath, archivePath);
-          results.push(...nested);
-          continue;
-        }
-        results.push({ type: 'file', name: archivePath, path: childPath });
-      }
-      return results;
-    };
-
-    const buildZipFromSource = async (source, destination) => {
-      const sourceIsFolder = await self.api.folderExists(source);
-      const sourceIsFile = await self.api.fileExists(source);
-      if (!sourceIsFile && !sourceIsFolder) {
-        throw new Error(`Source does not exist: ${source}`);
-      }
-
-      const baseName = basename(source);
-      let resolvedDestination = destination;
-      if (resolvedDestination.endsWith('/')) {
-        resolvedDestination = joinPath(resolvedDestination, (baseName || 'archive') + '.zip');
-      }
-      if (!resolvedDestination.toLowerCase().endsWith('.zip')) {
-        const folderExists = await self.api.folderExists(resolvedDestination);
-        if (folderExists || resolvedDestination === '/' || String(resolvedDestination).endsWith('/')) {
-          resolvedDestination = joinPath(resolvedDestination, (baseName || 'archive') + '.zip');
-        } else {
-          resolvedDestination = resolvedDestination + '.zip';
-        }
-      }
-
-      const entries = [];
-      if (sourceIsFolder) {
-        const folderEntries = await collectFolderEntries(source, '');
-        for (const entry of folderEntries) {
-          const archiveName = entry.name;
-          if (entry.type === 'directory') {
-            entries.push({
-              name: archiveName,
-              isDirectory: true,
-              data: new Uint8Array(0),
-            });
-            continue;
-          }
-          const fileBuffer = await readAsArrayBuffer(entry.path);
-          const data = new Uint8Array(fileBuffer);
-          entries.push({ name: archiveName, isDirectory: false, data });
-        }
+      if (entry.method === 0) {
+        output = compressed;
       } else {
-        const fileBuffer = await readAsArrayBuffer(source);
-        const data = new Uint8Array(fileBuffer);
-        entries.push({ name: basename(source), isDirectory: false, data });
+        if (typeof DecompressionStream === 'undefined') {
+          throw new Error('DEFLATE is unavailable in this runtime.');
+        }
+
+        let stream;
+        try {
+          stream = new Blob([compressed]).stream()
+            .pipeThrough(new DecompressionStream('deflate-raw'));
+        } catch (_) {
+          throw new Error('Raw DEFLATE is unsupported in this runtime.');
+        }
+
+        const reader = stream.getReader();
+        const chunks = [];
+        let total = 0;
+
+        try {
+          while (true) {
+            const result = await reader.read();
+            if (result.done) break;
+            total += result.value.byteLength;
+
+            if (total > MAX_ENTRY_BYTES ||
+                total > entry.uncompressedSize) {
+              try { await reader.cancel(); } catch (_) {}
+              throw new Error('Entry exceeds its decompression limit.');
+            }
+            chunks.push(result.value);
+          }
+        } finally {
+          try { reader.releaseLock(); } catch (_) {}
+        }
+
+        output = new Uint8Array(total);
+        let p = 0;
+        for (const chunk of chunks) {
+          output.set(chunk, p);
+          p += chunk.byteLength;
+        }
       }
 
-      if (!entries.length) {
-        throw new Error('Nothing to archive.');
+      if (output.byteLength !== entry.uncompressedSize) {
+        throw new Error('Size verification failed: ' + entry.name);
       }
-
-      const localParts = [];
-      const centralParts = [];
-      let offset = 0;
-      for (const entry of entries) {
-        const nameBytes = textBytes(entry.name);
-        const rawData = entry.data;
-        const compressed = await compressBuffer(rawData, compressionLevel);
-        const checksum = crc32(rawData);
-        const localHeader = createLocalHeader(nameBytes, checksum, compressed.bytes.length, rawData.length, compressed.method);
-        const centralHeader = createCentralHeader(nameBytes, checksum, compressed.bytes.length, rawData.length, offset, compressed.method);
-        localParts.push(localHeader, compressed.bytes);
-        centralParts.push(centralHeader);
-        offset += localHeader.length + compressed.bytes.length;
+      if (crc32(output) !== entry.crc) {
+        throw new Error('CRC verification failed: ' + entry.name);
       }
-      const centralDirectory = concatBytes(...centralParts);
-      const endRecord = createEndRecord(centralParts.length, centralDirectory.length, offset);
-      const zipBytes = concatBytes(...localParts, centralDirectory, endRecord);
-      await writeBinaryFile(resolvedDestination, zipBytes);
-      return resolvedDestination;
+      return output;
     };
 
-    const isZipSource = sourcePath.toLowerCase().endsWith('.zip') || sourceArg.toLowerCase().endsWith('.zip');
-    if (isZipSource) {
-      const outputDirectory = destinationPath || cwd;
-      const extractedCount = await extractZipArchive(sourcePath, outputDirectory);
-      await self.api.writeline(`Extracted ${extractedCount} entries into ${outputDirectory}`, undefined, '#3ddc97');
-      self.close();
-      return;
+    const existsAsFile = async path => {
+      // Only report a collision when the API can positively confirm it.
+      // Some cloud APIs throw for both missing files and other failures.
+      if (typeof api.fileExists === 'function') {
+        return !!(await api.fileExists(path));
+      }
+      return null;
+    };
+
+    await log('Reading ZIP: ' + source, '#7db7ff');
+    const bytes = await readBytes(source);
+
+    if (bytes.byteLength > MAX_ARCHIVE_BYTES) {
+      throw new Error('ZIP exceeds the ' + (MAX_ARCHIVE_BYTES / (1024 * 1024)) + ' MiB archive limit.');
     }
 
-    const destinationParent = destinationPath;
-    await ensureFolder(destinationParent === '/' ? '/' : dirname(destinationParent));
-    const archivePath = await buildZipFromSource(sourcePath, destinationPath);
-    await self.api.writeline(`Created ${archivePath} (level ${compressionLevel})`, undefined, '#3ddc97');
-    self.close();
+    const { entries, view } = parse(bytes);
+    if (!entries.length) throw new Error('ZIP contains no entries.');
+
+    const seen = new Map();
+    const plans = [];
+    let total = 0;
+
+    for (const entry of entries) {
+      const name = safeName(entry.name);
+      const key = name.toLowerCase();
+
+      if (seen.has(key)) {
+        throw new Error('Duplicate ZIP path: ' + name);
+      }
+      seen.set(key, entry.isDirectory ? 'dir' : 'file');
+
+      if (entry.uncompressedSize > MAX_ENTRY_BYTES) {
+        throw new Error('Entry exceeds the ' + (MAX_ENTRY_BYTES / (1024 * 1024)) + ' MiB limit: ' + name);
+      }
+
+      total += entry.uncompressedSize;
+      if (total > MAX_TOTAL_BYTES) {
+        throw new Error('ZIP exceeds the ' + (MAX_TOTAL_BYTES / (1024 * 1024)) + ' MiB total extraction limit.');
+      }
+
+      plans.push({
+        entry,
+        name,
+        target: join(outputDir, name)
+      });
+    }
+
+    // Detect a regular file used as a parent directory.
+    for (const item of plans) {
+      const parts = item.name.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        const parent = parts.slice(0, i).join('/').toLowerCase();
+        if (seen.get(parent) === 'file') {
+          throw new Error('File/directory conflict: ' + parts.slice(0, i).join('/'));
+        }
+      }
+      if (!item.entry.isDirectory) {
+        const prefix = item.name.toLowerCase() + '/';
+        if (Array.from(seen.keys()).some(k => k.startsWith(prefix))) {
+          throw new Error('File/directory conflict: ' + item.name);
+        }
+      }
+    }
+
+    // Validate all entries and CRCs before writing anything.
+    if (bytes.byteLength > MAX_ARCHIVE_BYTES) {
+      throw new Error('ZIP exceeds the ' + (MAX_ARCHIVE_BYTES / (1024 * 1024)) + ' MiB archive limit.');
+    }
+
+    const validated = [];
+    let completed = 0;
+
+    for (const item of plans) {
+      if (item.entry.isDirectory) {
+        validated.push({ ...item, data: null });
+      } else {
+        const data = await extractEntry(bytes, item.entry, view);
+        validated.push({ ...item, data });
+      }
+
+      completed++;
+      if (completed % 25 === 0 || completed === plans.length) {
+        await log(
+          'Validated ' + completed + '/' + plans.length + ' ZIP entries',
+          '#7db7ff'
+        );
+      }
+    }
+
+    // Detect pre-existing file collisions when the API supports it.
+    if (typeof api.fileExists === 'function') {
+      for (const item of validated) {
+        if (item.entry.isDirectory) continue;
+        if (await existsAsFile(item.target)) {
+          throw new Error('Destination file already exists: ' + item.target);
+        }
+      }
+    } else {
+      await log(
+        'Note: fileExists() is unavailable; overwrite checks cannot be guaranteed.',
+        '#e6b450'
+      );
+    }
+
+    await ensureFolder(outputDir);
+
+    // Write only after archive validation succeeds.
+    let written = 0;
+    for (const item of validated) {
+      if (item.entry.isDirectory) {
+        await ensureFolder(item.target);
+      } else {
+        await ensureFolder(dirname(item.target));
+        await api.writeFile(item.target, item.data, { replace: false });
+      }
+
+      written++;
+      if (written % 25 === 0 || written === validated.length) {
+        await log(
+          'Extracted ' + written + '/' + validated.length + ' ZIP entries',
+          '#7db7ff'
+        );
+      }
+    }
+
+    await log(
+      'Success: extracted ' + written + ' entries into ' + outputDir,
+      '#3ddc97'
+    );
   } catch (err) {
-    try {
-      await self.api.writeline('zip error: ' + String(err && err.message ? err.message : err), undefined, '#b20a0a');
-    } catch (e) {}
-    try {
-      self.close();
-    } catch (e) {}
+    const message = String(err?.message || err || 'Unknown error');
+    await log('ZIP extraction failed: ' + message, '#b20a0a');
+  } finally {
+    try { self.close(); } catch (_) {}
   }
 })();

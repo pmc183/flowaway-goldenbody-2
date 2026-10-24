@@ -1,8 +1,12 @@
+
 (async () => {
   try {
-    const rawArgs = (self._startArgs && typeof self._startArgs === 'object') ? self._startArgs : (Array.isArray(self._startArgs) ? self._startArgs : []);
-    const positional = Array.isArray(rawArgs) ? rawArgs.slice() : [];
-    const named = (rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)) ? rawArgs : {};
+    const rawArgs = self._startArgs;
+    const positional = Array.isArray(rawArgs) ? rawArgs : [];
+    const named =
+      rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+        ? rawArgs
+        : {};
 
     const firstNonEmpty = (...values) => {
       for (const value of values) {
@@ -26,200 +30,194 @@
     const destArg = firstNonEmpty(
       named.dest,
       named.destination,
-      named.path,
-      named.target,
       named.d,
       positional[1]
     );
 
-    const levelArg = firstNonEmpty(
-      named.lv,
-      named.level,
-      named.l,
-      named.compression,
-      named.compressionLevel,
-      positional[2]
-    );
-
-    const normalizeCloudPath = (pathValue) => {
-      if (pathValue === undefined || pathValue === null) return '/';
-      const value = String(pathValue).replace(/\\/g, '/').trim();
-      if (!value) return '/';
+    const normalizeCloudPath = (value) => {
       const parts = [];
-      for (const part of value.split('/')) {
+      for (const part of String(value ?? '/').replace(/\\/g, '/').split('/')) {
         if (!part || part === '.') continue;
         if (part === '..') {
           if (parts.length) parts.pop();
-          continue;
+        } else {
+          parts.push(part);
         }
-        parts.push(part);
       }
       return '/' + parts.join('/');
     };
 
-    const joinAndNormalize = (base, rel) => {
-      try {
-        const baseNorm = normalizeCloudPath(base || '/');
-        const baseParts = baseNorm === '/' ? [] : baseNorm.slice(1).split('/');
-        const relParts = String(rel || '').replace(/\\/g, '/').split('/');
-        const out = baseParts.slice();
-        for (const part of relParts) {
-          if (!part || part === '.') continue;
-          if (part === '..') {
-            if (out.length) out.pop();
-            continue;
-          }
-          out.push(part);
-        }
-        return '/' + out.join('/');
-      } catch (e) {
-        return normalizeCloudPath(rel.startsWith('/') ? rel : '/' + rel);
-      }
-    };
+    const joinPath = (...parts) =>
+      normalizeCloudPath(parts.filter(Boolean).join('/'));
 
-    const parseCompressionLevel = (value) => {
-      const number = Number(value);
-      if (!Number.isFinite(number) || !Number.isInteger(number)) return 0;
-      return (number >= 0 && number <= 9) ? number : 0;
-    };
+    const basename = (path) =>
+      String(path).split('/').filter(Boolean).pop() || '';
 
-    const compressBuffer = async (payload, level) => {
-      const targetLevel = parseCompressionLevel(level);
-      if (!payload || payload.length === 0 || targetLevel === 0) {
-        return { method: 0, bytes: new Uint8Array(payload || []) };
-      }
-      if (!('CompressionStream' in self)) {
-        return { method: 0, bytes: new Uint8Array(payload || []) };
-      }
-      try {
-        const stream = new Blob([payload]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-        const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
-        return { method: 8, bytes: compressed };
-      } catch (e) {
-        return { method: 0, bytes: new Uint8Array(payload || []) };
-      }
-    };
-
-    const cwdInfo = (typeof self.api.cwd === 'function') ? await self.api.cwd() : { full: '/' };
-    const cwd = String((cwdInfo && cwdInfo.full) ? cwdInfo.full : '/');
-
-    const resolvePath = (value, fallback) => {
-      const raw = String(value ?? '').trim();
-      const target = raw || fallback;
-      const normalized = normalizeCloudPath(target);
-      if (target.startsWith('/')) return normalized;
-      return joinAndNormalize(cwd, target);
-    };
-
-    const basename = (pathValue) => String(pathValue || '').split('/').filter(Boolean).pop() || '';
-    const dirname = (pathValue) => {
-      const parts = String(pathValue || '').split('/').filter(Boolean);
+    const dirname = (path) => {
+      const parts = String(path).split('/').filter(Boolean);
       parts.pop();
       return '/' + parts.join('/');
     };
-    const joinPath = (...parts) => {
-      const filtered = parts.filter((part) => part !== undefined && part !== null && String(part) !== '');
-      return '/' + filtered.map((part) => String(part).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/');
+
+    const cwdInfo =
+      typeof self.api.cwd === 'function'
+        ? await self.api.cwd()
+        : { full: '/' };
+
+    const cwd = normalizeCloudPath(cwdInfo?.full || '/');
+
+    const resolvePath = (value, fallback) => {
+      const raw = String(value ?? '').trim() || fallback;
+      if (raw.startsWith('/')) return normalizeCloudPath(raw);
+      return joinPath(cwd, raw);
     };
 
     const readAsArrayBuffer = async (path) => {
-      const result = await self.api.readFile(path, { buffer: true, direct: true });
-      if (result && typeof result === 'object' && typeof result.fileContent !== 'undefined') {
+      const result = await self.api.readFile(path, {
+        buffer: true,
+        direct: true
+      });
+
+      if (result && typeof result === 'object' &&
+          result.fileContent !== undefined) {
         return result.fileContent;
       }
-      if (result instanceof ArrayBuffer) return result;
-      return result;
-    };
 
-    const ensureFolder = async (path) => {
-      if (!path || path === '/') return true;
-      const normalized = normalizeCloudPath(path);
-      const parts = normalized.split('/').filter(Boolean);
-      let current = '';
-      for (const part of parts) {
-        current = joinPath(current, part);
-        const exists = await self.api.folderExists(current);
-        if (!exists) {
-          await self.api.writeFolder(current);
-        }
-      }
-      return true;
+      return result;
     };
 
     const writeBinaryFile = async (path, bytes) => {
       await self.api.writeFile(path, bytes, { replace: true });
     };
 
-    const u16 = (value) => {
-      const b = new Uint8Array(2);
-      const view = new DataView(b.buffer);
-      view.setUint16(0, value >>> 0, true);
-      return b;
-    };
+    const ensureFolder = async (path) => {
+      const normalized = normalizeCloudPath(path);
+      if (normalized === '/') return;
 
-    const u32 = (value) => {
-      const b = new Uint8Array(4);
-      const view = new DataView(b.buffer);
-      view.setUint32(0, value >>> 0, true);
-      return b;
-    };
-
-    const concatBytes = (...arrays) => {
-      let total = 0;
-      for (const array of arrays) total += array.length;
-      const out = new Uint8Array(total);
-      let offset = 0;
-      for (const array of arrays) {
-        out.set(array, offset);
-        offset += array.length;
+      let current = '';
+      for (const part of normalized.split('/').filter(Boolean)) {
+        current += '/' + part;
+        if (!(await self.api.folderExists(current))) {
+          await self.api.writeFolder(current);
+        }
       }
-      return out;
     };
 
     const textBytes = (text) => new TextEncoder().encode(text);
 
+    const concatBytes = (...arrays) => {
+      const total = arrays.reduce((sum, arr) => sum + arr.length, 0);
+      const output = new Uint8Array(total);
+      let offset = 0;
+
+      for (const arr of arrays) {
+        output.set(arr, offset);
+        offset += arr.length;
+      }
+
+      return output;
+    };
+
+    const u16 = (value) => {
+      const bytes = new Uint8Array(2);
+      new DataView(bytes.buffer).setUint16(0, value, true);
+      return bytes;
+    };
+
+    const u32 = (value) => {
+      const bytes = new Uint8Array(4);
+      new DataView(bytes.buffer).setUint32(0, value >>> 0, true);
+      return bytes;
+    };
+
+    // Browser-managed DEFLATE compression.
+    // If raw DEFLATE is unavailable, safely store the file instead.
+    const compressBuffer = async (input) => {
+      const bytes = input instanceof Uint8Array
+        ? input
+        : new Uint8Array(input || []);
+
+      if (!bytes.length || typeof CompressionStream === 'undefined') {
+        return { method: 0, bytes };
+      }
+
+      try {
+        const stream = new Blob([bytes])
+          .stream()
+          .pipeThrough(new CompressionStream('deflate-raw'));
+
+        const compressed = new Uint8Array(
+          await new Response(stream).arrayBuffer()
+        );
+
+        if (compressed.length < bytes.length) {
+          return { method: 8, bytes: compressed };
+        }
+      } catch (_) {
+        // Unsupported format or compression failure: use ZIP Store.
+      }
+
+      return { method: 0, bytes };
+    };
+
     const crc32Table = new Uint32Array(256);
+
     for (let i = 0; i < 256; i++) {
       let c = i;
       for (let j = 0; j < 8; j++) {
-        c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        c = (c & 1)
+          ? (0xedb88320 ^ (c >>> 1))
+          : (c >>> 1);
       }
       crc32Table[i] = c >>> 0;
     }
+
     const crc32 = (bytes) => {
       let crc = 0xffffffff;
+
       for (let i = 0; i < bytes.length; i++) {
-        crc = (crc32Table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8)) >>> 0;
+        crc = (
+          crc32Table[(crc ^ bytes[i]) & 0xff] ^
+          (crc >>> 8)
+        ) >>> 0;
       }
+
       return (crc ^ 0xffffffff) >>> 0;
     };
 
-    const createLocalHeader = (nameBytes, crc, compressedSize, uncompressedSize, method) => concatBytes(
+    // Set the UTF-8 filename flag for ZIP compatibility.
+    const UTF8_FLAG = 0x0800;
+
+    const createLocalHeader = (
+      nameBytes, crc, compressedSize, originalSize, method
+    ) => concatBytes(
       u32(0x04034b50),
       u16(20),
-      u16(0),
-      u16(method || 0),
+      u16(UTF8_FLAG),
+      u16(method),
       u16(0),
       u16(0),
       u32(crc),
       u32(compressedSize),
-      u32(uncompressedSize),
+      u32(originalSize),
       u16(nameBytes.length),
       u16(0),
       nameBytes
     );
 
-    const createCentralHeader = (nameBytes, crc, compressedSize, uncompressedSize, offset, method) => concatBytes(
+    const createCentralHeader = (
+      nameBytes, crc, compressedSize, originalSize, offset, method
+    ) => concatBytes(
       u32(0x02014b50),
       u16(20),
       u16(20),
-      u16(0),
-      u16(method || 0),
+      u16(UTF8_FLAG),
+      u16(method),
       u16(0),
       u16(0),
       u32(crc),
       u32(compressedSize),
-      u32(uncompressedSize),
+      u32(originalSize),
       u16(nameBytes.length),
       u16(0),
       u16(0),
@@ -230,97 +228,177 @@
       nameBytes
     );
 
-    const createEndRecord = (entryCount, centralSize, centralOffset) => concatBytes(
-      u32(0x06054b50),
-      u16(0),
-      u16(0),
-      u16(entryCount),
-      u16(entryCount),
-      u32(centralSize),
-      u32(centralOffset),
-      u16(0)
-    );
+    const createEndRecord = (count, centralSize, centralOffset) =>
+      concatBytes(
+        u32(0x06054b50),
+        u16(0),
+        u16(0),
+        u16(count),
+        u16(count),
+        u32(centralSize),
+        u32(centralOffset),
+        u16(0)
+      );
 
-    const collectFolderEntries = async (folderPath, relativePath = '') => {
+    const collectFolderEntries = async (folderPath, relative = '') => {
       const results = [];
-      const entries = await self.api.readFolder(folderPath, { detail: true });
+      const entries = await self.api.readFolder(folderPath, {
+        detail: true
+      });
+
       for (const entry of entries) {
-        const name = entry.name || entry.path.split('/').filter(Boolean).pop();
+        const name = entry.name ||
+          basename(entry.path || '');
+
         if (!name) continue;
+
         const childPath = joinPath(folderPath, name);
-        const archivePath = relativePath ? joinPath(relativePath, name) : name;
-        const isDirectory = entry.type === 'folder' || entry.type === 'directory';
+        const archivePath = relative
+          ? joinPath(relative, name).slice(1)
+          : name;
+
+        const isDirectory =
+          entry.type === 'folder' ||
+          entry.type === 'directory';
+
         if (isDirectory) {
-          results.push({ type: 'directory', name: archivePath + '/', path: childPath });
-          const nested = await collectFolderEntries(childPath, archivePath);
-          results.push(...nested);
-          continue;
+          results.push({
+            type: 'directory',
+            name: archivePath + '/'
+          });
+
+          results.push(
+            ...await collectFolderEntries(childPath, archivePath)
+          );
+        } else {
+          results.push({
+            type: 'file',
+            name: archivePath,
+            path: childPath
+          });
         }
-        results.push({ type: 'file', name: archivePath, path: childPath });
       }
+
       return results;
     };
 
     const buildZipFromSource = async (source, destination) => {
       const sourceIsFolder = await self.api.folderExists(source);
       const sourceIsFile = await self.api.fileExists(source);
+
       if (!sourceIsFile && !sourceIsFolder) {
-        throw new Error(`Source does not exist: ${source}`);
+        throw new Error('Source does not exist: ' + source);
       }
 
       const baseName = basename(source);
-      let resolvedDestination = destination;
-      if (resolvedDestination.endsWith('/')) {
-        resolvedDestination = joinPath(resolvedDestination, (baseName || 'archive') + '.zip');
-      }
-      if (!resolvedDestination.toLowerCase().endsWith('.zip')) {
-        const folderExists = await self.api.folderExists(resolvedDestination);
-        if (folderExists || resolvedDestination === '/' || String(resolvedDestination).endsWith('/')) {
-          resolvedDestination = joinPath(resolvedDestination, (baseName || 'archive') + '.zip');
+      let outputPath = destination;
+
+      if (outputPath.endsWith('/')) {
+        outputPath = joinPath(
+          outputPath,
+          (baseName || 'archive') + '.zip'
+        );
+      } else if (!outputPath.toLowerCase().endsWith('.zip')) {
+        if (
+          await self.api.folderExists(outputPath) ||
+          outputPath === '/'
+        ) {
+          outputPath = joinPath(
+            outputPath,
+            (baseName || 'archive') + '.zip'
+          );
         } else {
-          resolvedDestination = resolvedDestination + '.zip';
+          outputPath += '.zip';
         }
       }
 
       const entries = [];
+
       if (sourceIsFolder) {
-        const folderEntries = await collectFolderEntries(source, '');
-        for (const entry of folderEntries) {
+        const files = await collectFolderEntries(source);
+
+        for (const entry of files) {
           if (entry.type === 'directory') {
-            entries.push({ name: entry.name, data: new Uint8Array(0), isDirectory: true });
-            continue;
+            entries.push({
+              name: entry.name,
+              data: new Uint8Array(0)
+            });
+          } else {
+            const buffer = await readAsArrayBuffer(entry.path);
+            entries.push({
+              name: entry.name,
+              data: new Uint8Array(buffer)
+            });
           }
-          const fileBuffer = await readAsArrayBuffer(entry.path);
-          entries.push({ name: entry.name, data: new Uint8Array(fileBuffer), isDirectory: false });
         }
       } else {
-        const fileBuffer = await readAsArrayBuffer(source);
-        entries.push({ name: basename(source), data: new Uint8Array(fileBuffer), isDirectory: false });
+        const buffer = await readAsArrayBuffer(source);
+
+        entries.push({
+          name: baseName,
+          data: new Uint8Array(buffer)
+        });
       }
 
       if (!entries.length) {
         throw new Error('Nothing to archive.');
       }
 
+      if (entries.length > 65535) {
+        throw new Error(
+          'Too many entries for a standard ZIP archive.'
+        );
+      }
+
       const localParts = [];
       const centralParts = [];
       let offset = 0;
+
       for (const entry of entries) {
         const nameBytes = textBytes(entry.name);
         const rawData = entry.data || new Uint8Array(0);
-        const compressed = await compressBuffer(rawData, levelArg);
+
+        const compressed = await compressBuffer(rawData);
         const checksum = crc32(rawData);
-        const localHeader = createLocalHeader(nameBytes, checksum, compressed.bytes.length, rawData.length, compressed.method);
-        const centralHeader = createCentralHeader(nameBytes, checksum, compressed.bytes.length, rawData.length, offset, compressed.method);
+
+        const localHeader = createLocalHeader(
+          nameBytes,
+          checksum,
+          compressed.bytes.length,
+          rawData.length,
+          compressed.method
+        );
+
+        const centralHeader = createCentralHeader(
+          nameBytes,
+          checksum,
+          compressed.bytes.length,
+          rawData.length,
+          offset,
+          compressed.method
+        );
+
         localParts.push(localHeader, compressed.bytes);
         centralParts.push(centralHeader);
+
         offset += localHeader.length + compressed.bytes.length;
       }
+
       const centralDirectory = concatBytes(...centralParts);
-      const endRecord = createEndRecord(centralParts.length, centralDirectory.length, offset);
-      const zipBytes = concatBytes(...localParts, centralDirectory, endRecord);
-      await writeBinaryFile(resolvedDestination, zipBytes);
-      return resolvedDestination;
+      const endRecord = createEndRecord(
+        centralParts.length,
+        centralDirectory.length,
+        offset
+      );
+
+      const zipBytes = concatBytes(
+        ...localParts,
+        centralDirectory,
+        endRecord
+      );
+
+      await writeBinaryFile(outputPath, zipBytes);
+      return outputPath;
     };
 
     if (!sourceArg) {
@@ -328,19 +406,37 @@
     }
 
     const sourcePath = resolvePath(sourceArg, cwd);
-    const destinationPath = resolvePath(destArg, cwd);
-    const compressionLevel = parseCompressionLevel(levelArg);
-    const destinationParent = destinationPath;
-    await ensureFolder(destinationParent === '/' ? '/' : dirname(destinationParent));
-    const archivePath = await buildZipFromSource(sourcePath, destinationPath);
-    await self.api.writeline(`Created ${archivePath} (level ${compressionLevel})`, undefined, '#3ddc97');
+    const destinationPath = resolvePath(
+      destArg,
+      cwd
+    );
+
+    await ensureFolder(dirname(destinationPath));
+
+    const archivePath = await buildZipFromSource(
+      sourcePath,
+      destinationPath
+    );
+
+    await self.api.writeline(
+      'Created ' + archivePath,
+      undefined,
+      '#3ddc97'
+    );
+
     self.close();
   } catch (err) {
     try {
-      await self.api.writeline('zip error: ' + String(err && err.message ? err.message : err), undefined, '#b20a0a');
-    } catch (e) {}
+      await self.api.writeline(
+        'zip error: ' +
+          String(err?.message || err),
+        undefined,
+        '#b20a0a'
+      );
+    } catch (_) {}
+
     try {
       self.close();
-    } catch (e) {}
+    } catch (_) {}
   }
 })();
