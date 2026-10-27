@@ -174,7 +174,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
             }).catch((e) => {
                 logger.error('getBrowserSessionId error: ' + e.message);
                 res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('Server error');
+                res.end('Server Error');
             });
             return true;
         }
@@ -189,7 +189,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
             } catch (e) {
                 logger.error('zmcd handler error: ' + e.message);
                 res.writeHead(500);
-                res.end('Server error');
+                res.end('Server Error');
             }
             return true;
         }
@@ -201,14 +201,14 @@ if (!config.enableWorkers || !cluster.isMaster) {
                 const maybe = download.handleDownload(req, res);
                 if (maybe && typeof maybe.then === 'function') maybe.catch((e) => {
                     logger.error('download handler error: ' + e.message);
-                    try { res.writeHead(500); res.end('Server error'); } catch (er) {
+                    try { res.writeHead(500); res.end('Server Error'); } catch (er) {
                         logger.debug('Failed to write download error response: ' + er.message);
                     }
                 });
             } catch (e) {
                 logger.error('download handler error: ' + e.message);
                 res.writeHead(500);
-                res.end('Server error');
+                res.end('Server Error');
             }
             return true;
         }
@@ -220,14 +220,17 @@ if (!config.enableWorkers || !cluster.isMaster) {
                 const maybe = fetchfiles.handleFetchfiles(req, res);
                 if (maybe && typeof maybe.then === 'function') maybe.catch((e) => {
                     logger.error('fetchfiles handler error: ' + e.message);
-                    try { res.writeHead(500); res.end('Server error'); } catch (er) {
+                    try { 
+                        if (e.message == 'Storage quota exceeded: cannot write file') { res.writeHead(413); res.end(e.message); }
+                        else { res.writeHead(500); res.end('Server Error'); }
+                    } catch (er) {
                         logger.debug('Failed to write fetchfiles error response: ' + er.message);
                     }
                 });
             } catch (e) {
                 logger.error('fetchfiles handler error: ' + e.message);
                 res.writeHead(500);
-                res.end('Server error');
+                res.end('Server Error');
             }
             return true;
         }
@@ -275,7 +278,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
             } catch (e) {
                 logger.error('systemRecovery handler error: ' + e.message);
                 res.writeHead(500);
-                res.end('Server error');
+                res.end('Server Error');
             }
             return true;
         }
@@ -440,7 +443,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
                 } catch (e) {
                     logger.error('moderation/ban handler error: ' + e.message);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Server error' }));
+                    res.end(JSON.stringify({ success: false, error: 'Server Error' }));
                 }
             })();
             return true;
@@ -489,7 +492,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
                 } catch (e) {
                     logger.error('moderation/mailEveryone handler error: ' + e.message);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: 'Server error' }));
+                    res.end(JSON.stringify({ success: false, error: 'Server Error' }));
                 }
             })();
             return true;

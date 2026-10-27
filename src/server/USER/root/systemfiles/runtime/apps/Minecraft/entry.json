@@ -1,0 +1,11 @@
+{
+    "id": "Minecraft",
+    "label": "Minecraft",
+    "iconFile": "minecraft.png",
+    "pngEnabled": true,
+    "jsFile": "minecraft.js",
+    "functionName": "minecraft",
+    "globalVarObjectString": "minecraftGlobals",
+    "allAppArrayString": "allMinecraftApps",
+    "requestAdminPerm": true
+}

@@ -445,6 +445,7 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
   let fileArea = null;
   let contextMenu = null;
   let storageDiv = null;
+  let statusDiv = null;
   let refreshBtn = null;
   let uploadBtn = null;
   let homeBtn = null;
@@ -463,6 +464,7 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
   // Sidebar
   sidebar = document.createElement("div");
   sidebar.style.minWidth = "15%";
+  sidebar.style.maxWidth = "15%";
   sidebar.style.background = "#1e293b";
   sidebar.style.color = "white";
   sidebar.style.padding = "10px";
@@ -1230,6 +1232,7 @@ function makeIcon(type, size = 16) {
     }
 
     render();
+    statusDiv.textContent = "All Files Loaded.";
   };
   function findNode(node, path) {
     let current = node;
@@ -1969,6 +1972,14 @@ function makeIcon(type, size = 16) {
   storageDiv.style.color = isDark ? "#cbd5e1" : "#334155";
   storageDiv.textContent = "Storage used: —";
   sidebar.appendChild(storageDiv);
+
+  // below storage display, add a status message area for status
+  statusDiv = document.createElement("div");
+  statusDiv.style.marginTop = "6px";
+  statusDiv.style.fontSize = "16px";
+  statusDiv.style.color = isDark ? "#cbd5e1" : "#334155";
+  statusDiv.textContent = "All Files Loaded.";
+  sidebar.appendChild(statusDiv);
   applyExplorerTheme();
   // Client-side quota (bytes). Prefer server-provided `window.protectedGlobals.data.maxSpace` (GB) if available.
   const maxSpaceGb = Number(window.protectedGlobals.data.maxSpace);
@@ -2676,8 +2687,15 @@ function makeIcon(type, size = 16) {
 
   // --- BUTTONS ---
   refreshBtn.onclick = async () => {
+    refreshBtn.innerHTML = '';
+    refreshBtn.appendChild(makeIcon('refresh',16));
+    refreshBtn.appendChild(document.createTextNode('Refreshing...'));
+    statusDiv.textContent = "Fetching Newest Files...";
     await onlyloadTree();
     render();
+    refreshBtn.innerHTML = '';
+    refreshBtn.appendChild(makeIcon('refresh',16));
+    refreshBtn.appendChild(document.createTextNode('Refresh'));
   };
   uploadBtn.onclick = () => fileInput.click();
   homeBtn.onclick = () => {
@@ -2733,6 +2751,7 @@ function makeIcon(type, size = 16) {
     saveBtn.appendChild(makeIcon('save',16));
     saveBtn.appendChild(document.createTextNode(saveFailed ? 'Save Failed!' : 'Saved!'));
     if (needRefresh) {
+      statusDiv.textContent = "Deleting and Fetching Newest Files...";
       await onlyloadTree();
       render();
       needRefresh = false;
@@ -2858,6 +2877,7 @@ function makeIcon(type, size = 16) {
   root.addEventListener("styleapplied", handleStyleApplied);
 
   // --- INIT ---
+  statusDiv.textContent = "Loading...";
   onlyloadTree(path);
 
   window.explorerGlobals.allExplorers.push({

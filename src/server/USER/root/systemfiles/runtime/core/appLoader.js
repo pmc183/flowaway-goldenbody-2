@@ -147,20 +147,12 @@
   }
 
   let getFilesFromFolder = async function (relPath) {
-    window.protectedGlobals.missingFolders.delete(relPath);
-    var r = await window.protectedGlobals.filePost({ requestFile: true, requestFileName: relPath });
-    if (r && r.kind === "folder" && Array.isArray(r.files)) return r.files;
-
-    var isMissing = !!(r && (r.missing || r.kind === "missing" || r.error === "ENOENT" || r.code === "ENOENT"));
-
-    if (isMissing) {
-      window.protectedGlobals.missingFolders.add(relPath);
-      var missingError = new Error("ENOENT: Missing folder " + String(relPath));
-      missingError.code = "ENOENT";
-      throw missingError;
+    const folderContents = await window.protectedGlobals.ReadFolder(relPath, { detail: true });
+    const returnArray = [];
+    for (const entry of folderContents) {
+      if (entry.type === "file") returnArray.push(entry.path);
     }
-
-    throw new Error("Invalid folder response for " + String(relPath));
+    return returnArray;
   };
 
   window.protectedGlobals.__externalPickerKeys = window.protectedGlobals.__externalPickerKeys || new Map();
@@ -651,18 +643,11 @@
   }
 
   window.protectedGlobals.extractAppData = async function (appFolder) {
-    var folderName = appFolder[0];
-    var folderPath = appFolder[2] && appFolder[2].path ? appFolder[2].path : "systemfiles/runtime/apps/" + folderName;
+    const folderPath = `systemfiles/runtime/apps/${appFolder}`;
+    const folderName = appFolder;
     var files = await getFilesFromFolder(folderPath);
-    if (!Array.isArray(files)) {
-      throw new Error("Invalid folder listing for " + String(folderPath));
-    }
 
-    var entryObjectfile =
-      files.find(function (f) {
-        return f.name.toLowerCase() === "entry.json";
-      })?.relativePath || null;
-
+    var entryObjectfile = files.find((file) => file.toLowerCase() === "entry.json");
     function createPlaceholderFunction() {
       let entryObj = getEntryObj();
       window[entryObj.functionName] = function () {
@@ -991,10 +976,12 @@
         // Preserve an already-passed path or picker handle for the iframe. If the app was launched
         // with a target, the iframe can inspect window.__path__ and use that as its initial file/folder target.
         const launchTarget = path || null;
-        let html = "";
         let loadtimes = false;
-        if (!entryObj.enableDebugging) html = `<html><head><script>window.__args = ${JSON.stringify(argObj)};const appName = "${entryObj.id}";window.networkAllowed = ${window.protectedGlobals.statusData.wifiEnabled ? "true" : "false"};window.__path__ = ${JSON.stringify(launchTarget)};window.__dragstripHidden__ = ${hiddenDragstrip};window.__filehandle__ = "${filehandlekey}";window.__curInstanceNum__ = ${instanceNum};window.addEventListener('contextmenu', (e) => {e.preventDefault();});</script></head><body style="margin: 0; padding: 0;"><script>${untrustedIframePatch}</script><script>${scriptText}</script></body></html>`;
-        else html = `<html><head><script>Object.defineProperty(window, 'localStorage', { value: {} }); Object.defineProperty(window, 'sessionStorage', { value: {} });</script><script>${window.protectedGlobals.erudaText}</script><script>eruda.init();const appName = "${entryObj.id}";window.__path__ = ${JSON.stringify(launchTarget)};window.__filehandle__ = "${filehandlekey}";window.__curInstanceNum__ = ${instanceNum};window.addEventListener('contextmenu', (e) => {e.preventDefault();});</script></head><body style="margin: 0; padding: 0;"><script>${untrustedIframePatch}</script><script>${scriptText}</script></body></html>`; // some eruda compatibilities included such as predefining localstorage
+        let html = `<html><head><script>window.__args = ${JSON.stringify(argObj)};const appName = "${entryObj.id}";window.networkAllowed = ${window.protectedGlobals.statusData.wifiEnabled ? "true" : "false"};window.__path__ = ${JSON.stringify(launchTarget)};window.__dragstripHidden__ = ${hiddenDragstrip};window.__filehandle__ = "${filehandlekey}";window.__curInstanceNum__ = ${instanceNum};window.addEventListener('contextmenu', (e) => {e.preventDefault();});</script></head><body style="margin: 0; padding: 0;"><script>${untrustedIframePatch}</script><script>${scriptText}</script>`;
+        if (entryObj.enableDebugging) {
+            html += `<script>Object.defineProperty(window, 'localStorage', { value: {} }); Object.defineProperty(window, 'sessionStorage', { value: {} });</script><script>${window.protectedGlobals.erudaText}</script><script>eruda.init();</script>`;
+        }
+        html += "</body></html>";
         iframe.addEventListener("load", () => {
           loadtimes++;
           if (loadtimes % 2 === 1) {

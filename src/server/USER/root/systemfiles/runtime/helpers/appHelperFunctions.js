@@ -120,24 +120,10 @@ window.protectedGlobals.setAppDataTitle = function (targetOrTitle, maybeTitle) {
   return true;
 };
 window.protectedGlobals.loadAppsFromTree = async function () {
-  window.protectedGlobals.apps = [];
-  if (!window.protectedGlobals.treeData) await window.protectedGlobals.loadTree();
-  try {
-    var rootChildren = (window.protectedGlobals.treeData && window.protectedGlobals.treeData[1]) || [];
-    var systemfilesNode = rootChildren.find(
-      (c) => c[0] === "systemfiles" && Array.isArray(c[1]),
-    );
-    var runtimeNode =
-      systemfilesNode && Array.isArray(systemfilesNode[1])
-        ? systemfilesNode[1].find((c) => c[0] === "runtime" && Array.isArray(c[1]))
-        : null;
-    var appsNode =
-      runtimeNode && Array.isArray(runtimeNode[1])
-        ? runtimeNode[1].find((c) => c[0] === "apps" && Array.isArray(c[1]))
-        : null;
-    if (!appsNode) return;
-    var appFolders = window.protectedGlobals.dedupefiles(appsNode[1]);
+    window.protectedGlobals.apps = [];
+
     // Load app folders in parallel to reduce startup latency. Preserve per-folder error handling.
+    const appFolders = await window.protectedGlobals.ReadFolder('/systemfiles/runtime/apps');
     const loaders = (appFolders || []).map(async (appFolder) => {
       try {
         const appData = await window.protectedGlobals.extractAppData(appFolder);
@@ -146,11 +132,7 @@ window.protectedGlobals.loadAppsFromTree = async function () {
           return appData;
         }
       } catch (e) {
-        try {
-          window.protectedGlobals.throwError("loadAppsFromTree", "Failed to parse app folder", e, {
-            folder: appFolder && appFolder[0],
-          });
-        } catch {}
+        console.error(`Error loading app from folder ${appFolder}:`, e);
       }
       return null;
     });
@@ -169,9 +151,6 @@ window.protectedGlobals.loadAppsFromTree = async function () {
      // reapply task buttons now that apps may be present
     window.protectedGlobals.applyTaskButtons();
     window.protectedGlobals.purgeButtons();
-  } catch (e) {
-    throw e;
-  }
 }
 
 

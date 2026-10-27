@@ -125,7 +125,7 @@
 <body>
     <div class="panel">
         <p class="eyebrow">FlowAway GoldenBody</p>
-        <h1>The Sanctuary For Students With Managed Devices</h1>
+        <h1>The Sanctuary For Managed Devices</h1>
         <p class="subtitle"></p>
         <div class="actions" id="actions"></div>
         <div class="links">
@@ -182,7 +182,7 @@
           }, 200);
         }
         function launchHomepage(newTab = false) {
-          playCompoundAudio();
+          try { playCompoundAudio(); } catch {}
           let a;
           if (newTab) a = window.open('about:blank', '_blank', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=yes`);
           else a = window.open('about:blank', '_blank');

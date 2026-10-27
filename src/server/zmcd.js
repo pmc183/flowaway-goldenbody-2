@@ -95,7 +95,7 @@ function sanitizeAuthRecord(raw, username, passwordHint = '') {
     username: String(base.username || username || '').trim(),
     password,
     authTokens,
-    maxSpace: 1,
+    maxSpace: base.maxSpace || 1,
     pathPermissions: mergePathPermissionsWithDefaults(Array.isArray(base.pathPermissions) ? base.pathPermissions : []),
   };
 }

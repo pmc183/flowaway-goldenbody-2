@@ -1,6 +1,5 @@
 "use strict";
 
-window.protectedGlobals.missingFolders = window.protectedGlobals.missingFolders || new Set();
 window.protectedGlobals.activeWebSockets = window.protectedGlobals.activeWebSockets || new Set();
 window.protectedGlobals.normalizeFsPath = function (path, {
   allowRoot = false
@@ -48,9 +47,6 @@ window.protectedGlobals.WriteFolder = async function (relPath, options = {}) {
   const payload = { saveSnapshot: true, directions };
   if (options && options.password) payload.password = options.password;
   const res = await window.protectedGlobals.filePost(payload);
-  if (res && res.success) {
-    window.protectedGlobals.missingFolders.delete(normalizedPath);
-  }
   return res;
 };
 window.protectedGlobals.FolderExists = async function (relPath) {
@@ -1208,31 +1204,18 @@ window.protectedGlobals.installApp = async function (folderName, options = {}) {
     }
     window.protectedGlobals.deleteApp(targetApp, true);
   }
-  await window.protectedGlobals.onlyloadTree();
-  var rootChildren = (window.protectedGlobals.treeData && window.protectedGlobals.treeData[1]) || [];
-  var systemfilesNode = rootChildren.find(
-    (c) => c[0] === "systemfiles" && Array.isArray(c[1]),
-  );
-  var runtimeNode =
-    systemfilesNode && Array.isArray(systemfilesNode[1])
-      ? systemfilesNode[1].find((c) => c[0] === "runtime" && Array.isArray(c[1]))
-      : null;
-  var appsNode =
-    runtimeNode && Array.isArray(runtimeNode[1])
-      ? runtimeNode[1].find((c) => c[0] === "apps" && Array.isArray(c[1]))
-      : null;
-  if (!appsNode) return;
-  var appFolders = window.protectedGlobals.dedupefiles(appsNode[1]);
+  
+  const appFolders = await window.protectedGlobals.ReadFolder("/systemfiles/runtime/apps").catch(() => []);
   for (const f of appFolders) {
     if (f[0] === folderName) {
-        let appData = await window.protectedGlobals.extractAppData(f);
-        window.protectedGlobals.apps.sort((a, b) => a.label.localeCompare(b.label));
-        window.protectedGlobals.initAppRuntimeState(appData);
-        window.protectedGlobals.apps.push(appData);
-        if (appData.createShortcutUponInstallation && !options.update) {
-          await window.protectedGlobals.createDesktopShortcutForApp(appData);
-        }
+      let appData = await window.protectedGlobals.extractAppData(f);
+      window.protectedGlobals.apps.sort((a, b) => a.label.localeCompare(b.label));
+      window.protectedGlobals.initAppRuntimeState(appData);
+      window.protectedGlobals.apps.push(appData);
+      if (appData.createShortcutUponInstallation && !options.update) {
+        await window.protectedGlobals.createDesktopShortcutForApp(appData);
       }
+    }
   }
   window.protectedGlobals.renderAppsGrid();
 };

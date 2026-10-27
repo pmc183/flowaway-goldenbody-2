@@ -201,3 +201,7 @@
 - Fixed a docs mismatch with the real writeline api in CLI.
 - removed legacy trailing /root/ in front of path more.
 - added zip and unzip for zipUtility app.
+
+# V 2.6.4
+- Removed startup tree loader (expensive).
+- which made goldenbody 10x faster than b4.

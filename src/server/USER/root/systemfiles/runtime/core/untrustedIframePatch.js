@@ -243,6 +243,279 @@ window.lockAPI = (api, parent) => {
     } catch (e) {}
 
 })();
+
+(function () {
+    const fileInputBlockedMessage = "File input creation is blocked.";
+
+    const isFileTypeValue = (value) => typeof value === 'string' && value.trim().toLowerCase() === 'file';
+    const isFileInputHtml = (value) => {
+        if (typeof value !== 'string') return false;
+        return /<input\b(?:(?:"[^"]*"|'[^']*'|[^>])*?)\btype\s*=\s*(?:["']?\s*file\s*["']?)\b/i.test(value)
+            || /<input\b[^>]*\btype\s*=\s*(?:["']?)\s*file\s*(?:["']?)\b/i.test(value);
+    };
+    const isFileInputElement = (node) => {
+        if (!node || typeof node !== 'object') return false;
+        const tagName = typeof node.tagName === 'string' ? String(node.tagName).toLowerCase() : '';
+        if (tagName !== 'input') return false;
+        return isFileTypeValue(node.type) || isFileTypeValue(typeof node.getAttribute === 'function' ? node.getAttribute('type') : null);
+    };
+
+    try {
+        const _setAttribute = Element.prototype.setAttribute;
+        Object.defineProperty(Element.prototype, 'setAttribute', {
+            value: function (name, value) {
+                if (String(name).toLowerCase() === 'type' && isFileTypeValue(String(value))) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                return _setAttribute.call(this, name, value);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        const _setAttributeNS = Element.prototype.setAttributeNS;
+        if (_setAttributeNS) {
+            Object.defineProperty(Element.prototype, 'setAttributeNS', {
+                value: function (namespace, qualifiedName, value) {
+                    if (String(qualifiedName).toLowerCase() === 'type' && isFileTypeValue(String(value))) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return _setAttributeNS.call(this, namespace, qualifiedName, value);
+                },
+                writable: false,
+                configurable: false,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'type');
+        if (desc && desc.set) {
+            Object.defineProperty(HTMLInputElement.prototype, 'type', {
+                get: desc.get,
+                set: function (value) {
+                    if (isFileTypeValue(String(value))) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return desc.set.call(this, value);
+                },
+                configurable: false,
+                enumerable: desc.enumerable,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        const _createElement = Document.prototype.createElement;
+        Object.defineProperty(Document.prototype, 'createElement', {
+            value: function (tagName, options) {
+                if (String(tagName).toLowerCase() === 'input' && options && isFileTypeValue(String(options.type))) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                return _createElement.call(this, tagName, options);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        const _createElementNS = Document.prototype.createElementNS;
+        if (_createElementNS) {
+            Object.defineProperty(Document.prototype, 'createElementNS', {
+                value: function (ns, tagName, options) {
+                    if (String(tagName).toLowerCase() === 'input' && options && isFileTypeValue(String(options.type))) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return _createElementNS.call(this, ns, tagName, options);
+                },
+                writable: false,
+                configurable: false,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        const _cloneNode = Node.prototype.cloneNode;
+        Object.defineProperty(Node.prototype, 'cloneNode', {
+            value: function (deep) {
+                if (isFileInputElement(this)) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                if (deep && this && this.querySelector) {
+                    const fileInputs = this.querySelectorAll('input[type="file"], input[type=file], input[type="FILE"], input[type=FILE]');
+                    if (fileInputs && fileInputs.length) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                }
+                return _cloneNode.call(this, deep);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        const _appendChild = Node.prototype.appendChild;
+        Object.defineProperty(Node.prototype, 'appendChild', {
+            value: function (node) {
+                if (isFileInputElement(node)) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                return _appendChild.call(this, node);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        const _insertBefore = Node.prototype.insertBefore;
+        Object.defineProperty(Node.prototype, 'insertBefore', {
+            value: function (node, refNode) {
+                if (isFileInputElement(node)) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                return _insertBefore.call(this, node, refNode);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        const _replaceChild = Node.prototype.replaceChild;
+        Object.defineProperty(Node.prototype, 'replaceChild', {
+            value: function (newChild, oldChild) {
+                if (isFileInputElement(newChild)) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                return _replaceChild.call(this, newChild, oldChild);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        const descOuter = Object.getOwnPropertyDescriptor(Element.prototype, 'outerHTML');
+        if (descOuter && descOuter.set) {
+            Object.defineProperty(Element.prototype, 'outerHTML', {
+                get: descOuter.get,
+                set: function (html) {
+                    if (isFileInputHtml(html)) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return descOuter.set.call(this, html);
+                },
+                configurable: false,
+                enumerable: descOuter.enumerable,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+        if (desc && desc.set) {
+            Object.defineProperty(Element.prototype, 'innerHTML', {
+                get: desc.get,
+                set: function (html) {
+                    if (isFileInputHtml(html)) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return desc.set.call(this, html);
+                },
+                configurable: false,
+                enumerable: desc.enumerable,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        const _insertAdjacentHTML = Element.prototype.insertAdjacentHTML;
+        Object.defineProperty(Element.prototype, 'insertAdjacentHTML', {
+            value: function (position, text) {
+                if (isFileInputHtml(text)) {
+                    throw new Error(fileInputBlockedMessage);
+                }
+                return _insertAdjacentHTML.call(this, position, text);
+            },
+            writable: false,
+            configurable: false,
+        });
+    } catch (e) {}
+
+    try {
+        if (typeof Range !== 'undefined' && Range.prototype && Range.prototype.createContextualFragment) {
+            const _createCF = Range.prototype.createContextualFragment;
+            Object.defineProperty(Range.prototype, 'createContextualFragment', {
+                value: function (html) {
+                    if (isFileInputHtml(html)) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return _createCF.call(this, html);
+                },
+                writable: false,
+                configurable: false,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        if (typeof DOMParser !== 'undefined' && DOMParser.prototype && DOMParser.prototype.parseFromString) {
+            const _parse = DOMParser.prototype.parseFromString;
+            Object.defineProperty(DOMParser.prototype, 'parseFromString', {
+                value: function (str, type) {
+                    if (isFileInputHtml(str)) {
+                        throw new Error(fileInputBlockedMessage);
+                    }
+                    return _parse.call(this, str, type);
+                },
+                writable: false,
+                configurable: false,
+            });
+        }
+    } catch (e) {}
+
+    try {
+        const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
+                if (mutation.addedNodes && mutation.addedNodes.length) {
+                    for (const node of Array.from(mutation.addedNodes)) {
+                        try {
+                            if (isFileInputElement(node)) {
+                                node.remove();
+                                continue;
+                            }
+                            if (node && node.querySelectorAll) {
+                                const list = node.querySelectorAll('input');
+                                for (const input of Array.from(list)) {
+                                    if (isFileInputElement(input)) {
+                                        input.remove();
+                                    }
+                                }
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+        });
+        observer.observe(document.documentElement || document, { childList: true, subtree: true });
+
+        setInterval(() => {
+            try {
+                const inputs = document.querySelectorAll('input');
+                for (const input of Array.from(inputs)) {
+                    if (isFileInputElement(input)) {
+                        input.remove();
+                    }
+                }
+            } catch (e) {}
+        }, 500);
+    } catch (e) {}
+})();
 window.lockAPI("showOpenFilePicker", window);
 window.lockAPI("showSaveFilePicker", window);
 window.lockAPI("showDirectoryPicker", window);
