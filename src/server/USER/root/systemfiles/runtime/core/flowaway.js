@@ -1,5 +1,7 @@
 "use strict";
 (function () {
+  if (window.protectedGlobals.__booted__) return;
+  window.protectedGlobals.__booted__ = true;
   const loadOverlay = document.createElement("div");
   loadOverlay.id = "loadOverlay";
   loadOverlay.style.cssText = `
@@ -29,7 +31,6 @@
   window.protectedGlobals.removeLoadOverlay = function () {
     loadOverlay.remove();
   };
-  try { delete window.protectedGlobals.treeData; } catch (e) { }
   window.protectedGlobals = window.protectedGlobals || {};
 
   window.permGlobals = window.permGlobals || {};

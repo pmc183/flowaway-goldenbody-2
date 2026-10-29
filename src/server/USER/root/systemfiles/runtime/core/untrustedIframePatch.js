@@ -246,8 +246,11 @@ window.lockAPI = (api, parent) => {
 
 (function () {
     const fileInputBlockedMessage = "File input creation is blocked.";
+    const iframeBlockedMessage = "Creation or insertion of iframe elements is blocked.";
 
     const isFileTypeValue = (value) => typeof value === 'string' && value.trim().toLowerCase() === 'file';
+    const isIframeTagName = (tagName) => typeof tagName === 'string' && String(tagName).toLowerCase() === 'iframe';
+    const hasIframeHtml = (value) => typeof value === 'string' && /<iframe[\s>]/i.test(value);
     const isFileInputHtml = (value) => {
         if (typeof value !== 'string') return false;
         return /<input\b(?:(?:"[^"]*"|'[^']*'|[^>])*?)\btype\s*=\s*(?:["']?\s*file\s*["']?)\b/i.test(value)
@@ -258,6 +261,10 @@ window.lockAPI = (api, parent) => {
         const tagName = typeof node.tagName === 'string' ? String(node.tagName).toLowerCase() : '';
         if (tagName !== 'input') return false;
         return isFileTypeValue(node.type) || isFileTypeValue(typeof node.getAttribute === 'function' ? node.getAttribute('type') : null);
+    };
+    const isIframeElement = (node) => {
+        if (!node || typeof node !== 'object') return false;
+        return isIframeTagName(node.tagName) || (typeof HTMLIFrameElement !== 'undefined' && node instanceof HTMLIFrameElement);
     };
 
     try {
@@ -311,6 +318,9 @@ window.lockAPI = (api, parent) => {
         const _createElement = Document.prototype.createElement;
         Object.defineProperty(Document.prototype, 'createElement', {
             value: function (tagName, options) {
+                if (isIframeTagName(tagName)) {
+                    throw new Error(iframeBlockedMessage);
+                }
                 if (String(tagName).toLowerCase() === 'input' && options && isFileTypeValue(String(options.type))) {
                     throw new Error(fileInputBlockedMessage);
                 }
@@ -326,6 +336,9 @@ window.lockAPI = (api, parent) => {
         if (_createElementNS) {
             Object.defineProperty(Document.prototype, 'createElementNS', {
                 value: function (ns, tagName, options) {
+                    if (isIframeTagName(tagName)) {
+                        throw new Error(iframeBlockedMessage);
+                    }
                     if (String(tagName).toLowerCase() === 'input' && options && isFileTypeValue(String(options.type))) {
                         throw new Error(fileInputBlockedMessage);
                     }
@@ -341,13 +354,13 @@ window.lockAPI = (api, parent) => {
         const _cloneNode = Node.prototype.cloneNode;
         Object.defineProperty(Node.prototype, 'cloneNode', {
             value: function (deep) {
-                if (isFileInputElement(this)) {
-                    throw new Error(fileInputBlockedMessage);
+                if (isFileInputElement(this) || isIframeElement(this)) {
+                    throw new Error(isIframeElement(this) ? iframeBlockedMessage : fileInputBlockedMessage);
                 }
                 if (deep && this && this.querySelector) {
-                    const fileInputs = this.querySelectorAll('input[type="file"], input[type=file], input[type="FILE"], input[type=FILE]');
-                    if (fileInputs && fileInputs.length) {
-                        throw new Error(fileInputBlockedMessage);
+                    const forbiddenNodes = this.querySelectorAll('input[type="file"], input[type=file], input[type="FILE"], input[type=FILE], iframe');
+                    if (forbiddenNodes && forbiddenNodes.length) {
+                        throw new Error(forbiddenNodes[0] && isIframeElement(forbiddenNodes[0]) ? iframeBlockedMessage : fileInputBlockedMessage);
                     }
                 }
                 return _cloneNode.call(this, deep);
@@ -361,8 +374,8 @@ window.lockAPI = (api, parent) => {
         const _appendChild = Node.prototype.appendChild;
         Object.defineProperty(Node.prototype, 'appendChild', {
             value: function (node) {
-                if (isFileInputElement(node)) {
-                    throw new Error(fileInputBlockedMessage);
+                if (isFileInputElement(node) || isIframeElement(node)) {
+                    throw new Error(isIframeElement(node) ? iframeBlockedMessage : fileInputBlockedMessage);
                 }
                 return _appendChild.call(this, node);
             },
@@ -375,8 +388,8 @@ window.lockAPI = (api, parent) => {
         const _insertBefore = Node.prototype.insertBefore;
         Object.defineProperty(Node.prototype, 'insertBefore', {
             value: function (node, refNode) {
-                if (isFileInputElement(node)) {
-                    throw new Error(fileInputBlockedMessage);
+                if (isFileInputElement(node) || isIframeElement(node)) {
+                    throw new Error(isIframeElement(node) ? iframeBlockedMessage : fileInputBlockedMessage);
                 }
                 return _insertBefore.call(this, node, refNode);
             },
@@ -389,8 +402,8 @@ window.lockAPI = (api, parent) => {
         const _replaceChild = Node.prototype.replaceChild;
         Object.defineProperty(Node.prototype, 'replaceChild', {
             value: function (newChild, oldChild) {
-                if (isFileInputElement(newChild)) {
-                    throw new Error(fileInputBlockedMessage);
+                if (isFileInputElement(newChild) || isIframeElement(newChild)) {
+                    throw new Error(isIframeElement(newChild) ? iframeBlockedMessage : fileInputBlockedMessage);
                 }
                 return _replaceChild.call(this, newChild, oldChild);
             },
@@ -405,8 +418,8 @@ window.lockAPI = (api, parent) => {
             Object.defineProperty(Element.prototype, 'outerHTML', {
                 get: descOuter.get,
                 set: function (html) {
-                    if (isFileInputHtml(html)) {
-                        throw new Error(fileInputBlockedMessage);
+                    if (isFileInputHtml(html) || hasIframeHtml(html)) {
+                        throw new Error(hasIframeHtml(html) ? iframeBlockedMessage : fileInputBlockedMessage);
                     }
                     return descOuter.set.call(this, html);
                 },
@@ -422,8 +435,8 @@ window.lockAPI = (api, parent) => {
             Object.defineProperty(Element.prototype, 'innerHTML', {
                 get: desc.get,
                 set: function (html) {
-                    if (isFileInputHtml(html)) {
-                        throw new Error(fileInputBlockedMessage);
+                    if (isFileInputHtml(html) || hasIframeHtml(html)) {
+                        throw new Error(hasIframeHtml(html) ? iframeBlockedMessage : fileInputBlockedMessage);
                     }
                     return desc.set.call(this, html);
                 },
@@ -437,8 +450,8 @@ window.lockAPI = (api, parent) => {
         const _insertAdjacentHTML = Element.prototype.insertAdjacentHTML;
         Object.defineProperty(Element.prototype, 'insertAdjacentHTML', {
             value: function (position, text) {
-                if (isFileInputHtml(text)) {
-                    throw new Error(fileInputBlockedMessage);
+                if (isFileInputHtml(text) || hasIframeHtml(text)) {
+                    throw new Error(hasIframeHtml(text) ? iframeBlockedMessage : fileInputBlockedMessage);
                 }
                 return _insertAdjacentHTML.call(this, position, text);
             },
@@ -452,8 +465,8 @@ window.lockAPI = (api, parent) => {
             const _createCF = Range.prototype.createContextualFragment;
             Object.defineProperty(Range.prototype, 'createContextualFragment', {
                 value: function (html) {
-                    if (isFileInputHtml(html)) {
-                        throw new Error(fileInputBlockedMessage);
+                    if (isFileInputHtml(html) || hasIframeHtml(html)) {
+                        throw new Error(hasIframeHtml(html) ? iframeBlockedMessage : fileInputBlockedMessage);
                     }
                     return _createCF.call(this, html);
                 },
@@ -468,8 +481,8 @@ window.lockAPI = (api, parent) => {
             const _parse = DOMParser.prototype.parseFromString;
             Object.defineProperty(DOMParser.prototype, 'parseFromString', {
                 value: function (str, type) {
-                    if (isFileInputHtml(str)) {
-                        throw new Error(fileInputBlockedMessage);
+                    if (isFileInputHtml(str) || hasIframeHtml(str)) {
+                        throw new Error(hasIframeHtml(str) ? iframeBlockedMessage : fileInputBlockedMessage);
                     }
                     return _parse.call(this, str, type);
                 },
@@ -485,15 +498,15 @@ window.lockAPI = (api, parent) => {
                 if (mutation.addedNodes && mutation.addedNodes.length) {
                     for (const node of Array.from(mutation.addedNodes)) {
                         try {
-                            if (isFileInputElement(node)) {
+                            if (isFileInputElement(node) || isIframeElement(node)) {
                                 node.remove();
                                 continue;
                             }
                             if (node && node.querySelectorAll) {
-                                const list = node.querySelectorAll('input');
-                                for (const input of Array.from(list)) {
-                                    if (isFileInputElement(input)) {
-                                        input.remove();
+                                const list = node.querySelectorAll('input, iframe');
+                                for (const candidate of Array.from(list)) {
+                                    if (isFileInputElement(candidate) || isIframeElement(candidate)) {
+                                        candidate.remove();
                                     }
                                 }
                             }
@@ -506,10 +519,10 @@ window.lockAPI = (api, parent) => {
 
         setInterval(() => {
             try {
-                const inputs = document.querySelectorAll('input');
-                for (const input of Array.from(inputs)) {
-                    if (isFileInputElement(input)) {
-                        input.remove();
+                const inputs = document.querySelectorAll('input, iframe');
+                for (const candidate of Array.from(inputs)) {
+                    if (isFileInputElement(candidate) || isIframeElement(candidate)) {
+                        candidate.remove();
                     }
                 }
             } catch (e) {}
@@ -529,147 +542,6 @@ window.lockAPI("localStorage", window);
 window.lockAPI("sessionStorage", window);
 window.lockAPI("caches", window);
 window.lockAPI("cookie", document);
-// Prevent creation and insertion of new iframes from inside this sandboxed iframe.
-(function(){
-    const iframeBlockedMessage = "Creation or insertion of iframe elements is blocked.";
-
-    // Block document.createElement('iframe')
-    const _createElement = Document.prototype.createElement;
-    Object.defineProperty(Document.prototype, 'createElement', {
-        value: function(tagName, options) {
-            if (String(tagName).toLowerCase() === 'iframe') {
-                throw new Error(iframeBlockedMessage);
-            }
-            return _createElement.call(this, tagName, options);
-        },
-        writable: false,
-        configurable: false,
-    });
-
-    // Block document.createElementNS(..., 'iframe')
-    const _createElementNS = Document.prototype.createElementNS;
-    if (_createElementNS) {
-        Object.defineProperty(Document.prototype, 'createElementNS', {
-            value: function(ns, tagName, options) {
-                if (String(tagName).toLowerCase() === 'iframe') {
-                    throw new Error(iframeBlockedMessage);
-                }
-                return _createElementNS.call(this, ns, tagName, options);
-            },
-            writable: false,
-            configurable: false,
-        });
-    }
-
-    // Block appending/inserting/replacing iframe nodes
-    const _appendChild = Node.prototype.appendChild;
-    Object.defineProperty(Node.prototype, 'appendChild', {
-        value: function(node) {
-            if (node && ((typeof node.tagName === 'string' && node.tagName.toUpperCase() === 'IFRAME') || (typeof HTMLIFrameElement !== 'undefined' && node instanceof HTMLIFrameElement))) {
-                throw new Error(iframeBlockedMessage);
-            }
-            return _appendChild.call(this, node);
-        },
-        writable: false,
-        configurable: false,
-    });
-
-    const _insertBefore = Node.prototype.insertBefore;
-    Object.defineProperty(Node.prototype, 'insertBefore', {
-        value: function(node, refNode) {
-            if (node && ((typeof node.tagName === 'string' && node.tagName.toUpperCase() === 'IFRAME') || (typeof HTMLIFrameElement !== 'undefined' && node instanceof HTMLIFrameElement))) {
-                throw new Error(iframeBlockedMessage);
-            }
-            return _insertBefore.call(this, node, refNode);
-        },
-        writable: false,
-        configurable: false,
-    });
-
-    const _replaceChild = Node.prototype.replaceChild;
-    Object.defineProperty(Node.prototype, 'replaceChild', {
-        value: function(newChild, oldChild) {
-            if (newChild && ((typeof newChild.tagName === 'string' && newChild.tagName.toUpperCase() === 'IFRAME') || (typeof HTMLIFrameElement !== 'undefined' && newChild instanceof HTMLIFrameElement))) {
-                throw new Error(iframeBlockedMessage);
-            }
-            return _replaceChild.call(this, newChild, oldChild);
-        },
-        writable: false,
-        configurable: false,
-    });
-
-    // Prevent inserting iframe HTML via innerHTML
-    try {
-        const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
-        if (desc && desc.set) {
-            Object.defineProperty(Element.prototype, 'innerHTML', {
-                get: desc.get,
-                set: function(html) {
-                    if (typeof html === 'string' && /<iframe[\s>]/i.test(html)) {
-                        throw new Error(iframeBlockedMessage);
-                    }
-                    return desc.set.call(this, html);
-                },
-                configurable: false,
-                enumerable: desc.enumerable
-            });
-        }
-    } catch (e) {}
-
-    // Prevent insertAdjacentHTML from injecting iframes
-    try {
-        const _insertAdjacentHTML = Element.prototype.insertAdjacentHTML;
-        Object.defineProperty(Element.prototype, 'insertAdjacentHTML', {
-            value: function(position, text) {
-                if (typeof text === 'string' && /<iframe[\s>]/i.test(text)) {
-                    throw new Error(iframeBlockedMessage);
-                }
-                return _insertAdjacentHTML.call(this, position, text);
-            },
-            writable: false,
-            configurable: false,
-        });
-    } catch (e) {}
-
-    // Prevent document.write / writeln from adding iframes
-    try {
-        const _docWrite = document.write;
-        if (_docWrite) {
-            Object.defineProperty(document, 'write', {
-                value: function(...args) {
-                    throw new Error("document.write is blocked.");
-                },
-                writable: false,
-                configurable: false,
-            });
-        }
-    } catch (e) {}
-    try {
-        const _docWriteln = document.writeln;
-        if (_docWriteln) {
-            Object.defineProperty(document, 'writeln', {
-                value: function(...args) {
-                    throw new Error("document.writeln is blocked.");
-                },
-                writable: false,
-                configurable: false,
-            });
-        }
-    } catch (e) {}
-
-    // Prevent opening new windows (which can be targeted to create frames)
-    try {
-        const _windowOpen = window.open;
-        Object.defineProperty(window, 'open', {
-            value: function() {
-                throw new Error("Opening new windows or iframes is blocked.");
-            },
-            writable: false,
-            configurable: false,
-        });
-    } catch (e) {}
-
-})();
 let createRequestId;
 (function () {
     let __goldenbodyRequestCounter = 0;

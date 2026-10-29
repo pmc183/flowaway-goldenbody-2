@@ -1407,35 +1407,35 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       let currentPath = options.startPath || "/";
       let selectionAnchorIndex = -1;
 
+      const syncSelectionVisualState = () => {
+        if (!browserContainer) return;
+        const rows = browserContainer.querySelectorAll('[data-picker-row="true"]');
+        rows.forEach((row) => {
+          const rowPath = row.dataset.path || "";
+          const isSelected = selected.has(rowPath);
+          row.style.background = isSelected ? (isDark ? "#0e639c" : "#e3f2fd") : (isDark ? "#1e1e1e" : "#ffffff");
+          row.style.borderBottom = `1px solid ${isDark ? "#333333" : "#e0e0e0"}`;
+        });
+      };
+
+      const syncRowVisualState = (row, rowPath, isEnabledItem) => {
+        if (!row || !rowPath) return;
+        const isSelected = selected.has(rowPath);
+        row.style.background = isSelected ? (isDark ? "#0e639c" : "#e3f2fd") : (isDark ? "#1e1e1e" : "#ffffff");
+        row.style.opacity = isEnabledItem ? "1" : "0.45";
+        row.style.borderBottom = `1px solid ${isDark ? "#333333" : "#e0e0e0"}`;
+      };
+
       // Update path bar
       const updatePathBar = () => {
         pathBar.textContent = "Current: " + currentPath;
       };
 
-      const getEntriesFromTreeData = (treePath) => {
-        if (!window.protectedGlobals.treeData) return null;
-        const node = window.protectedGlobals.findNodeByPath ? window.protectedGlobals.findNodeByPath(treePath) : null;
-        if (!node || !Array.isArray(node[1])) return null;
-
-        return node[1].map((child) => {
-          if (!Array.isArray(child)) {
-            return { raw: child, name: "", folder: false };
-          }
-
-          const name = typeof child[0] === "string" ? child[0] : "";
-          const folder = Array.isArray(child[1]);
-          return { raw: child, name, folder };
-        });
-      };
-
-      // Load and render folder contents
+      // Load and render folder contents using the modern VFS directory read API.
       const loadFolder = async (path) => {
         browserContainer.innerHTML = '<div style="padding: 16px; text-align: center; color: ' + (isDark ? "#aaa" : "#666") + ';">Loading...</div>';
         try {
-          let files = getEntriesFromTreeData(path);
-          if (!files) {
-            files = await window.protectedGlobals.ReadFolder(path).catch(() => []);
-          }
+          const files = await window.protectedGlobals.ReadFolder(path, { detail: true }).catch(() => []);
 
           selected.clear();
           selectionAnchorIndex = -1;
@@ -1464,8 +1464,8 @@ window.protectedGlobals.writeStatus = function writeStatus() {
           parentItem.onmouseover = () => parentItem.style.background = isDark ? "#333333" : "#f0f0f0";
           parentItem.onmouseout = () => parentItem.style.background = isDark ? "#252525" : "#fafafa";
           parentItem.ondblclick = () => {
-            const newPath = path.split("/").slice(0, -1).join("/") || "/";
-            loadFolder(newPath);
+            const parentPath = path && path !== "/" ? path.split("/").filter(Boolean).slice(0, -1).join("/") : "";
+            loadFolder(parentPath ? parentPath : "/");
           };
 
           const parentIcon = document.createElement("span");
@@ -1506,25 +1506,46 @@ window.protectedGlobals.writeStatus = function writeStatus() {
         }
 
         // Normalize entries returned from ReadFolder.
-        // ReadFolder can return strings (names), arrays ([name, children,...]) or objects ({ name, folder }).
         const normalized = (files || []).map((file) => {
           let name = "";
           let isFolder = false;
+          let entryPath = "";
+
           if (typeof file === "string") {
             name = file;
-            isFolder = true; // assume folder for string entries; we'll probe on click
+            entryPath = name;
+            isFolder = true;
           } else if (Array.isArray(file)) {
             name = String(file[0] || "");
+            entryPath = String(file[0] || "");
             isFolder = Array.isArray(file[1]);
           } else if (file && typeof file === "object") {
-            name = String(file.name || file.filename || file[0] || "");
-            isFolder = !!file.folder || !!file.isFolder || false;
+            const typeName = String(file.type || file.kind || "").toLowerCase();
+            entryPath = String(file.path || file.name || file.filename || file[0] || "");
+            name = String((file.name || file.filename || entryPath).split("/").pop() || "");
+            isFolder = typeName === "folder" || !!file.folder || !!file.isFolder || Array.isArray(file.children);
           }
-          return { raw: file, name, folder: !!isFolder };
+
+          entryPath = entryPath || name;
+          const normalizedPath = window.protectedGlobals.normalizeFsPath(entryPath || name, { allowRoot: true });
+
+          return {
+            raw: file,
+            name,
+            folder: !!isFolder,
+            path: normalizedPath,
+          };
         });
 
         const folders = normalized.filter((f) => f.folder);
         const filelist = normalized.filter((f) => !f.folder);
+
+        const getChildPath = (basePath, childName) => {
+          const cleanBase = String(basePath || "/").replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+          const cleanName = String(childName || "").replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+          if (!cleanName) return cleanBase || "";
+          return cleanBase ? `${cleanBase}/${cleanName}` : cleanName;
+        };
 
         const sortedFiles = [
           ...folders.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
@@ -1532,18 +1553,20 @@ window.protectedGlobals.writeStatus = function writeStatus() {
         ];
         const selectionEntries = sortedFiles.map((entry) => ({
           ...entry,
-          path: path === "/" ? "/" + (entry.name || "") : path + "/" + (entry.name || ""),
+          path: getChildPath(path, entry.name),
         }));
 
         sortedFiles.forEach((file, index) => {
           const item = document.createElement("div");
           const isFolder = !!file.folder;
           const name = file.name || "";
-          const filePath = path === "/" ? "/" + name : path + "/" + name;
+          const filePath = getChildPath(path, name);
           const isSelected = selected.has(filePath);
           const isFolderMode = options.accept === "folder";
           const isEnabledItem = !isFolderMode || isFolder;
 
+          item.dataset.pickerRow = "true";
+          item.dataset.path = filePath;
           item.style.cssText = `
             padding: 12px 16px;
             display: flex;
@@ -1555,11 +1578,16 @@ window.protectedGlobals.writeStatus = function writeStatus() {
           `;
 
           item.onmouseover = () => {
-            if (!isEnabledItem || isSelected) return;
+            if (!isEnabledItem) return;
+            if (selected.has(filePath)) return;
             item.style.background = isDark ? "#252525" : "#f5f5f5";
           };
           item.onmouseout = () => {
-            if (!isEnabledItem || isSelected) return;
+            if (!isEnabledItem) return;
+            if (selected.has(filePath)) {
+              item.style.background = isDark ? "#0e639c" : "#e3f2fd";
+              return;
+            }
             item.style.background = isDark ? "#1e1e1e" : "#ffffff";
           };
 
@@ -1576,9 +1604,9 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             color: ${isDark ? "#dcdcdc" : "#000000"};
           `;
           const iconMarkup = isFolder
-            ? (window.protectedGlobals.fileIconSet?.folder || window.protectedGlobals.fileIconSet?.file)
-            : (window.protectedGlobals.fileIconSet?.file || window.protectedGlobals.fileIconSet?.folder);
-          icon.innerHTML = iconMarkup;
+            ? (window.protectedGlobals.fileIconSet?.folder || "")
+            : (window.protectedGlobals.fileIconSet?.file || "");
+          icon.innerHTML = iconMarkup || (isFolder ? "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M3 7.5A2.5 2.5 0 0 1 5.5 5h4.2c.6 0 1.2.2 1.6.6l1.2 1.1c.2.2.5.3.8.3h5.2A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-10Z' fill='#F4C95D' stroke='currentColor' stroke-width='1.2' stroke-linejoin='round'/><path d='M3 11.5H21' stroke='rgba(0,0,0,.25)' stroke-width='1' stroke-linecap='round'/></svg>" : "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z' fill='rgba(255,255,255,.08)' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M14 2v5h5' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M9 12h6M9 16h6' stroke='currentColor' stroke-width='1.3' stroke-linecap='round'/></svg>");
           item.appendChild(icon);
 
           // Filename
@@ -1596,14 +1624,15 @@ window.protectedGlobals.writeStatus = function writeStatus() {
 
           item.ondblclick = async (e) => {
             if (!isFolder) return;
+            const nextPath = getChildPath(path, name);
             if (typeof file.raw === "string") {
-              const probe = await window.protectedGlobals.ReadFolder(filePath).catch(() => null);
+              const probe = await window.protectedGlobals.ReadFolder(nextPath).catch(() => null);
               if (Array.isArray(probe)) {
-                loadFolder(filePath);
+                loadFolder(nextPath);
               }
               return;
             }
-            loadFolder(filePath);
+            loadFolder(nextPath);
           };
 
           // Click handler
@@ -1614,23 +1643,24 @@ window.protectedGlobals.writeStatus = function writeStatus() {
               return;
             }
 
+            if (isFolder && isFolderMode) {
+              const nextSelection = window.protectedGlobals.buildPickerSelectionState({
+                selected,
+                clickedPath: filePath,
+                clickedIndex: index,
+                anchorIndex: selectionAnchorIndex,
+                allEntries: selectionEntries,
+                event: e,
+                allowMultiple: !!options.multiple,
+              });
+              selected.clear();
+              nextSelection.forEach((entryPath) => selected.add(entryPath));
+              selectionAnchorIndex = index;
+              syncSelectionVisualState();
+              return;
+            }
+
             if (isFolder) {
-              if (isFolderMode) {
-                const nextSelection = window.protectedGlobals.buildPickerSelectionState({
-                  selected,
-                  clickedPath: filePath,
-                  clickedIndex: index,
-                  anchorIndex: selectionAnchorIndex,
-                  allEntries: selectionEntries,
-                  event: e,
-                  allowMultiple: !!options.multiple,
-                });
-                selected.clear();
-                nextSelection.forEach((entryPath) => selected.add(entryPath));
-                selectionAnchorIndex = index;
-                renderFiles(files, path);
-                return;
-              }
               e.preventDefault();
               e.stopPropagation();
               return;
@@ -1648,7 +1678,7 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             selected.clear();
             nextSelection.forEach((entryPath) => selected.add(entryPath));
             selectionAnchorIndex = index;
-            renderFiles(files, path);
+            syncSelectionVisualState();
           };
 
           browserContainer.appendChild(item);
@@ -1739,7 +1769,6 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       loadingMsg.style.cssText = `padding: 16px; text-align: center; color: ${isDark ? "#aaa" : "#999"};`;
       loadingMsg.textContent = "Loading...";
       browserContainer.appendChild(loadingMsg);
-      await window.protectedGlobals.onlyloadTree();
       loadingMsg.remove();
       loadFolder(options.startPath || "/");
     });

@@ -36,20 +36,6 @@ window.protectedGlobals.APP_VERSION = "this app is not versioned";
 window.protectedGlobals.hasChanges = false;
 window.protectedGlobals.atTop = "";
 window.protectedGlobals.zTop = 10;
-// required functions for user file system
-window.protectedGlobals.findNodeByPath = function (relPath) {
-  if (typeof relPath !== "string") return null;
-  const normalized = String(relPath).replace(/\/+/g, "/").replace(/^\//, "").replace(/\/$/, "");
-  if (!normalized) return window.protectedGlobals.treeData;
-  const parts = normalized.split("/");
-  let current = window.protectedGlobals.treeData;
-  for (const part of parts) {
-    if (!current || !Array.isArray(current[1])) return null;
-    current = current[1].find((c) => c[0] === part);
-    if (!current) return null;
-  }
-  return current;
-};
 
 window.protectedGlobals.dedupefiles = function (folders) {
   var seen = new Set();
@@ -530,17 +516,20 @@ window.protectedGlobals.rebuildhandler = function () {
 (() => {
   // 1. Track down your old body references
   let oldBody = document.body;
-
+  let oldHead = document.head;
   // 2. Create the new body
   const newBody = document.createElement('body');
-  // ... set up newBody contents ...
+  const newHead = document.createElement('head');
 
   // 3. Swap them in the document element (<html>)
   document.documentElement.replaceChild(newBody, oldBody);
+  document.documentElement.replaceChild(newHead, oldHead);
 
   // 4. CRITICAL: Break the memory chains
   oldBody.innerHTML = ''; // Wipes out all child nodes from memory
   oldBody = null;         // Nullifies your primary variable reference
+  oldHead.innerHTML = '';
+  oldHead = null;         // Nullifies your primary variable reference
 })();
 
   // Inject homepage loader

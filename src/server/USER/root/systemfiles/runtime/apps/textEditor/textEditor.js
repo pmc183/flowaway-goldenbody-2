@@ -128,9 +128,6 @@ window.textEditor = function (path, posX = 50, posY = 50) {
   let hasFileOpen = false;
   let editorName;
 
-  if (!window.protectedGlobals.treeData) {
-    window.protectedGlobals.onlyloadTree();
-  }
   window.protectedGlobals.startMenu.style.display = "none";
   let isMaximized = false;
   let _isMinimized = false;
@@ -818,6 +815,18 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
   root.addEventListener("styleapplied", applyTextEditorTheme);
 
+  async function readFolderEntriesForPicker(targetPath = "") {
+    const normalizedPath = String(targetPath || "").replace(/\/+/g, "/").replace(/^\/+/, "");
+    const children = await window.protectedGlobals.ReadFolder(normalizedPath, { detail: true }).catch(() => []);
+    if (!Array.isArray(children)) return [];
+    return children.map((entry) => {
+      const name = typeof entry?.name === "string" && entry.name ? entry.name : (typeof entry?.path === "string" ? String(entry.path).split("/").pop() : "");
+      const isFolder = String(entry?.type || "").toLowerCase() === "folder" || !!entry?.folder;
+      const resolvedPath = normalizedPath ? `${normalizedPath}/${name}` : name;
+      return [name, isFolder ? [] : null, { path: resolvedPath, kind: isFolder ? "folder" : "file" }];
+    });
+  }
+
   loadTextEditorSettings()
     .then((settings) => {
       try {
@@ -837,9 +846,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
   // Save-as dialog (defined here so New/Save can reuse it)
   async function openEditorSaveUI() {
-    await window.protectedGlobals.onlyloadTree();
-    let pickerTree = JSON.parse(JSON.stringify(window.protectedGlobals.treeData || {}));
-    let pickerCurrentPath = ["root"];
+    let pickerCurrentPath = "";
     let pickerSelection = [];
     let pickerOverlay = document.createElement("div");
     pickerOverlay.addEventListener('keydown', (e) => e.stopPropagation());
@@ -937,28 +944,37 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       });
     }
 
-    function renderPicker() {
+    async function renderPicker() {
       breadcrumbDiv.innerHTML = "";
-      pickerCurrentPath.forEach((p, i) => {
-        const span = document.createElement("span");
-        span.textContent = i === 0 ? "Home" : " / " + p;
-        span.style.cursor = "pointer";
-        span.onclick = () => {
-          pickerCurrentPath = pickerCurrentPath.slice(0, i + 1);
+      const parts = pickerCurrentPath ? pickerCurrentPath.split("/").filter(Boolean) : [];
+      const homeLink = document.createElement("span");
+      homeLink.textContent = "Home";
+      homeLink.style.cursor = "pointer";
+      homeLink.onclick = () => {
+        pickerCurrentPath = "";
+        renderPicker();
+      };
+      breadcrumbDiv.appendChild(homeLink);
+
+      parts.forEach((part, index) => {
+        const sep = document.createElement("span");
+        sep.textContent = " / ";
+        sep.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#334155";
+        breadcrumbDiv.appendChild(sep);
+
+        const link = document.createElement("span");
+        link.textContent = part;
+        link.style.cursor = "pointer";
+        link.onclick = () => {
+          pickerCurrentPath = parts.slice(0, index + 1).join("/");
           renderPicker();
         };
-        breadcrumbDiv.appendChild(span);
+        breadcrumbDiv.appendChild(link);
       });
 
       fileArea.innerHTML = "";
-      let node = pickerTree;
-      for (let i = 1; i < pickerCurrentPath.length; i++) {
-        if (!node || !node[1]) break;
-        node = node[1].find((c) => c[0] === pickerCurrentPath[i]);
-      }
-      if (!node || !node[1]) return;
-
-      node[1].forEach((item) => {
+      const entries = await readFolderEntriesForPicker(pickerCurrentPath);
+      entries.forEach((item) => {
         const row = document.createElement("div");
         row.dataset.pickerItem = "true";
         row.style.display = "flex";
@@ -971,7 +987,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
           row.style.background = getPickerSelectionColor();
         }
 
-        const icon = makeIcon(Array.isArray(item[1]) ? "folder" : "file", 14);
+        const isFolder = Array.isArray(item[1]);
+        const icon = makeIcon(isFolder ? "folder" : "file", 14);
         const label = document.createElement("span");
         label.textContent = item[0];
         row.appendChild(icon);
@@ -997,9 +1014,9 @@ window.textEditor = function (path, posX = 50, posY = 50) {
           }
         };
 
-        if (Array.isArray(item[1])) {
+        if (isFolder) {
           row.ondblclick = () => {
-            pickerCurrentPath.push(item[0]);
+            pickerCurrentPath = item[2]?.path || pickerCurrentPath;
             renderPicker();
           };
         }
@@ -1029,7 +1046,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
       btnSave.onclick = () => {
         const selections = [...pickerSelection];
-        const basePath = pickerCurrentPath.slice(1).join("/");
+        const basePath = pickerCurrentPath;
         const fname = filenameInput.value.trim();
         if (!fname) return getUIMessage("Enter a filename");
 
@@ -1041,9 +1058,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
           const isFolder = Array.isArray(sel[1]);
           if (isFolder) chosen = (basePath ? basePath + "/" : "") + fname;
           else {
-            // if i picked a file i dont do anything, but if its root directory handle it
-            if (pickerCurrentPath.length === 1 && !selections.length)
-              chosen = fname;
+            if (!basePath && !selections.length) chosen = fname;
             else {
               alert("Cannot select a file for save destination");
               throw new Error("Cannot select a file for save destination");
@@ -1092,9 +1107,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
   // Recreate the app's custom picker UI (shared overlay pattern)
   async function openEditorPickerUI() {
-    await window.protectedGlobals.onlyloadTree();
-    let pickerTree = JSON.parse(JSON.stringify(window.protectedGlobals.treeData || {}));
-    let pickerCurrentPath = ["root"];
+    let pickerCurrentPath = "";
     let pickerSelection = [];
     let pickerOverlay = document.createElement("div");
     pickerOverlay.tabIndex = "0";
@@ -1174,28 +1187,37 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       });
     }
 
-    function renderPicker() {
+    async function renderPicker() {
       breadcrumbDiv.innerHTML = "";
-      pickerCurrentPath.forEach((p, i) => {
-        const span = document.createElement("span");
-        span.textContent = i === 0 ? "Home" : " / " + p;
-        span.style.cursor = "pointer";
-        span.onclick = () => {
-          pickerCurrentPath = pickerCurrentPath.slice(0, i + 1);
+      const parts = pickerCurrentPath ? pickerCurrentPath.split("/").filter(Boolean) : [];
+      const homeLink = document.createElement("span");
+      homeLink.textContent = "Home";
+      homeLink.style.cursor = "pointer";
+      homeLink.onclick = () => {
+        pickerCurrentPath = "";
+        renderPicker();
+      };
+      breadcrumbDiv.appendChild(homeLink);
+
+      parts.forEach((part, index) => {
+        const sep = document.createElement("span");
+        sep.textContent = " / ";
+        sep.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#334155";
+        breadcrumbDiv.appendChild(sep);
+
+        const link = document.createElement("span");
+        link.textContent = part;
+        link.style.cursor = "pointer";
+        link.onclick = () => {
+          pickerCurrentPath = parts.slice(0, index + 1).join("/");
           renderPicker();
         };
-        breadcrumbDiv.appendChild(span);
+        breadcrumbDiv.appendChild(link);
       });
 
       fileArea.innerHTML = "";
-      let node = pickerTree;
-      for (let i = 1; i < pickerCurrentPath.length; i++) {
-        if (!node || !node[1]) break;
-        node = node[1].find((c) => c[0] === pickerCurrentPath[i]);
-      }
-      if (!node || !node[1]) return;
-
-      node[1].forEach((item) => {
+      const entries = await readFolderEntriesForPicker(pickerCurrentPath);
+      entries.forEach((item) => {
         const row = document.createElement("div");
         row.dataset.pickerItem = "true";
         row.style.display = "flex";
@@ -1208,7 +1230,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
           row.style.background = getPickerSelectionColor();
         }
 
-        const icon = makeIcon(Array.isArray(item[1]) ? "folder" : "file", 14);
+        const isFolder = Array.isArray(item[1]);
+        const icon = makeIcon(isFolder ? "folder" : "file", 14);
         const label = document.createElement("span");
         label.textContent = item[0];
         row.appendChild(icon);
@@ -1234,9 +1257,9 @@ window.textEditor = function (path, posX = 50, posY = 50) {
           }
         };
 
-        if (Array.isArray(item[1])) {
+        if (isFolder) {
           row.ondblclick = () => {
-            pickerCurrentPath.push(item[0]);
+            pickerCurrentPath = item[2]?.path || pickerCurrentPath;
             renderPicker();
           };
         }
@@ -1264,14 +1287,11 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         const selections = [...pickerSelection];
         if (!selections.length) return alert("Select a file or folder");
 
-        // Compute a full path for each selected item using the current picker path
-        const basePath = pickerCurrentPath.slice(1).join("/");
         const mapped = selections.map((sel) => {
           const name = sel[0];
           const isFolder = Array.isArray(sel[1]);
-          const path = basePath ? basePath + "/" + name : name;
-          // return a node-shaped array compatible with shared picker consumers
-          return [name, sel[1], { path }];
+          const path = sel[2]?.path || (pickerCurrentPath ? `${pickerCurrentPath}/${name}` : name);
+          return [name, isFolder ? [] : null, { path }];
         });
 
         root.removeEventListener("styleapplied", onOpenPickerStyleApplied);

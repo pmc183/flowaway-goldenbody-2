@@ -2057,9 +2057,9 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>pasteFolder(destinationOrHandle, clipboard, options)</code> - copy or move a folder payload into a destination.</li>
     <li><code>folderExists(pathOrHandle, options)</code> - check whether a path is a folder.</li>
     <li><code>fileExists(pathOrHandle, options)</code> - check whether a path is a file.</li>
-    <li><code>showOpenFilePicker(options)</code> - let the user pick a file or folder and return a permission handle.</li>
+    <li><code>showOpenFilePicker(options)</code> - let the user pick a file or folder and return a permission handle. If <code>multiple: true</code>, return an array of handles.</li>
     <li><code>showSaveFilePicker(options)</code> - let the user choose a save target and return a handle.</li>
-    <li><code>showDirectoryPicker(options)</code> - let the user pick a directory and return a handle.</li>
+    <li><code>showDirectoryPicker(options)</code> - let the user pick a directory and return a handle. If <code>multiple: true</code>, return an array of handles.</li>
     <li><code>watchFile(pathOrHandle, callback, options)</code> - watch a file for changes, renames, and deletes.</li>
     <li><code>watchFolder(pathOrHandle, callback, options)</code> - watch a folder tree and receive change events.</li>
     <li><code>closeWatch(watchId)</code> - stop a specific watcher by the id returned when it was created.</li>
@@ -2323,6 +2323,16 @@ await window.__goldenbodyAPI.writeFile(handle, updatedText, { replace: true });<
 <h4>Picker results</h4>
 <p>Results from external pickers include:</p>
 <pre><code>{ kind: 'file' | 'directory', path, key, name }</code></pre>
+<p>When you pass <code>{ multiple: true }</code> to <code>showOpenFilePicker()</code> or <code>showDirectoryPicker()</code>, the runtime resolves to an array of handles instead of a single handle. Each item keeps the same shape as above.</p>
+<pre><code>// pick multiple files or folders
+const handles = await window.__goldenbodyAPI.showOpenFilePicker({ multiple: true });
+console.log(handles[0].path);
+
+const folders = await window.__goldenbodyAPI.showDirectoryPicker({ multiple: true });
+for (const folder of folders) {
+  console.log(folder.path);
+}
+</code></pre>
 <p>If the picker path is not authorized with a valid key, writes do not go to the external path.</p>
 <h4>How to write a file inside a folder you picked</h4>
 <p>

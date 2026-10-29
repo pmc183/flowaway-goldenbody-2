@@ -170,7 +170,7 @@ window.protectedGlobals.initAppTools = function () {
 
       handle.className = "app-resize-handle " + cfg.className;
       handle.style.position = "absolute";
-      handle.style.zIndex = root.style.zIndex;
+      handle.style.zIndex = "100003";
       handle.style.background = "transparent";
       handle.style.opacity = "0";
       handle.style.pointerEvents = "auto";

@@ -91,7 +91,7 @@ if (existingStartMenu) existingStartMenu.remove();
 const startMenu = window.protectedGlobals.startMenu = document.createElement("div");
 startMenu.id = "startMenu";
 startMenu.className = "startMenu";
-startMenu.style.zIndex = 100000; // maximum z-index to ensure it appears on top of everything
+startMenu.style.zIndex = 100001; // maximum z-index to ensure it appears on top of everything
 
 const signOutSvg = `
 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

@@ -11,5 +11,5 @@
   "autoupdate": true,
   "DRAG_THRESHOLD": 15,
   "taskbarOnTop": false,
-  "compactTaskbar": true
+  "compactTaskbar": false
 }

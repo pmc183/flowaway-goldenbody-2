@@ -162,6 +162,16 @@
     return String(path).replace(/\/+/g, "/").replace(/^\//, "");
   }
 
+  async function getPickerHandleKind(pathValue) {
+    if (!pathValue || typeof pathValue !== "string") return "file";
+    try {
+      const listing = await window.protectedGlobals.ReadFolder(pathValue, { detail: true });
+      return Array.isArray(listing) ? "directory" : "file";
+    } catch {
+      return "file";
+    }
+  }
+
   function isPathUnderRoot(path, root) {
     if (typeof path !== "string" || typeof root !== "string") return false;
     const normalizedPath = normalizeVfsPath(path);
@@ -198,12 +208,14 @@
     };
   }
 
-  async function showVfsPickerDialog({ title, mode, suggestedName }) {
+  async function showVfsPickerDialog({ title, mode, suggestedName, multiple = false }) {
     if (document.getElementById("vfs-picker-overlay")) {
       return Promise.reject(new Error("A file picker dialog is already open."));
     }
     let currentPath = "";
     let selectedPath = "";
+    let selectedPaths = new Set();
+    let selectionAnchorIndex = -1;
     const overlay = document.createElement("div");
     overlay.id = "vfs-picker-overlay";
     overlay.addEventListener('keydown', (e) => e.stopPropagation());
@@ -310,23 +322,25 @@
       }
     };
 
-    function getCurrentNode() {
-      const node = window.protectedGlobals.findNodeByPath(currentPath) || window.protectedGlobals.findNodeByPath("/" + currentPath);
-      return node || window.protectedGlobals.treeData;
-    }
-
-    function getEntries() {
-      const node = getCurrentNode();
-      const children = Array.isArray(node && node[1]) ? node[1] : [];
-      return children.map((child) => {
-        const isFolder = Array.isArray(child[1]);
-        const childPath = child[2] && typeof child[2].path === "string" ? child[2].path : normalizeVfsPath(currentPath ? currentPath + "/" + child[0] : child[0]);
-        return {
-          label: child[0],
-          kind: isFolder ? "folder" : "file",
-          path: childPath,
-        };
-      });
+    async function getEntries() {
+      const targetPath = normalizeVfsPath(currentPath || "");
+      try {
+        const children = await window.protectedGlobals.ReadFolder(targetPath || "", { detail: true }).catch(() => []);
+        if (!Array.isArray(children)) return [];
+        return children.map((child) => {
+          const rawName = typeof child?.name === "string" && child.name ? child.name : (typeof child?.path === "string" ? child.path.split("/").pop() : "");
+          const name = rawName || "";
+          const isFolder = String(child?.type || "").toLowerCase() === "folder" || !!child?.folder;
+          const fullPath = normalizeVfsPath((currentPath ? currentPath + "/" : "") + name);
+          return {
+            label: name,
+            kind: isFolder ? "folder" : "file",
+            path: fullPath,
+          };
+        });
+      } catch {
+        return [];
+      }
     }
 
     function createPickerItemIcon(kind, size = 18) {
@@ -375,9 +389,11 @@
     }
 
     function updateActionButtonState() {
-      const effectiveTargetPath = selectedPath || currentPath;
+      const isMultiSelection = !!multiple && mode !== "saveFile";
+      const hasSelection = isMultiSelection ? selectedPaths.size > 0 : !!(selectedPath || currentPath);
+      const effectiveTargetPath = isMultiSelection ? (selectedPaths.size ? Array.from(selectedPaths)[0] : currentPath) : (selectedPath || currentPath);
       const isProtectedFolderTarget = mode === "showDirectoryPicker" && isTopLevelSystemfilesFolder(effectiveTargetPath);
-      const shouldDisable = isProtectedFolderTarget;
+      const shouldDisable = isProtectedFolderTarget || (isMultiSelection ? selectedPaths.size === 0 : false);
       actionButton.disabled = shouldDisable;
       actionButton.style.opacity = shouldDisable ? "0.55" : "1";
       actionButton.style.cursor = shouldDisable ? "not-allowed" : "pointer";
@@ -434,18 +450,34 @@
       });
     }
 
-    function renderEntries() {
+    function syncSelectionVisualState() {
+      Array.from(list.children).forEach((row) => {
+        const rowPath = row.dataset.path || "";
+        const isSelected = multiple ? selectedPaths.has(rowPath) : rowPath && rowPath === selectedPath;
+        row.style.background = isSelected ? theme.selectedBg : theme.panelBg;
+        row.style.border = `1px solid ${isSelected ? theme.border : "transparent"}`;
+      });
+    }
+
+    async function renderEntries() {
       renderBreadcrumb();
       list.innerHTML = "";
-      let entries = getEntries();
+      let entries = await getEntries();
       entries = entries.filter((entry) => {
         if (entry.kind === "file" && isProtectedPickerFileName(entry.label)) {
           return false;
         }
         return true;
       });
-      if (selectedPath && !entries.some((entry) => entry.path === selectedPath)) {
+      if (!multiple && selectedPath && !entries.some((entry) => entry.path === selectedPath)) {
         selectedPath = "";
+      }
+      if (multiple) {
+        for (const path of Array.from(selectedPaths)) {
+          if (!entries.some((entry) => entry.path === path)) {
+            selectedPaths.delete(path);
+          }
+        }
       }
       if (entries.length === 0) {
         const empty = document.createElement("div");
@@ -462,6 +494,7 @@
       });
       for (const entry of entries) {
         const row = document.createElement("div");
+        row.dataset.path = entry.path;
         row.style.display = "flex";
         row.style.justifyContent = "space-between";
         row.style.alignItems = "center";
@@ -469,8 +502,9 @@
         row.style.borderRadius = "8px";
         row.style.cursor = "pointer";
         row.style.marginBottom = "6px";
-        row.style.background = entry.path === selectedPath ? theme.selectedBg : theme.panelBg;
-        row.style.border = `1px solid ${entry.path === selectedPath ? theme.border : "transparent"}`;
+        const rowSelected = multiple ? selectedPaths.has(entry.path) : entry.path === selectedPath;
+        row.style.background = rowSelected ? theme.selectedBg : theme.panelBg;
+        row.style.border = `1px solid ${rowSelected ? theme.border : "transparent"}`;
 
         const isDirectoryPicker = mode === "showDirectoryPicker";
         const disableFileSelection = isDirectoryPicker && entry.kind === "file";
@@ -485,7 +519,8 @@
           if (!disableEntrySelection && entry.path !== selectedPath) row.style.background = theme.hoverBg;
         };
         row.onmouseleave = () => {
-          row.style.background = entry.path === selectedPath ? theme.selectedBg : theme.panelBg;
+          const rowSelected = multiple ? selectedPaths.has(entry.path) : entry.path === selectedPath;
+          row.style.background = rowSelected ? theme.selectedBg : theme.panelBg;
         };
 
         const label = document.createElement("div");
@@ -504,21 +539,64 @@
         row.appendChild(badge);
 
         if (!disableEntrySelection) {
-          row.onclick = () => {
+          row.onclick = (event) => {
+            if (multiple) {
+              const entryIndex = entries.findIndex((item) => item.path === entry.path);
+              const hasShift = !!event.shiftKey;
+              const hasModifier = !!(event.ctrlKey || event.metaKey);
+
+              if (hasShift && selectionAnchorIndex >= 0 && entryIndex >= 0) {
+                const start = Math.min(selectionAnchorIndex, entryIndex);
+                const end = Math.max(selectionAnchorIndex, entryIndex);
+                const nextSelection = new Set(selectedPaths);
+                for (let i = start; i <= end; i += 1) {
+                  const current = entries[i];
+                  if (!current || !current.path) continue;
+                  if (mode === "showDirectoryPicker" && current.kind === "folder" && isTopLevelSystemfilesFolder(current.path)) {
+                    continue;
+                  }
+                  nextSelection.add(current.path);
+                }
+                selectedPaths = nextSelection;
+                selectedPath = Array.from(selectedPaths)[0] || "";
+                selectionAnchorIndex = entryIndex;
+              } else if (hasModifier) {
+                if (selectedPaths.has(entry.path)) {
+                  selectedPaths.delete(entry.path);
+                } else {
+                  selectedPaths.add(entry.path);
+                }
+                selectedPath = Array.from(selectedPaths)[0] || "";
+                selectionAnchorIndex = entryIndex;
+              } else {
+                selectedPaths = new Set([entry.path]);
+                selectedPath = entry.path;
+                selectionAnchorIndex = entryIndex;
+              }
+
+              if (mode === "saveFile" && saveInput) {
+                saveInput.value = entry.label;
+              }
+              syncSelectionVisualState();
+              updateActionButtonState();
+              return;
+            }
+
+            const previousSelected = selectedPath;
             if (entry.kind === "folder") {
               if (mode === "showDirectoryPicker") {
                 selectedPath = entry.path;
-                renderEntries();
               } else if (mode === "openFile") {
                 selectedPath = "";
-                renderEntries();
               }
             } else {
               selectedPath = entry.path;
               if (mode === "saveFile" && saveInput) {
                 saveInput.value = entry.label;
               }
-              renderEntries();
+            }
+            if (previousSelected !== selectedPath) {
+              syncSelectionVisualState();
             }
           };
 
@@ -526,6 +604,7 @@
             if (entry.kind === "folder") {
               currentPath = entry.path;
               selectedPath = "";
+              selectedPaths.clear();
               renderEntries();
             }
           };
@@ -542,11 +621,12 @@
 
     function finishPicker(resolve, reject) {
       if (mode === "openFile") {
-        if (!selectedPath) {
+        const pickedPaths = multiple ? Array.from(selectedPaths).filter(Boolean) : selectedPath ? [selectedPath] : [];
+        if (pickedPaths.length === 0) {
           return;
         }
         cleanup();
-        resolve(selectedPath);
+        resolve(multiple ? pickedPaths.map((path) => normalizeVfsPath(path)) : normalizeVfsPath(pickedPaths[0]));
         return;
       }
       if (mode === "openDirectory") {
@@ -564,12 +644,24 @@
         return;
       }
       if (mode === "showDirectoryPicker") {
-        const pickPath = selectedPath || currentPath;
-        if (isTopLevelSystemfilesFolder(pickPath)) {
+        const pickedPaths = multiple ? Array.from(selectedPaths).filter(Boolean) : selectedPath ? [selectedPath] : [];
+        if (pickedPaths.length === 0) {
+          const pickPath = selectedPath || currentPath;
+          if (isTopLevelSystemfilesFolder(pickPath)) {
+            return;
+          }
+          cleanup();
+          resolve(normalizeVfsPath(pickPath));
           return;
         }
+        const normalized = pickedPaths.map((path) => normalizeVfsPath(path));
+        for (const p of normalized) {
+          if (isTopLevelSystemfilesFolder(p)) {
+            return;
+          }
+        }
         cleanup();
-        resolve(normalizeVfsPath(pickPath));
+        resolve(multiple ? normalized : normalized[0]);
         return;
       }
     }
@@ -635,10 +727,9 @@
       loadingIndicator.style.background = "rgba(0,0,0,0.02)";
       panel.appendChild(loadingIndicator);
       try {
-        await window.protectedGlobals.onlyloadTree();
+        await renderEntries();
       } catch {}
       loadingIndicator.remove();
-      renderEntries();
     });
   }
 
@@ -1053,15 +1144,18 @@
           }
           if (e.data.showOpenFilePicker) {
             try {
-              const selectedPath = await showVfsPickerDialog({ title: "Open File", mode: "openFile" });
-              if (!selectedPath) {
+              const pickerResult = await showVfsPickerDialog({ title: "Open File", mode: "openFile", multiple: !!e.data.options?.multiple });
+              const selectedPaths = Array.isArray(pickerResult) ? pickerResult : pickerResult ? [pickerResult] : [];
+              if (!selectedPaths.length) {
                 throw new Error("No file or folder selected.");
               }
-              const node = window.protectedGlobals.findNodeByPath(selectedPath);
-              const isFolder = node && Array.isArray(node[1]);
-              const key = crypto.randomUUID();
-              window.protectedGlobals.__externalPickerKeys.set(key, { appName: appObj.id, kind: isFolder ? "directory" : "file", path: selectedPath });
-              e.source.postMessage({ openFilePickerResult: { kind: isFolder ? "directory" : "file", path: selectedPath, key, name: selectedPath.split("/").pop() || selectedPath }, requestId: e.data.requestId }, "*");
+              const handles = await Promise.all(selectedPaths.map(async (selectedPath) => {
+                const kind = await getPickerHandleKind(selectedPath);
+                const key = crypto.randomUUID();
+                window.protectedGlobals.__externalPickerKeys.set(key, { appName: appObj.id, kind, path: selectedPath });
+                return { kind, path: selectedPath, key, name: selectedPath.split("/").pop() || selectedPath };
+              }));
+              e.source.postMessage({ openFilePickerResult: e.data.options?.multiple ? handles : handles[0], requestId: e.data.requestId }, "*");
             } catch (err) {
               e.source.postMessage({ error: err.message || "The user aborted a request.", requestId: e.data.requestId }, "*");
             }
@@ -1083,13 +1177,17 @@
           }
           if (e.data.showDirectoryPicker) {
             try {
-              const selectedPath = await showVfsPickerDialog({ title: "Select Folder", mode: "showDirectoryPicker" });
-              if (!selectedPath) {
+              const pickerResult = await showVfsPickerDialog({ title: "Select Folder", mode: "showDirectoryPicker", multiple: !!e.data.options?.multiple });
+              const selectedPaths = Array.isArray(pickerResult) ? pickerResult : pickerResult ? [pickerResult] : [];
+              if (!selectedPaths.length) {
                 throw new Error("No folder selected.");
               }
-              const key = crypto.randomUUID();
-              window.protectedGlobals.__externalPickerKeys.set(key, { appName: appObj.id, kind: "directory", path: selectedPath });
-              e.source.postMessage({ showDirectoryPickerResult: { kind: "directory", path: selectedPath, key, name: selectedPath.split("/").pop() || selectedPath }, requestId: e.data.requestId }, "*");
+              const handles = selectedPaths.map((selectedPath) => {
+                const key = crypto.randomUUID();
+                window.protectedGlobals.__externalPickerKeys.set(key, { appName: appObj.id, kind: "directory", path: selectedPath });
+                return { kind: "directory", path: selectedPath, key, name: selectedPath.split("/").pop() || selectedPath };
+              });
+              e.source.postMessage({ showDirectoryPickerResult: e.data.options?.multiple ? handles : handles[0], requestId: e.data.requestId }, "*" );
             } catch (err) {
               e.source.postMessage({ error: err.message || "The user aborted a request.", requestId: e.data.requestId }, "*");
             }

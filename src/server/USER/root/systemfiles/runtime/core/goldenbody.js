@@ -75,16 +75,16 @@
     .taskbutton {
       position: relative;
       transition: all 0.2s ease;
-      min-height: 40px;
-      max-height: 40px;
-      min-width: 60px;
-      max-width: 60px;
-    }
-    .taskbutton.small {
       min-height: 35px;
       max-height: 35px;
       min-width: 40px;
       max-width: 48px;
+    }
+    .taskbutton.small {
+      min-height: 30px;
+      max-height: 30px;
+      min-width: 35px;
+      max-width: 38px;
     }
     .taskbutton::after {
       content: '';
@@ -138,13 +138,13 @@
     /* Status bar styles */
     .taskbar-divider {
       width: 1px;
-      height: 40px;
+      height: 30px;
       background-color: rgba(0, 0, 0, 0.2);
       margin: 0 8px;
     }
 
     .taskbar-divider.short {
-      height: 30px;
+      height: 20px;
     }
     .taskbar-divider.dark {
       background-color: rgba(255, 255, 255, 0.2);
@@ -162,16 +162,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       cursor: pointer;
       border-radius: 6px;
       transition: all 0.2s ease;
       user-select: none;
     }
     .status-item.small {
-      width: 30px;
-      height: 30px;
+      width: 24px;
+      height: 24px;
     }
     .status-item .battery-charge-overlay {
       position: absolute;
@@ -193,13 +193,13 @@
     }
 
     .status-item svg {
-      width: 18px;
-      height: 18px;
+      width: 15px;
+      height: 15px;
       stroke: currentColor;
     }
     .status-item.small svg {
-      width: 15px;
-      height: 15px;
+      width: 13px;
+      height: 13px;
       stroke: currentColor;
     }
     .taskbar.light .status-item {
@@ -234,25 +234,29 @@
       color: inherit;
     }
 
+    .time-display.small {
+      font-size: 12px;
+    }
+
     .status-item:has(.time-display) {
-      min-width: 70px;
-      max-width: 70px;
+      min-width: 62px;
+      max-width: 62px;
       transition: all 0.2s ease;
     }
 
     .status-item:has(.time-display).small {
-      min-width: 62px;
-      max-width: 62px;
+      min-width: 52px;
+      max-width: 52px;
     }
 
     .status-item:has(.time-display):hover {
-      min-width: 80px;
-      max-width: 80px;
+      min-width: 72px;
+      max-width: 72px;
     }
 
     .status-item:has(.time-display).small:hover {
-      min-width: 72px;
-      max-width: 72px;
+      min-width: 63px;
+      max-width: 63px;
     }
 
     .taskbar-buttons-container {
@@ -270,11 +274,11 @@
       align-items: center;
       gap: 0;
       max-width: 20%;
-      min-width: 147px;
+      min-width: 127px;
     }
     
     .taskbar-left-section.small {
-      min-width: 127px;
+      min-width: 107px;
     }
 
     .taskbar-buttons-container::-webkit-scrollbar {
@@ -501,6 +505,7 @@
         divider.classList.remove('short');
         window.protectedGlobals.leftSection.classList.remove('small');
         statusContainer.querySelectorAll('.status-item').forEach(b => b.classList.remove('small'));
+        statusContainer.querySelectorAll('.time-display').forEach(b => b.classList.remove('small'));
         window.protectedGlobals.leftSection.querySelectorAll('.taskbutton').forEach(b => b.classList.remove('small'));
         window.protectedGlobals.taskbuttonsContainer.querySelectorAll('.taskbutton').forEach(b => b.classList.remove('small'));
       } catch {}
@@ -511,6 +516,7 @@
         divider.classList.add('short');
         window.protectedGlobals.leftSection.classList.add('small');
         statusContainer.querySelectorAll('.status-item').forEach(b => b.classList.add('small'));
+        statusContainer.querySelectorAll('.time-display').forEach(b => b.classList.add('small'));
         window.protectedGlobals.taskbuttonsContainer.querySelectorAll('.taskbutton').forEach(b => b.classList.add('small'));
         window.protectedGlobals.leftSection.querySelectorAll('.taskbutton').forEach(b => b.classList.add('small'));
       } catch {}
@@ -518,12 +524,12 @@
     if (window.protectedGlobals.data.taskbarOnTop) {
       if (window.protectedGlobals.data.compactTaskbar) {
         addSmallConfig();
-        window.protectedGlobals.currentTaskbarHeight = 45;
-        window.protectedGlobals.currentAppMaximizedTop = '45';
+        window.protectedGlobals.currentTaskbarHeight = 35;
+        window.protectedGlobals.currentAppMaximizedTop = '35';
       } else {
         removeSmallConfig();
-        window.protectedGlobals.currentTaskbarHeight = 55;
-        window.protectedGlobals.currentAppMaximizedTop = '55';
+        window.protectedGlobals.currentTaskbarHeight = 45;
+        window.protectedGlobals.currentAppMaximizedTop = '45';
       }
       taskbar.style.bottom = 'initial';
       taskbar.style.top = '0';
@@ -531,11 +537,11 @@
     else {
       if (window.protectedGlobals.data.compactTaskbar) {
         addSmallConfig();
-        window.protectedGlobals.currentTaskbarHeight = 50;
+        window.protectedGlobals.currentTaskbarHeight = 40;
         window.protectedGlobals.currentAppMaximizedTop = '0';
       } else {
         removeSmallConfig();
-        window.protectedGlobals.currentTaskbarHeight = 60;
+        window.protectedGlobals.currentTaskbarHeight = 50;
         window.protectedGlobals.currentAppMaximizedTop = '0';
       }
       taskbar.style.bottom = '0';
@@ -624,6 +630,7 @@
   timeItem.className = 'status-item';
   var timeDisplay = document.createElement('div');
   timeDisplay.className = 'time-display';
+  if (window.protectedGlobals.data.compactTaskbar) timeDisplay.classList.add('small');
   timeItem.appendChild(timeDisplay);
   timeItem.title = 'System Status';
   timeItem.style.cursor = 'pointer';
