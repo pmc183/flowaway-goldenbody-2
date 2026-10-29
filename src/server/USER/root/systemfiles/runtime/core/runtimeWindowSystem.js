@@ -11,12 +11,8 @@ window.protectedGlobals.setDataTitle = window.protectedGlobals.setAppDataTitle;
 window.protectedGlobals.oldLoadTree = window.protectedGlobals.loadTree;
 window.protectedGlobals.loadTree = async function () {
   await window.protectedGlobals.oldLoadTree();
-  window.protectedGlobals.annotateTreeWithPaths(window.protectedGlobals.treeData);
 };
 
-if ((window.protectedGlobals.loadTree)) {
-  window.protectedGlobals.loadTree();
-}
 window.protectedGlobals.onlyloadTree = window.protectedGlobals.oldLoadTree;
 // ----------------- END dynamic app loader -----------------
 

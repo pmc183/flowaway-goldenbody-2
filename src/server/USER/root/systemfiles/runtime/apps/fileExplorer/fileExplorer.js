@@ -1700,7 +1700,6 @@ function makeIcon(type, size = 16) {
   function render(options = {}) {
     // Always keep treeData sorted before rendering so the UI is alphabetical
     sortTree();
-    window.protectedGlobals.annotateTreeWithPaths(treeData);
     renderBreadcrumbs();
     renderFiles();
     updateStorageDisplay();
@@ -1994,7 +1993,7 @@ function makeIcon(type, size = 16) {
 
     // Check if the click is inside any file/folder div
     const isClickInsideFile = e.target?.closest?.('[data-fs-item="true"]');
-    if (!isClickInsideFile) {
+    if (!isClickInsideFile && selectedItems.length > 0) {
       selectedItems = [];
       selectedItem = null;
       render();

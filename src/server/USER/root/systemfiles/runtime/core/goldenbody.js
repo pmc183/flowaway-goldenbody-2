@@ -274,11 +274,11 @@
       align-items: center;
       gap: 0;
       max-width: 20%;
-      min-width: 127px;
+      min-width: 124px;
     }
     
     .taskbar-left-section.small {
-      min-width: 107px;
+      min-width: 104px;
     }
 
     .taskbar-buttons-container::-webkit-scrollbar {
