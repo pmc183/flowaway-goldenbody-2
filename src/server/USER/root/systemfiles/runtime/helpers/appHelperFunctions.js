@@ -31,6 +31,16 @@ window.protectedGlobals.resolveApptoolsContext = function (appId, rootElement) {
   };
 };
 
+window.protectedGlobals.changeCursorToWait = function () {
+    document.querySelectorAll('*').forEach((el) => {
+    if ((el.style.cursor !== "wait" && (el.style.cursor === "" || el.style.cursor === "default")) && !el.closest(".app-window-root")) el.style.cursor = "wait";
+  });
+};
+window.protectedGlobals.changeCursorToDefault = function () {
+    document.querySelectorAll('*').forEach((el) => {
+    if (el.style.cursor === "wait") el.style.cursor = "default";
+  });
+};
 
 window.protectedGlobals.launchApp = async function (appId, args) {
   if (!window.protectedGlobals.appsButtonsApplied) {
@@ -44,9 +54,7 @@ window.protectedGlobals.launchApp = async function (appId, args) {
   window.protectedGlobals._launchContext = { appId: String(appId || ""), args: args === undefined ? [] : Array.isArray(args) ? args : [args] };
   let result = null;
   // change cursor shape to wait while the app is loading
-  document.querySelectorAll('*').forEach((el) => {
-    if ((el.style.cursor !== "wait" && (el.style.cursor === "" || el.style.cursor === "default")) && !el.closest(".app-window-root")) el.style.cursor = "wait";
-  });
+  window.protectedGlobals.changeCursorToWait();
   try {
     if (app.requestAdminPerm) {
       result = await window[app.functionName](...window.protectedGlobals._launchContext.args);
@@ -57,9 +65,7 @@ window.protectedGlobals.launchApp = async function (appId, args) {
     alert(err);
   }
   // change it back
-  document.querySelectorAll('*').forEach((el) => {
-    if (el.style.cursor === "wait") el.style.cursor = "default";
-  });
+  window.protectedGlobals.changeCursorToDefault();
   return result;
 };
 

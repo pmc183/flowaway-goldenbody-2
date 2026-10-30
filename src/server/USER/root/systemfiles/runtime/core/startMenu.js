@@ -124,6 +124,21 @@ const syncStartMenuTheme = function () {
   const isDark = !!(window.protectedGlobals && window.protectedGlobals.data && window.protectedGlobals.data.dark);
   startMenu.classList.toggle('dark', isDark);
   startMenu.classList.toggle('light', !isDark);
+  startMenu.querySelectorAll('.start-menu-shortcut').forEach((btn) => {
+    const theme = isDark;
+    const baseBg = theme ? '#1f1f1f' : '#ffffff';
+    const hoverBg = theme ? '#2a2a2a' : '#f3f4f6';
+    const border = theme ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(15,23,42,0.08)';
+    const color = theme ? '#f5f5f5' : '#1f2937';
+    const shadow = theme ? '0 0 0 1px rgba(255,255,255,0.02)' : '0 0 0 1px rgba(15,23,42,0.04)';
+    btn.style.background = baseBg;
+    btn.style.border = border;
+    btn.style.color = color;
+    btn.style.boxShadow = shadow;
+    btn.dataset.theme = theme ? 'dark' : 'light';
+    btn.dataset.hoverBg = hoverBg;
+    btn.style.transform = 'translateY(0)';
+  });
 };
 
 startMenu.innerHTML = `
@@ -141,7 +156,7 @@ startMenu.innerHTML = `
     <div id="appsGrid" class="tabSection active grid-view" data-tab="pinned"></div>
     <div id="recentsGrid" class="tabSection grid-view" data-tab="recents"></div>
     <div id="allAppsGrid" class="tabSection grid-view" data-tab="all"></div>
-    <div id="shortcutsGrid" class="tabSection grid-view" data-tab="shortcuts"></div>
+    <div id="shortcutsGrid" class="tabSection list-view" data-tab="shortcuts"></div>
 </div>
 
     <div class="statusBar">
@@ -489,32 +504,34 @@ const closeFocusedAppWindow = window.protectedGlobals.closeFocusedAppWindow = fu
 }
 
 const createShortcutButton = function createShortcutButton(label, description, handler) {
-  var isDarkTheme = !!(window.protectedGlobals.data.dark);
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.style.padding = "12px";
-  btn.style.borderRadius = "8px";
-  btn.style.border = isDarkTheme ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.12)";
-  btn.style.background = isDarkTheme ? "#2a2a2a" : "#fff";
-  btn.style.color = isDarkTheme ? "#f5f5f5" : "#222";
+  btn.className = "start-menu-shortcut";
   btn.style.cursor = "pointer";
-  btn.style.textAlign = "left";
   btn.style.font = "inherit";
-  btn.style.lineHeight = "1.35";
-  btn.style.display = "flex";
-  btn.style.flexDirection = "column";
-  btn.style.gap = "4px";
-  btn.style.width = "100%";
-  btn.style.boxSizing = "border-box";
-  btn.style.maxHeight = '180px';
-  btn.innerHTML = `<p>${label}</p><span style="font-size:12px;opacity:0.75;">${description}</span>`;
-  btn.addEventListener("mouseenter", () => {
-    btn.style.background = isDarkTheme ? "#343434" : "#eef4ff";
-  });
-  btn.addEventListener("mouseleave", () => {
-    btn.style.background = isDarkTheme ? "#2a2a2a" : "#fff";
-  });
+  btn.style.lineHeight = "1.3";
+  btn.style.gap = "8px";
+  btn.style.boxShadow = "0 0 0 1px rgba(15,23,42,0.04)";
+  btn.innerHTML = `<p>${label}</p><span>${description}</span>`;
+
+  const applyShortcutButtonTheme = (state = "idle") => {
+    const isDark = !!(window.protectedGlobals && window.protectedGlobals.data && window.protectedGlobals.data.dark);
+    const idleBg = isDark ? '#1f1f1f' : '#ffffff';
+    const hoverBg = isDark ? '#2a2a2a' : '#f3f4f6';
+    const border = isDark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(15,23,42,0.08)';
+    const color = isDark ? '#f5f5f5' : '#1f2937';
+    const shadow = isDark ? '0 0 0 1px rgba(255,255,255,0.02)' : '0 0 0 1px rgba(15,23,42,0.04)';
+    btn.style.background = state === 'hover' ? hoverBg : idleBg;
+    btn.style.border = border;
+    btn.style.color = color;
+    btn.style.boxShadow = shadow;
+    btn.style.transform = state === 'hover' ? 'translateY(-1px)' : 'translateY(0)';
+  };
+
+  btn.addEventListener("mouseenter", () => applyShortcutButtonTheme("hover"));
+  btn.addEventListener("mouseleave", () => applyShortcutButtonTheme("idle"));
   btn.addEventListener("click", handler);
+  applyShortcutButtonTheme("idle");
   return btn;
 }
 
@@ -526,6 +543,10 @@ const renderQuickActionsGrid = async function () {
   const actions = [
     ['Open new window', '', () => launchFocusedAppWindow()],
     ['Close focused window', '', () => closeFocusedAppWindow()],
+    ['Take Screenshot', 'Capture the current screen', () => {
+      startMenu.style.display = 'none';
+      window.protectedGlobals.takeScreenshot();
+    }],
     ['Brightness down', '', () => applyBrightnessDelta(-5)],
     ['Brightness up', '', () => applyBrightnessDelta(5)],
   ];

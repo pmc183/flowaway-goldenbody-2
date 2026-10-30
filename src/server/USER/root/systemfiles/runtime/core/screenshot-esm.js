@@ -26,6 +26,7 @@ function displayPreview(dataUrl) {
 window.protectedGlobals = window.protectedGlobals || {};
 window.protectedGlobals.takeScreenshot = async () => {
     try {
+        window.protectedGlobals.changeCursorToWait();
         const dataUrl = await toPng(document.documentElement);
         const previewDataUrl = dataUrl;
         const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
@@ -56,6 +57,9 @@ window.protectedGlobals.takeScreenshot = async () => {
         displayPreview(previewDataUrl);
     } catch (err) {
         console.error('takeScreenshot error:', err);
+    }
+    finally {
+        window.protectedGlobals.changeCursorToDefault();
     }
 };
 

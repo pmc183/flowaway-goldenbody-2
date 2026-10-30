@@ -8,6 +8,7 @@ window.explorerGlobals.goldenbodyId = 0;
 window.explorerGlobals.clipboard = [];
 
 window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
+  let initalized = false;
   let needRefresh = false;
   if (posX == 50 && posY == 50) {
     let pos = window.protectedGlobals.getNextWindowXY();
@@ -463,8 +464,8 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
 
   // Sidebar
   sidebar = document.createElement("div");
-  sidebar.style.minWidth = "14.5%";
-  sidebar.style.maxWidth = "14.5%";
+  sidebar.style.minWidth = "min(210px, 14.5%)";
+  sidebar.style.maxWidth = "min(210px, 14.5%)";
   sidebar.style.background = "#1e293b";
   sidebar.style.color = "white";
   sidebar.style.padding = "10px";
@@ -1232,7 +1233,7 @@ function makeIcon(type, size = 16) {
     } catch (e) {
       console.warn("fileExplorer: failed to set startup path", e);
     }
-
+    initalized = true;
     render();
     statusDiv.textContent = "All Files Loaded.";
   };
@@ -1719,6 +1720,7 @@ function makeIcon(type, size = 16) {
   }
 
   function render(options = {}) {
+    if (!initalized) return;
     // Always keep treeData sorted before rendering so the UI is alphabetical
     sortTree();
     renderBreadcrumbs();
@@ -2623,8 +2625,17 @@ function makeIcon(type, size = 16) {
                   console.log("Opening with app", app.functionName, path, node);
                   try {
                     const adminkey = await window.protectedGlobals.ReadFile('/systemfiles/userprofile/jsApiKey.txt', { text: true, direct: true });
-                    if (!app.requestAdminPerm) window[app.functionName](path, adminkey);
-                    else window[app.functionName](path);
+                    window.protectedGlobals.changeCursorToWait();
+                    try {
+                      if (!app.requestAdminPerm) {
+                        await window[app.functionName](path, adminkey);
+                      } else {
+                        await window[app.functionName](path);
+                      }
+                    } catch {}
+                    finally {
+                      window.protectedGlobals.changeCursorToDefault();
+                    }
                   } catch (e) {
                     console.error("open with app error", e);
                   }
@@ -2885,7 +2896,6 @@ function makeIcon(type, size = 16) {
       if (allowed.length) handlesave();
     }
   });
-
   const handleStyleApplied = () => {
     applyExplorerTheme();
     try {

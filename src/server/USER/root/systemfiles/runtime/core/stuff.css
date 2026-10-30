@@ -91,6 +91,42 @@
   gap: 8px;
 }
 
+#shortcutsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+
+.start-menu-shortcut {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 120px;
+  padding: 14px 12px;
+  border-radius: 16px;
+  text-align: left;
+  box-sizing: border-box;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.start-menu-shortcut p {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.start-menu-shortcut span {
+  display: block;
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.76;
+}
+
 .statusLeft,
 .statusRight {
     display: flex;
@@ -230,7 +266,7 @@
 .tabSection.active.list-view {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .tabSection.list-view .app {
@@ -238,6 +274,35 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.tabSection.list-view .start-menu-shortcut {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.tabSection.list-view .start-menu-shortcut p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  flex: 1;
+}
+
+.tabSection.list-view .start-menu-shortcut span {
+  max-width: 48%;
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.76;
 }
 
 .tabSection.grid-view .app {

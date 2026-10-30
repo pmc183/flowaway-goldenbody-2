@@ -2793,7 +2793,7 @@ setTimeout(() => {
       dragoverReordered = false;
       crossWindowTransferHandled = false;
     };
-    const onpointerupAnywhere = (ev, notontab) => {
+    const onpointerupAnywhere = async (ev, notontab) => {
       const eventTarget =
         ev?.target ||
         (typeof ev?.clientX === "number" && typeof ev?.clientY === "number"
@@ -2881,7 +2881,7 @@ setTimeout(() => {
           return;
         }
         crossWindowTransferHandled = true;
-        browser(
+        const __promise = browser(
           window.browserGlobals.dragstartwindow.tabs[dragindex].url,
           window.browserGlobals.draggedtab.resizeP,
           ev.clientX - 100,
@@ -2889,6 +2889,13 @@ setTimeout(() => {
         ); // your custom function
         // console.log(root);
         window.browserGlobals.dragstartwindow.closeTab(window.browserGlobals.draggedtab.id);
+        window.protectedGlobals.changeCursorToWait();
+        try {
+          await __promise;
+        } catch {}
+        finally {
+          window.protectedGlobals.changeCursorToDefault();
+        }
       }
 
       resetTabDragState();
