@@ -23,7 +23,7 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
     position: "fixed",
     top: posY + "px",
     left: posX + "px",
-    width: "850px",
+    width: "860px",
     height: "580px",
     boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
     borderRadius: "10px",
@@ -463,8 +463,8 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
 
   // Sidebar
   sidebar = document.createElement("div");
-  sidebar.style.minWidth = "15%";
-  sidebar.style.maxWidth = "15%";
+  sidebar.style.minWidth = "14.5%";
+  sidebar.style.maxWidth = "14.5%";
   sidebar.style.background = "#1e293b";
   sidebar.style.color = "white";
   sidebar.style.padding = "10px";
@@ -789,6 +789,7 @@ function makeIcon(type, size = 16) {
   main.style.flex = "1";
   main.style.display = "flex";
   main.style.flexDirection = "column";
+  main.style.maxWidth = "100%";
   container.appendChild(main);
 
   topbar = document.createElement("div");
@@ -913,7 +914,7 @@ function makeIcon(type, size = 16) {
   // SEARCH 1: Current directory search
   const currentDirSearchContainer = document.createElement("div");
   currentDirSearchContainer.style.position = "relative";
-  currentDirSearchContainer.style.flex = "1 1 220px";
+  currentDirSearchContainer.style.flex = "1 1 210px";
   currentDirSearchContainer.style.minWidth = "180px";
 
   const currentDirSearchInput = document.createElement("input");
@@ -931,7 +932,7 @@ function makeIcon(type, size = 16) {
   // SEARCH 2: Global search with autocomplete
   const globalSearchContainer = document.createElement("div");
   globalSearchContainer.style.position = "relative";
-  globalSearchContainer.style.flex = "1 1 220px";
+  globalSearchContainer.style.flex = "1 1 210px";
   globalSearchContainer.style.minWidth = "180px";
 
   const globalSearchInput = document.createElement("input");
@@ -1153,6 +1154,7 @@ function makeIcon(type, size = 16) {
   fileArea.style.flex = "1";
   fileArea.style.overflowY = "auto";
   fileArea.style.padding = "8px";
+  fileArea.style.maxWidth = "100%";
   fileArea.style.background = isDark ? "#0f172a" : "#ffffff";
   fileArea.style.color = isDark ? "#e6eef8" : "#111";
   main.appendChild(fileArea);
@@ -1266,7 +1268,8 @@ function makeIcon(type, size = 16) {
     breadcrumbs.innerHTML = "";
     currentPath.forEach((p, i) => {
       const span = document.createElement("span");
-      span.textContent = i === 0 ? "Home" : " / " + p;
+      span.textContent = i === 0 ? "Home" : " / " + truncateDisplayName(p);
+      span.title = i === 0 ? "Home" : p;
       span.style.cursor = "pointer";
       span.onclick = () => {
         currentPath = currentPath.slice(0, i + 1);
@@ -1402,6 +1405,12 @@ function makeIcon(type, size = 16) {
   // ──────────────────────────────
   // RENDER FILES + MULTISELECT + DRAG
   // ──────────────────────────────
+  function truncateDisplayName(name, maxLen = 50) {
+    const text = String(name ?? "");
+    if (text.length <= maxLen) return text;
+    return text.slice(0, maxLen - 3) + "...";
+  }
+
   function renderFiles() {
     fileArea.innerHTML = "";
     const node = findNode(treeData, currentPath);
@@ -1423,6 +1432,7 @@ function makeIcon(type, size = 16) {
         tile.dataset.fsItem = "true";
         tile.style.width = "140px";
         tile.style.minHeight = "140px";
+        tile.style.maxHeight = "140px";
         tile.style.display = "flex";
         tile.style.flexDirection = "column";
         tile.style.alignItems = "center";
@@ -1433,6 +1443,7 @@ function makeIcon(type, size = 16) {
         tile.style.cursor = "pointer";
         tile.style.color = isDark ? "#e6eef8" : "#111";
         tile.style.background = isDark ? "rgba(255,255,255,0.02)" : "transparent";
+        tile.style.overflow = "hidden";
         if (selectedItems.includes(item)) {
           tile.setAttribute('data-selected', 'true');
           tile.style.background = isDark ? "rgba(59,130,246,0.24)" : "#d0e6ff";
@@ -1449,9 +1460,12 @@ function makeIcon(type, size = 16) {
         tile.appendChild(icon);
 
         const name = document.createElement("div");
-        name.textContent = item[0];
+        name.textContent = truncateDisplayName(item[0]);
+        name.style.width = "100%";
         name.style.textAlign = "center";
-        name.style.wordBreak = "break-word";
+        name.style.whiteSpace = "nowrap";
+        name.style.overflow = "hidden";
+        name.style.textOverflow = "ellipsis";
         name.style.marginBottom = "6px";
         tile.appendChild(name);
 
@@ -1482,6 +1496,7 @@ function makeIcon(type, size = 16) {
         div.dataset.fsItem = "true";
         div.style.display = "flex";
         div.style.alignItems = "center";
+        div.style.maxWidth = "100%";
         div.style.padding = "6px";
         div.style.borderBottom = isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid #eee";
         div.style.cursor = "pointer";
@@ -1546,8 +1561,12 @@ function makeIcon(type, size = 16) {
 
         // Name
         const nameDiv = document.createElement("div");
-        nameDiv.textContent = item[0];
+        nameDiv.textContent = truncateDisplayName(item[0]);
+        nameDiv.title = item[0];
+        nameDiv.style.overflow = "hidden";
+        nameDiv.style.whiteSpace = "nowrap";
         nameDiv.style.flex = "1";
+        nameDiv.style.textOverflow = "ellipsis";
         div.appendChild(nameDiv);
 
         // Size
@@ -1556,6 +1575,7 @@ function makeIcon(type, size = 16) {
           isFolder ? getNodeSize(item) : item[2]?.size,
         );
         sizeDiv.style.width = "100px";
+        sizeDiv.style.flexShrink = "0";
         sizeDiv.style.textAlign = "right";
         sizeDiv.style.color = "#555";
         div.appendChild(sizeDiv);
@@ -1564,6 +1584,7 @@ function makeIcon(type, size = 16) {
         const dateDiv = document.createElement("div");
         dateDiv.textContent = formatDate(item[2]?.mtime);
         dateDiv.style.minWidth = "180px";
+        dateDiv.style.flexShrink = "0";
         dateDiv.style.textAlign = "right";
         dateDiv.style.color = "#555";
         dateDiv.style.paddingLeft = "12px";

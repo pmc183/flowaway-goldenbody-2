@@ -294,7 +294,6 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 view: window,
             });
             window.dispatchEvent(clickEvent);
-            document.dispatchEvent(clickEvent);
         } else if (event.data.keydownOnApp || event.data.keyupOnApp) {
             const type = event.data.keydownOnApp ? "keydown" : "keyup";
             const keyEvent = new KeyboardEvent(type, {
@@ -312,7 +311,6 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             keyEvent.__gbComboKey = event.data.comboKey || "";
             keyEvent.__gbOriginalKey = event.data.key || "";
             window.dispatchEvent(keyEvent);
-            document.dispatchEvent(keyEvent);
         } else if (event.data.pointerdownOnApp || event.data.pointerupOnApp) {
             const type = event.data.pointerdownOnApp ? "pointerdown" : "pointerup";
             const mouseEvent = new MouseEvent(type, {
@@ -329,7 +327,6 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 composed: true,
             });
             window.dispatchEvent(mouseEvent);
-            document.dispatchEvent(mouseEvent);
         }
     });
 

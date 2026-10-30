@@ -68,6 +68,12 @@
           return mimeMap[ext] || "application/octet-stream";
         }
 
+        function truncateDisplayName(name, maxLen = 50) {
+          const text = String(name ?? "");
+          if (text.length <= maxLen) return text;
+          return text.slice(0, maxLen - 3) + "...";
+        }
+
         function createPickerItemIcon(type, size = 16) {
           const ns = "http://www.w3.org/2000/svg";
           const svg = document.createElementNS(ns, "svg");
@@ -505,7 +511,8 @@
               breadcrumbDiv.innerHTML = "";
               pickerCurrentPath.forEach((p, i) => {
                 const span = document.createElement("span");
-                span.textContent = i === 0 ? "Home" : " / " + p;
+                span.textContent = i === 0 ? "Home" : " / " + truncateDisplayName(p);
+                span.title = i === 0 ? "Home" : p;
                 span.style.cursor = "pointer";
                 span.onclick = () => {
                   pickerCurrentPath = pickerCurrentPath.slice(0, i + 1);
@@ -532,7 +539,8 @@
                 div.style.gap = "8px";
                 div.appendChild(createPickerItemIcon(isFolder ? "folder" : "file", 16));
                 const label = document.createElement("span");
-                label.textContent = item[0];
+                label.textContent = truncateDisplayName(item[0]);
+                label.title = item[0];
                 div.appendChild(label);
                 div.onclick = (e) => {
                   const isToggle = e.ctrlKey || e.metaKey;
@@ -758,7 +766,8 @@
             breadcrumb.innerHTML = "";
             savePickerCurrentPath.forEach((p, i) => {
               const s = document.createElement("span");
-              s.textContent = i === 0 ? "Home" : " / " + p;
+              s.textContent = i === 0 ? "Home" : " / " + truncateDisplayName(p);
+              s.title = i === 0 ? "Home" : p;
               s.style.cursor = "pointer";
               s.onclick = () => {
                 savePickerCurrentPath = savePickerCurrentPath.slice(0, i + 1);
@@ -784,7 +793,8 @@
               div.style.gap = "8px";
               div.appendChild(createPickerItemIcon(isFolder ? "folder" : "file", 16));
               const label = document.createElement("span");
-              label.textContent = item[0];
+              label.textContent = truncateDisplayName(item[0]);
+              label.title = item[0];
               div.appendChild(label);
               div.onclick = (e) => {
                 const isToggle = e.ctrlKey || e.metaKey;
@@ -953,7 +963,8 @@
             breadcrumb.innerHTML = "";
             dirPickerCurrentPath.forEach((p, i) => {
               const s = document.createElement("span");
-              s.textContent = i === 0 ? "Home" : " / " + p;
+              s.textContent = i === 0 ? "Home" : " / " + truncateDisplayName(p);
+              s.title = i === 0 ? "Home" : p;
               s.style.cursor = "pointer";
               s.onclick = () => {
                 dirPickerCurrentPath = dirPickerCurrentPath.slice(0, i + 1);
@@ -983,7 +994,8 @@
               div.style.gap = "8px";
               div.appendChild(createPickerItemIcon(isFolder ? "folder" : "file", 16));
               const label = document.createElement("span");
-              label.textContent = item[0];
+              label.textContent = truncateDisplayName(item[0]);
+              label.title = item[0];
               div.appendChild(label);
               div.onclick = (e) => {
                 // Only allow selecting folders

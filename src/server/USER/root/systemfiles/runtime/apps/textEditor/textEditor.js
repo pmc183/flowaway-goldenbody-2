@@ -118,6 +118,13 @@ window.textEditorGlobals.saveTextEditorSettings = async function saveTextEditorS
 window.textEditorGlobals.getTextEditorSettings = function getTextEditorSettings() {
   return window.textEditorGlobals.normalizeTextEditorSettings(window.textEditorGlobals.editorSettings);
 };
+
+function truncateDisplayName(name, maxLen = 50) {
+  const text = String(name ?? "");
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen - 3) + "...";
+}
+
 window.textEditor = function (path, posX = 50, posY = 50) {
   let getTextEditorSettings = window.textEditorGlobals.getTextEditorSettings;
   let saveTextEditorSettings = window.textEditorGlobals.saveTextEditorSettings;
@@ -963,7 +970,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         breadcrumbDiv.appendChild(sep);
 
         const link = document.createElement("span");
-        link.textContent = part;
+        link.textContent = truncateDisplayName(part);
+        link.title = part;
         link.style.cursor = "pointer";
         link.onclick = () => {
           pickerCurrentPath = parts.slice(0, index + 1).join("/");
@@ -990,7 +998,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         const isFolder = Array.isArray(item[1]);
         const icon = makeIcon(isFolder ? "folder" : "file", 14);
         const label = document.createElement("span");
-        label.textContent = item[0];
+        label.textContent = truncateDisplayName(item[0]);
+        label.title = item[0];
         row.appendChild(icon);
         row.appendChild(label);
 
@@ -1206,7 +1215,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         breadcrumbDiv.appendChild(sep);
 
         const link = document.createElement("span");
-        link.textContent = part;
+        link.textContent = truncateDisplayName(part);
+        link.title = part;
         link.style.cursor = "pointer";
         link.onclick = () => {
           pickerCurrentPath = parts.slice(0, index + 1).join("/");
@@ -1233,7 +1243,8 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         const isFolder = Array.isArray(item[1]);
         const icon = makeIcon(isFolder ? "folder" : "file", 14);
         const label = document.createElement("span");
-        label.textContent = item[0];
+        label.textContent = truncateDisplayName(item[0]);
+        label.title = item[0];
         row.appendChild(icon);
         row.appendChild(label);
 

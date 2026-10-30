@@ -224,9 +224,11 @@
     panel.style.position = "relative";
     panel.style.margin = "auto";
     panel.style.minWidth = "400px";
-    panel.style.maxWidth = "45vw";
+    panel.style.maxWidth = "70vw";
     panel.style.maxHeight = "75vh";
-    panel.style.width = "580px";
+    panel
+    panel.style.width = "50vw";
+    panel.style.height = "60vh";
     panel.style.resize = "both";
     panel.style.overflow = "hidden";
     panel.style.display = "flex";
@@ -388,6 +390,12 @@
       return normalizeVfsPath(targetPath || "") === "systemfiles";
     }
 
+    function truncateDisplayName(name, maxLen = 50) {
+      const text = String(name ?? "");
+      if (text.length <= maxLen) return text;
+      return text.slice(0, maxLen - 3) + "...";
+    }
+
     function updateActionButtonState() {
       const isMultiSelection = !!multiple && mode !== "saveFile";
       const hasSelection = isMultiSelection ? selectedPaths.size > 0 : !!(selectedPath || currentPath);
@@ -429,8 +437,15 @@
         breadcrumb.appendChild(sep);
 
         const link = document.createElement("span");
-        link.textContent = part;
+        link.textContent = truncateDisplayName(part);
+        link.title = part;
         link.style.cursor = "pointer";
+        link.style.display = "inline-block";
+        link.style.maxWidth = "180px";
+        link.style.overflow = "hidden";
+        link.style.textOverflow = "ellipsis";
+        link.style.whiteSpace = "nowrap";
+        link.style.verticalAlign = "bottom";
         link.style.textDecoration = "underline";
         link.style.marginLeft = "2px";
         link.style.padding = "2px 4px";
@@ -528,8 +543,20 @@
         label.style.alignItems = "center";
         label.style.gap = "10px";
         label.style.color = theme.panelText;
+        label.style.minWidth = "0";
+        label.style.flex = "1";
         label.appendChild(createPickerItemIcon(entry.kind, 18));
-        label.appendChild(document.createTextNode(entry.label));
+
+        const labelText = document.createElement("span");
+        labelText.textContent = truncateDisplayName(entry.label);
+        labelText.title = entry.label;
+        labelText.style.display = "inline-block";
+        labelText.style.minWidth = "0";
+        labelText.style.maxWidth = "100%";
+        labelText.style.overflow = "hidden";
+        labelText.style.textOverflow = "ellipsis";
+        labelText.style.whiteSpace = "nowrap";
+        label.appendChild(labelText);
         row.appendChild(label);
 
         const badge = document.createElement("span");
