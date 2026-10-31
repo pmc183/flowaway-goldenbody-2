@@ -113,11 +113,6 @@ class RammerheadSessionFileCache extends RammerheadSessionAbstractStore {
             }
         }
 
-        if (updateActiveTimestamp) {
-            this.logger.debug(`(FileCache.get) ${id} update active timestamp`);
-            session.updateLastUsed();
-        }
-
         if (cacheToMemory) {
             this.cachedSessions.set(id, session);
             this.logger.debug(`(FileCache.get) saved ${id} into cache memory`);

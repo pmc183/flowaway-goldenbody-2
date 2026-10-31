@@ -1,4 +1,4 @@
-(function initHammerheadClient () {if (window["%is-hammerhead%"]) throw new TypeError("already ran"); window["%is-hammerhead%"] = true;window.rammerheadTop = (function() {var w = window; while (w !== w.top && w.parent["%hammerhead"]) w = w.parent; return w;})();window.rammerheadParent = window.rammerheadTop === window ? window : window.rammerheadParent;window.distanceRammerheadTopToTop = (function() { var i=0,w=window; while (w !== window.rammerheadTop) {i++;w=w.parent} return i; })();window.rammerheadAncestorOrigins = Array.from(location.ancestorOrigins).slice(0, -window.distanceRammerheadTopToTop);
+(function initHammerheadClient () {if (window["%is-hammerhead%"]) throw new TypeError("already ran"); window["%is-hammerhead%"] = true;window.rammerheadTop = (function() {var w = window; while (w !== w.top && (function() { try { return w.parent["%hammerhead%"] } catch(e) { return undefined } })()) w = w.parent; return w;})();window.rammerheadParent = window.rammerheadTop === window ? window : window.parent;window.distanceRammerheadTopToTop = (function() { var i=0,w=window; while (w !== window.top) {i++;w=w.parent} return i; })();window.rammerheadAncestorOrigins = Array.from(location.ancestorOrigins).slice(0, -window.distanceRammerheadTopToTop);window.isWindowBeyondRammerhead = function(win) { return win === window.top || win === window.parent };window.__rhget$Top = function(top) { return window.top === top ? window.rammerheadTop : top; };window.__rhget$Parent = function(parent) { return window.parent === parent ? window.rammerheadParent : parent; };var rhNativeFrameElementGetter = (function() { for (var o = window; o; o = Object.getPrototypeOf(o)) { var d = Object.getOwnPropertyDescriptor(o, "frameElement"); if (d) return d.get; } })();var rhFrameElementOf = function(w) { try { return rhNativeFrameElementGetter ? rhNativeFrameElementGetter.call(w) : w.frameElement; } catch (e) { try { return w.frameElement; } catch (e2) { return null; } } };var rhDestOrigin = function(w) { try { var p = window["%hammerhead%"].utils.url.parseProxyUrl(w.location.href); return p ? new URL(p.destUrl).origin : null; } catch (e) { return null; } };var rhVisibleFrameElement = function(w) { var el = rhFrameElementOf(w); if (!el || w === w.rammerheadTop) return null; var mine = rhDestOrigin(w), theirs = rhDestOrigin(w.parent); return mine && theirs && mine !== theirs ? null : el; };window.__rhget$FrameElement = function(frameElement) { return rhFrameElementOf(window) === frameElement ? rhVisibleFrameElement(window) : frameElement; };window.__rhget$IM = function(meta) {var destUrl = window["%hammerhead%"].utils.url.parseProxyUrl(meta.url).destUrl; return { ...meta, url: destUrl, resolve: new Proxy(meta.resolve, { apply(t, tArg, args) { return (new URL(args[0], destUrl)).href } }) }};
 
     (function () {
 
@@ -314,7 +314,7 @@
 	OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 	PERFORMANCE OF THIS SOFTWARE.
 	***************************************************************************** */
-	/* global Reflect, Promise, SuppressedError, Symbol, Iterator */
+	/* global Reflect, Promise, SuppressedError, Symbol */
 
 	var extendStatics = function(d, b) {
 	  extendStatics = Object.setPrototypeOf ||
@@ -375,10 +375,10 @@
 	    isServiceWorker: isInWorker && !global$1.XMLHttpRequest,
 	};
 
-	function replaceNativeAccessor(descriptor, accessorName, newAccessor) {
+	var rhNativeStrings = (function () { var t = window; try { t = window.rammerheadTop || window; if (t["hammerhead|native-strings"]) return t["hammerhead|native-strings"]; } catch (e) { t = window; } var m = new WeakMap(); try { Object.defineProperty(t, "hammerhead|native-strings", { value: m }); } catch (e) {} return m; })();var rhOriginalSources = new WeakMap();var rhApply = Reflect.apply;var rhNamedConstructors = {    Function: function (w) { return function Function() { return new.target ? Reflect.construct(w, arguments, new.target) : w.apply(this, arguments); }; },    Worker: function (w) { return function Worker() { return new.target ? Reflect.construct(w, arguments, new.target) : w.apply(this, arguments); }; }};var rhMakers = {    fn: function (w, n, a) { return ({ [n]() { "use strict"; return a(w, this, arguments); } })[n]; },    get: function (w, n, a) { return Object.getOwnPropertyDescriptor({ get [n]() { "use strict"; return a(w, this, arguments); } }, n).get; },    set: function (w, n, a) { return Object.getOwnPropertyDescriptor({ set [n](v) { "use strict"; return a(w, this, arguments); } }, n).set; }};function rhCloak(wrapper, nativeFn) {    if (typeof nativeFn !== "function" || typeof wrapper !== "function") return wrapper;    var isConstructor = true; try { Reflect.construct(String, [], nativeFn); } catch (e) { isConstructor = false; }    if (isConstructor) {        var constructible = new Proxy(nativeFn, { apply: function (t, self, args) { return rhApply(wrapper, self, args); }, construct: function (t, args, newTarget) { return Reflect.construct(wrapper, args, newTarget === constructible ? wrapper : newTarget); } });        rhNativeStrings.set(constructible, Function.prototype.toString.call(nativeFn));        return constructible;    }    var name = nativeFn.name, kind = /^(get|set) /.exec(name);    var cloaked = rhMakers[kind ? kind[1] : "fn"](wrapper, kind ? name.slice(4) : name, rhApply);    nativeMethods.objectDefineProperty(cloaked, "length", { value: nativeFn.length, configurable: true });    rhNativeStrings.set(cloaked, Function.prototype.toString.call(nativeFn));    return cloaked;}function replaceNativeAccessor(descriptor, accessorName, newAccessor) {
 	    if (newAccessor && descriptor[accessorName]) {
 	        var stringifiedNativeAccessor_1 = descriptor[accessorName].toString();
-	        newAccessor.toString = function () { return stringifiedNativeAccessor_1; };
+	        newAccessor = rhCloak(newAccessor, descriptor[accessorName]);
 	    }
 	    descriptor[accessorName] = newAccessor;
 	}
@@ -426,33 +426,30 @@
 	    nativeMethods.objectDefineProperty(fn, 'name', nameDescriptor);
 	}
 	function overrideToString(nativeFnWrapper, nativeFn) {
-	    nativeMethods.objectDefineProperty(nativeFnWrapper, INTERNAL_PROPS.nativeStrRepresentation, {
-	        value: nativeMethods.Function.prototype.toString.call(nativeFn),
-	        configurable: true,
-	    });
+	    rhNativeStrings.set(nativeFnWrapper, nativeMethods.Function.prototype.toString.call(nativeFn));
 	}
 	// TODO: this function should not be used outside this file
 	// for now it's used to flag cases in which we assign our wrapper to a native function when it is missing
 	function overrideStringRepresentation(nativeFnWrapper, nativeFn) {
-	    overrideFunctionName(nativeFnWrapper, nativeFn.name);
+	    overrideFunctionName(nativeFnWrapper, nativeFn.name); nativeMethods.objectDefineProperty(nativeFnWrapper, "length", { value: nativeFn.length, configurable: true });
 	    overrideToString(nativeFnWrapper, nativeFn);
 	}
 	function isNativeFunction(fn) {
-	    return !nativeMethods.objectHasOwnProperty.call(fn, INTERNAL_PROPS.nativeStrRepresentation);
+	    return !rhNativeStrings.has(fn);
 	}
 	function overrideFunction(obj, fnName, wrapper) {
 	    var fn = obj[fnName];
 	    if (isNativeFunction(fn)) {
 	        overrideStringRepresentation(wrapper, fn);
-	        obj[fnName] = wrapper;
+	        obj[fnName] = nativeMethods.objectHasOwnProperty.call(fn, "prototype") ? wrapper : rhCloak(wrapper, fn);
 	    }
 	}
 	function overrideConstructor(obj, fnName, wrapper, overrideProtoConstructor) {
-	    if (overrideProtoConstructor === void 0) { overrideProtoConstructor = false; }
+	    if (overrideProtoConstructor === void 0) { overrideProtoConstructor = false; } var rhWrapped = null; if (overrideProtoConstructor && rhNamedConstructors[fnName]) { rhWrapped = wrapper; wrapper = rhNamedConstructors[fnName](rhWrapped); }
 	    var nativePrototype = obj[fnName]['prototype'];
 	    overrideFunction(obj, fnName, wrapper);
 	    // NOTE: restore native prototype (to make `instanceof` work as expected)
-	    wrapper.prototype = nativePrototype;
+	    wrapper.prototype = nativePrototype; if (rhWrapped) rhWrapped.prototype = nativePrototype;
 	    // NOTE: we need to override the `constructor` property of a prototype
 	    // because sometimes native constructor can be retrieved from it
 	    if (overrideProtoConstructor)
@@ -1121,6 +1118,8 @@
 	    return NativeMethods;
 	}());
 	var nativeMethods = new NativeMethods();
+	function defineInstruction(win, name, desc) { try { nativeMethods.objectDefineProperty(win, name, desc); } catch (e) { if (!("value" in desc)) throw e; win[name] = desc.value; } }
+	function defineInstructions(win, descs) { for (var name in descs) defineInstruction(win, name, descs[name]); }
 
 	var EventEmitter = /** @class */ (function () {
 	    function EventEmitter() {
@@ -1322,7 +1321,7 @@
 	    if (opts.reqOrigin)
 	        params.push(encodeURIComponent(makeShortOrigin(opts.reqOrigin)));
 	    var descriptor = params.join(REQUEST_DESCRIPTOR_VALUES_SEPARATOR$1);
-	    var proxyProtocol = opts.proxyProtocol || (typeof window !== 'undefined' && window.location && window.location.protocol ? window.location.protocol : 'http:');
+	    var proxyProtocol = opts.proxyProtocol || 'http:';
 	    return "".concat(proxyProtocol, "//").concat(opts.proxyHostname, ":").concat(opts.proxyPort, "/").concat(descriptor, "/").concat(convertHostToLowerCase(url));
 	}
 	function getDomain(parsed) {
@@ -1603,14 +1602,169 @@
 		processMetaRefreshContent: processMetaRefreshContent
 	});
 
-	var DOCUMENT_URL_RESOLVER = 'hammerhead|document-url-resolver';
+	var DOCUMENT_URL_RESOLVER = 'hammerhead|document-url-resolver';// content security policies rewritten for the proxy instead of dropped, so the browser still enforces them
+// (pages and anti-bot scripts test that eval, inline scripts, trusted types and so on are really blocked).
+// plain es5 without requires: build.js inlines this into the client for <meta> policies it processes
+
+/* eslint-disable no-var */
+var rhCspRewrite = (function () {
+    // hammerhead's own scripts and endpoints, allowed by exact path so the site's policy doesn't widen
+    var SCRIPTS = ['/hammerhead.js', '/rammerhead.js', '/task.js', '/iframe-task.js', '/worker-hammerhead.js'];
+    var WORKERS = ['/transport-worker.js'];
+    var CONNECT = ['/messaging', '/syncLocalStorage', '/api/'];
+    var POLICY_NAME = 'hammerhead';
+    var KEYWORD = /^'[^']*'$/;
+    var KEEP_SCHEMES = /^(data|blob|filesystem|mediastream):$/i;
+    var WEB_SCHEMES = /^(https?|wss?):$/i;
+    // source lists whose hosts are rewritten. everything else (sandbox, trusted-types, ...) is handled below
+    var SOURCE_LIST = /(-src(-elem|-attr)?|^form-action|^base-uri|^navigate-to)$/;
+    // fix sites with frame-ancestors 'none' (github) not loading in pages that frame the proxy, like rammerhead browser:
+    // every proxied page shares the proxy's origin, so the framer can't be told apart anyway
+    var DROP = { 'report-uri': 1, 'report-to': 1, 'frame-ancestors': 1 };
+
+    function hasInline(sources) {
+        var inline = false;
+        for (var i = 0; i < sources.length; i++) {
+            var s = sources[i].toLowerCase();
+            // a nonce or hash (or strict-dynamic) turns 'unsafe-inline' off
+            if (/^'(nonce-|sha(256|384|512)-|strict-dynamic')/.test(s)) return false;
+            if (s === "'unsafe-inline'") inline = true;
+        }
+        return inline;
+    }
+
+    function addUnique(list, values) {
+        for (var i = 0; i < values.length; i++) if (list.indexOf(values[i]) === -1) list.push(values[i]);
+    }
+
+    function paths(origins, list) {
+        var out = [];
+        for (var i = 0; i < origins.length; i++) for (var j = 0; j < list.length; j++) out.push(origins[i] + list[j]);
+        return out;
+    }
+
+    function socketOrigins(origins) {
+        var out = [];
+        for (var i = 0; i < origins.length; i++) out.push(origins[i].replace(/^http/, 'ws'));
+        return out;
+    }
+
+    /**
+     * @param {string} policy - one serialized policy (no commas)
+     * @param {{origins: string[], nonce?: string, https?: boolean, hashes?: object}} options - proxy origins, our
+     *   nonce, and hash sources of rewritten inline scripts keyed by the site's hash source
+     * @returns {string}
+     */
+    function rewritePolicy(policy, options) {
+        var origins = options.origins;
+        var directives = [];
+        var byName = {};
+        var parts = String(policy).split(';');
+        for (var i = 0; i < parts.length; i++) {
+            var tokens = parts[i].trim().split(/[\t\n\f\r ]+/);
+            var name = (tokens.shift() || '').toLowerCase();
+            // first occurrence wins, like browsers
+            if (!name || byName[name] || DROP[name] !== undefined) continue;
+            if (!options.https && (name === 'upgrade-insecure-requests' || name === 'block-all-mixed-content')) continue;
+            var directive = { name: name, sources: tokens.filter(Boolean) };
+            byName[name] = directive;
+            directives.push(directive);
+        }
+        for (var d = 0; d < directives.length; d++) {
+            var dir = directives[d];
+            if (dir.name === 'sandbox') {
+                // hammerhead reaches into the document, so it has to stay same-origin (like sandboxed iframes)
+                addUnique(dir.sources, ['allow-same-origin']);
+                continue;
+            }
+            if (dir.name === 'trusted-types') {
+                dir.sources = dir.sources.filter(function (s) {
+                    return s.toLowerCase() !== "'none'";
+                });
+                addUnique(dir.sources, [POLICY_NAME]);
+                continue;
+            }
+            if (!SOURCE_LIST.test(dir.name)) continue;
+            var mapped = [];
+            for (var k = 0; k < dir.sources.length; k++) {
+                var source = dir.sources[k];
+                if (KEYWORD.test(source) || source === '*' || KEEP_SCHEMES.test(source)) {
+                    addUnique(mapped, [source]);
+                    // inline scripts are rewritten: their new hashes go next to the site's
+                    var hashed = options.hashes && options.hashes[source];
+                    if (hashed) addUnique(mapped, hashed);
+                    if (source.toLowerCase() === "'self'") addUnique(mapped, origins);
+                } else if (WEB_SCHEMES.test(source)) {
+                    addUnique(mapped, [source]);
+                    addUnique(mapped, origins);
+                } else {
+                    // a site host: everything proxied comes from the proxy's origins. the host stays too, for what the
+                    // browser fetches itself without the proxy (fedcm, ...), which the site allowed anyway
+                    addUnique(mapped, origins);
+                    addUnique(mapped, [source]);
+                }
+            }
+            dir.sources = mapped;
+        }
+        function effective(names) {
+            for (var i = 0; i < names.length; i++) if (byName[names[i]]) return byName[names[i]];
+            return null;
+        }
+        function allow(directive, values) {
+            if (!directive) return;
+            directive.sources = directive.sources.filter(function (s) {
+                return s.toLowerCase() !== "'none'";
+            });
+            addUnique(directive.sources, values);
+        }
+        var scripts = effective(['script-src-elem', 'script-src', 'default-src']);
+        if (scripts) {
+            var nonce = options.nonce && !hasInline(scripts.sources) ? ["'nonce-" + options.nonce + "'"] : [];
+            // options.paths: per-request service urls when the app serves them under other paths;
+            // without it the static originals are whitelisted
+            allow(scripts, nonce.concat(paths(origins, (options.paths && options.paths.scripts) || SCRIPTS)));
+            // inline handlers aren't hammerhead's; only make sure scripts fall back the same way they did
+        }
+        allow(effective(['worker-src', 'child-src', 'script-src', 'default-src']), paths(origins, (options.paths && options.paths.workers) || WORKERS));
+        allow(
+            effective(['connect-src', 'default-src']),
+            paths(origins, (options.paths && options.paths.connect) || CONNECT).concat(paths(socketOrigins(origins), [(options.paths && options.paths.messaging) || '/messaging']))
+        );
+        var out = [];
+        for (var o = 0; o < directives.length; o++) {
+            out.push(directives[o].sources.length ? directives[o].name + ' ' + directives[o].sources.join(' ') : directives[o].name);
+        }
+        return out.join('; ');
+    }
+
+    /**
+     * a header value can hold several policies separated by commas
+     * @param {string} header
+     * @param {{origins: string[], nonce?: string, https?: boolean, hashes?: object}} options
+     * @returns {string}
+     */
+    function rewriteHeader(header, options) {
+        return String(header)
+            .split(',')
+            .map(function (policy) {
+                return rewritePolicy(policy, options);
+            })
+            .filter(Boolean)
+            .join(', ');
+    }
+
+    return { rewritePolicy: rewritePolicy, rewriteHeader: rewriteHeader, POLICY_NAME: POLICY_NAME, SCRIPTS: SCRIPTS, WORKERS: WORKERS, CONNECT: CONNECT };
+})();
+
+
+var rhCspNonce = (function () {    try { var s = document.currentScript; if (s && s.nonce) return s.nonce; } catch (e) {}    try { var p = window.rammerheadParent; if (p !== window && p["%hammerhead%"]) return p["%hammerhead%"].rhCspNonce || ""; } catch (e) {}    return "";})();var rhCspPolicies = (function () {    try { var p = window.rammerheadParent; if (p !== window && p["%hammerhead%"] && p["%hammerhead%"].rhCspPolicies) return p["%hammerhead%"].rhCspPolicies; } catch (e) {}    return new Map();})();function rhCspOptions() {    var origins = [location.origin];    var port = settings$1.get().crossDomainProxyPort;    if (port) { var cross = location.protocol + "//" + location.hostname + ":" + port; if (cross !== location.origin && origins.indexOf(cross) === -1) origins.push(cross); }    return { origins: origins, nonce: rhCspNonce, https: location.protocol === "https:" };}var rhTrustedPolicy;function rhTrusted(kind, value) {    if (rhTrustedPolicy === void 0) {        rhTrustedPolicy = null;        if (rhScriptsBlocked(window)) {            try { var p = window.rammerheadParent, ph = p !== window && p["%hammerhead%"]; if (ph && ph.rhTrusted) rhTrustedPolicy = { createHTML: function (s) { return ph.rhTrusted("HTML", s); }, createScript: function (s) { return ph.rhTrusted("Script", s); }, createScriptURL: function (s) { return ph.rhTrusted("ScriptURL", s); } }; } catch (e) {}        } else        try { if (window.trustedTypes && window.trustedTypes.createPolicy) rhTrustedPolicy = window.trustedTypes.createPolicy(rhCspRewrite.POLICY_NAME, { createHTML: function (s) { return s; }, createScript: function (s) { return s; }, createScriptURL: function (s) { return s; } }); } catch (e) {}    }    return rhTrustedPolicy ? rhTrustedPolicy["create" + kind](value) : value;}function rhTrustedKind(v) {    if (!v || typeof v !== "object") return null;    try { var tt = window.trustedTypes; return !tt ? null : tt.isHTML(v) ? "HTML" : tt.isScript(v) ? "Script" : tt.isScriptURL(v) ? "ScriptURL" : null; } catch (e) { return null; }}function rhSinkValue(processed, original) {    var kind = rhTrustedKind(original);    return kind && typeof processed === "string" ? rhTrusted(kind, processed) : processed;}function rhAttrValue(el, attr, value) {    if (typeof value !== "string" || !window.trustedTypes) return value;    var name = String(attr).toLowerCase(), tag = el && el.tagName ? String(el.tagName).toLowerCase() : "";    if (name.slice(0, 2) === "on") return rhTrusted("Script", value);    if (tag === "iframe" && name === "srcdoc") return rhTrusted("HTML", value);    if (tag === "script" && (name === "src" || name === "href" || name === "xlink:href")) return rhTrusted("ScriptURL", value);    return value;}var rhWriteTrusted = false;function rhSha256Base64(text) {    var bytes = new TextEncoder().encode(text), k = rhSha256Base64.k;    if (!k) { k = rhSha256Base64.k = []; var n = 2, found = 0; while (found < 64) { var prime = true; for (var d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; } if (prime) { k.push((Math.pow(n, 1 / 3) % 1) * 4294967296 | 0); found++; } n++; } }    var h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];    var len = bytes.length, total = ((len + 9 + 63) >> 6) << 6, m = new Uint8Array(total);    m.set(bytes); m[len] = 0x80; var bits = len * 8;    for (var i = 0; i < 8; i++) m[total - 1 - i] = i < 4 ? (bits >>> (8 * i)) & 255 : Math.floor(bits / 4294967296 / Math.pow(256, i - 4)) & 255;    var w = new Int32Array(64);    for (var off = 0; off < total; off += 64) {        for (var t = 0; t < 16; t++) w[t] = (m[off + t * 4] << 24) | (m[off + t * 4 + 1] << 16) | (m[off + t * 4 + 2] << 8) | m[off + t * 4 + 3];        for (t = 16; t < 64; t++) { var x = w[t - 15], y = w[t - 2];            w[t] = (((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3)) + w[t - 16] + (((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10)) + w[t - 7] | 0; }        var a = h[0], b = h[1], c = h[2], dd = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];        for (t = 0; t < 64; t++) {            var t1 = hh + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7))) + ((e & f) ^ (~e & g)) + k[t] + w[t] | 0;            var t2 = (((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10))) + ((a & b) ^ (a & c) ^ (b & c)) | 0;            hh = g; g = f; f = e; e = dd + t1 | 0; dd = c; c = b; b = a; a = t1 + t2 | 0; }        h[0] = h[0] + a | 0; h[1] = h[1] + b | 0; h[2] = h[2] + c | 0; h[3] = h[3] + dd | 0; h[4] = h[4] + e | 0; h[5] = h[5] + f | 0; h[6] = h[6] + g | 0; h[7] = h[7] + hh | 0;    }    var out = ""; for (i = 0; i < 8; i++) for (var j = 3; j >= 0; j--) out += String.fromCharCode((h[i] >>> (j * 8)) & 255);    return btoa(out);}var rhNonceSetter = (function () { try { var d = Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "nonce"); return d && d.set; } catch (e) {} })();var rhNoncedScripts = new WeakSet();function rhNonceIfHashAllowed(script, original) {    if (!rhCspNonce || !rhNonceSetter || typeof original !== "string" || !original) return;    var allowed = {}, any = false;    rhCspPolicies.forEach(function (policy) { var re = /'sha256-([A-Za-z0-9+/_-]+=*)'/g, m; while ((m = re.exec(policy))) { allowed[m[1].replace(/-/g, "+").replace(/_/g, "/")] = any = true; } });    if (!any || !allowed[rhSha256Base64(original)]) return;    rhNonceSetter.call(script, rhCspNonce);    rhNoncedScripts.add(script);}var rhScriptSources = [];function rhRememberScriptSource(processed, original) {    if (typeof processed !== "string" || processed === original) return processed;    rhScriptSources.push([processed.slice(0, 2000), String(original).slice(0, 200)]);    if (rhScriptSources.length > 20) rhScriptSources.shift();    return processed;}function rhPropertySink(el, prop, value) {    if (!window.trustedTypes || rhTrustedKind(value)) return value;    var tag = el && el.tagName ? String(el.tagName).toLowerCase() : "";    var setter = tag === "script" && prop === "src" ? nativeMethods.scriptSrcSetter : tag === "iframe" && prop === "srcdoc" ? nativeMethods.iframeSrcdocSetter : null;    if (!setter) return value;    var probe = nativeMethods.createElement.call(el.ownerDocument || document, tag);    setter.call(probe, value);    return rhTrusted(prop === "src" ? "ScriptURL" : "HTML", nativeMethods.getAttribute.call(probe, prop));}var rhScriptTextSetter = (function () { try { var d = Object.getOwnPropertyDescriptor(window.HTMLScriptElement.prototype, "textContent"); return d && d.set; } catch (e) {} })();function rhSetText(el, value) {    var isScript = el && el.tagName && String(el.tagName).toLowerCase() === "script";    return (isScript && rhScriptTextSetter ? rhScriptTextSetter : nativeMethods.nodeTextContentSetter).call(el, value);}function rhScriptsBlocked(win) {    var frame = rhFrameElementOf(win), sandbox = frame && nativeMethods.getAttribute.call(frame, "sandbox");    return typeof sandbox === "string" && !/(^|\s)allow-scripts(\s|$)/i.test(sandbox);}var rhBlockedWindows = new WeakMap();function rhScriptsBlockedFor(target) {    var win = null;    try { win = target && (target.window === target ? target : target.defaultView || (target.ownerDocument && target.ownerDocument.defaultView)); } catch (e) {}    if (!win) return false;    if (!rhBlockedWindows.has(win)) rhBlockedWindows.set(win, rhScriptsBlocked(win));    return rhBlockedWindows.get(win);}function rhRunInWindow(win, code) {    if (!rhCspNonce || rhScriptsBlocked(win)) return win.eval(rhTrusted("Script", code));    var doc = win.document, script = nativeMethods.createElement.call(doc, "script");    nativeMethods.setAttribute.call(script, "nonce", rhCspNonce);    rhSetText(script, rhTrusted("Script", code));    var parent = doc.head || doc.documentElement || doc;    nativeMethods.appendChild.call(parent, script);    nativeMethods.removeChild.call(parent, script);}function rhNonced(html) { return rhCspNonce ? html.replace("<script class=", "<script nonce=\"" + rhCspNonce + "\" class=") : html; }function rhStripScript(html, script) {    var tail = script.slice("<script ".length), at = html.indexOf(tail);    if (at === -1) return null;    var start = html.lastIndexOf("<script", at);    return html.slice(0, start) + html.slice(at + tail.length);}function rhResolveUrl(url, resolverDocument, anchor) {    try { return new nativeMethods.URL(url, resolverDocument.rhBaseUrl || void 0).href; } catch (e) {}    nativeMethods.anchorHrefSetter.call(anchor, url);    return nativeMethods.anchorHrefGetter.call(anchor);}
 	var urlResolver = {
 	    _createResolver: function (doc) {
 	        var htmlDocument = nativeMethods.createHTMLDocument.call(doc.implementation, 'title');
 	        var a = nativeMethods.createElement.call(htmlDocument, 'a');
 	        var base = nativeMethods.createElement.call(htmlDocument, 'base');
 	        nativeMethods.appendChild.call(htmlDocument.body, a);
-	        nativeMethods.appendChild.call(htmlDocument.head, base);
+	        ;
 	        return htmlDocument;
 	    },
 	    _getResolver: function (doc) {
@@ -1644,8 +1798,7 @@
 	        if (url === null)
 	            nativeMethods.removeAttribute.call(resolver, 'href');
 	        else {
-	            nativeMethods.anchorHrefSetter.call(resolver, url);
-	            href = nativeMethods.anchorHrefGetter.call(resolver);
+	            href = rhResolveUrl(url, this._getResolver(doc), resolver);
 	            // NOTE: It looks like a Chrome bug: in a nested iframe without src (when an iframe is placed into another
 	            // iframe) you cannot set a relative link href while the iframe loading is not completed. So, we'll do it with
 	            // the parent's urlResolver Safari demonstrates similar behavior, but urlResolver.href has a relative URL value.
@@ -1672,11 +1825,10 @@
 	            this.updateBase(destinationLocation, doc);
 	            url = this.resolve(url, doc);
 	        }
-	        nativeMethods.setAttribute.call(baseElement, 'href', url);
+	        this._getResolver(doc).rhBaseUrl = url;
 	    },
 	    getBaseUrl: function (doc) {
-	        var baseElement = nativeMethods.elementGetElementsByTagName.call(this._getResolver(doc).head, 'base')[0];
-	        return nativeMethods.getAttribute.call(baseElement, 'href');
+	        var rhBase = this._getResolver(doc).rhBaseUrl; return rhBase === undefined ? null : rhBase;
 	    },
 	    changeUrlPart: function (url, nativePropSetter, value, doc) {
 	        var resolver = this.getResolverElement(doc);
@@ -3039,7 +3191,7 @@
 	function getOffset(el) {
 	    if (!el || isWindow(el) || isDocument(el))
 	        return null;
-	    var clientRect = getClientRectangle(el);
+	    var clientRect = el.getBoundingClientRect();
 	    // NOTE: A detached node or documentElement.
 	    var doc = el.ownerDocument;
 	    var docElement = doc.documentElement;
@@ -3054,7 +3206,7 @@
 	    var clientLeft = docElement.clientLeft || doc.body.clientLeft || 0;
 	    var scrollTop = win.pageYOffset || docElement.scrollTop || doc.body.scrollTop;
 	    var scrollLeft = win.pageXOffset || docElement.scrollLeft || doc.body.scrollLeft;
-	    clientRect = getClientRectangle(el);
+	    clientRect = el.getBoundingClientRect();
 	    return {
 	        top: clientRect.top + scrollTop - clientTop,
 	        left: clientRect.left + scrollLeft - clientLeft,
@@ -3124,7 +3276,7 @@
 	    return obj === null ? 'null' : 'undefined';
 	}
 	function isNullOrUndefined(obj) {
-	    return obj === void 0 || isNull(obj);
+	    return obj === null || obj === void 0;
 	}
 	function isPrimitiveType(obj) {
 	    var objType = typeof obj;
@@ -3256,9 +3408,7 @@
 	        srcLocation: parsedProxySrcLocation ? parsedProxySrcLocation.destUrl : srcLocation,
 	    };
 	}
-	function getFrameElement(win) {
-	    try {
-	        return win.frameElement;
+	function getFrameElement(win) { try { return rhFrameElementOf(win);
 	    }
 	    catch (e) {
 	        return null;
@@ -3278,7 +3428,7 @@
 	    if (parent === window.rammerheadTop || isCrossDomainWindows(window, parent))
 	        return parent;
 	    try {
-	        parentFrameElement = parent.frameElement;
+	        parentFrameElement = rhFrameElementOf(parent);
 	    }
 	    catch (e) {
 	        parentFrameElement = null;
@@ -3806,14 +3956,6 @@
 	    var doc = findDocument(el);
 	    return el.control || el.htmlFor && nativeMethods.getElementById.call(doc, el.htmlFor);
 	}
-	function getClientRectangle(el) {
-	    var rects = el.getClientRects();
-	    for (var i = 0; i < rects.length; i++) {
-	        if (rects[i].height > 0 && rects[i].width > 0)
-	            return rects[i];
-	    }
-	    return el.getBoundingClientRect();
-	}
 
 	var domUtils = /*#__PURE__*/Object.freeze({
 		__proto__: null,
@@ -3920,8 +4062,7 @@
 		getScripts: getScripts,
 		isNumberOrEmailInput: isNumberOrEmailInput,
 		isInputWithoutSelectionProperties: isInputWithoutSelectionProperties,
-		getAssociatedElement: getAssociatedElement,
-		getClientRectangle: getClientRectangle
+		getAssociatedElement: getAssociatedElement
 	});
 
 	var SandboxBase = /** @class */ (function (_super) {
@@ -3965,6 +4106,7 @@
 	    safeConcatenation,
 	    directive,
 	    extra;
+
 
 	var Syntax = {
 	    AssignmentExpression:     'AssignmentExpression',
@@ -5226,11 +5368,10 @@
 	        }
 
 	        else {
-	            const prefix        = $prop.type === Syntax.PrivateIdentifier ? '#' : '';
-	            const chainOperator = $expr.optional ? '?.' : '.';
-	            const propName      = prefix + $prop.name;
+	            const propName     = $prop.type === Syntax.PrivateIdentifier ? "#" + $prop.name : $prop.name;
+	            const exprChaining = $expr.optional ? '?.' : '.';
 	            
-	            _.js += chainOperator + propName;
+	            _.js += exprChaining + propName;
 	        }
 
 	        if (parenthesize)
@@ -6779,7 +6920,7 @@
 	    'replace',
 	    'assign',
 	];
-	var PROPERTIES = [
+	var PROPERTIES = [ "top", "parent", "frameElement", "stackTraceLimit",
 	    'href',
 	    'location',
 	];
@@ -6849,7 +6990,62 @@
 	            return false;
 	        return true;
 	    },
-	    run: function (node) { return createComputedPropertyGetWrapper(node.property, node.object, node.optional); },
+	    run: function (node) { return (function rhLazyOptionalChainKey(node, createGetWrapper) {
+    let link = node;
+    let canShortCircuit = false;
+    while (link && (link.type === 'MemberExpression' || link.type === 'CallExpression')) {
+        if (link.optional) {
+            canShortCircuit = true;
+            break;
+        }
+        link = link.type === 'MemberExpression' ? link.object : link.callee;
+    }
+    if (!canShortCircuit) return null;
+    // literals and identifiers can't throw
+    if (node.property.type === 'Literal' || node.property.type === 'Identifier') return null;
+
+    // await/yield can't move into the arrow function
+    const hasAwaitOrYield = (n) => {
+        if (!n || typeof n !== 'object') return false;
+        if (n.type === 'AwaitExpression' || n.type === 'YieldExpression') return true;
+        for (const key in n) {
+            if (key !== 'type' && hasAwaitOrYield(n[key])) return true;
+        }
+        return false;
+    };
+    if (hasAwaitOrYield(node.property)) return null;
+
+    const obj = { type: 'Identifier', name: '_rh$chainObj' };
+    return {
+        type: 'CallExpression',
+        optional: false,
+        callee: {
+            type: 'ArrowFunctionExpression',
+            id: null,
+            params: [obj],
+            expression: true,
+            async: false,
+            generator: false,
+            body: {
+                type: 'ConditionalExpression',
+                test: {
+                    type: 'BinaryExpression',
+                    operator: '==',
+                    left: obj,
+                    right: { type: 'Literal', value: null, raw: 'null' }
+                },
+                consequent: {
+                    type: 'UnaryExpression',
+                    operator: 'void',
+                    prefix: true,
+                    argument: { type: 'Literal', value: 0, raw: '0' }
+                },
+                alternate: createGetWrapper(node.property, obj, true)
+            }
+        },
+        arguments: [node.object]
+    };
+})(node, createComputedPropertyGetWrapper) || createComputedPropertyGetWrapper(node.property, node.object, node.optional); },
 	};
 
 	// -------------------------------------------------------------
@@ -7423,10 +7619,6 @@
 	        // Skip: class X { location () {} }
 	        if (parent.type === Syntax_1.MethodDefinition)
 	            return false;
-	        // Skip: class X { location }
-	        // @ts-ignore
-	        if (parent.type === Syntax_1.PropertyDefinition)
-	            return false;
 	        // Skip: class location { x () {} }
 	        if (parent.type === Syntax_1.ClassDeclaration)
 	            return false;
@@ -7859,7 +8051,138 @@
 	}
 
 	// -------------------------------------------------------------
-	var TRANSFORMERS = [
+	var TRANSFORMERS = [ {name:"rh-get",nodeReplacementRequireTransform:!1,nodeTypes:"Identifier",condition:(node, parent) => {
+        if (!parent || (node.name !== 'top' && node.name !== 'parent' && node.name !== 'frameElement'))
+            return false;
+
+        // Skip: const top = value;
+        if (parent.type === 'VariableDeclarator' && parent.id === node)
+            return false;
+
+        // Skip: top = value || function x (top = value) { ... }
+        if ((parent.type === 'AssignmentExpression' || parent.type === 'AssignmentPattern') &&
+            parent.left === node)
+            return false;
+
+        // Skip: function top() {}
+        if ((parent.type === 'FunctionExpression' || parent.type === 'FunctionDeclaration') &&
+            parent.id === node)
+            return false;
+
+        // Skip: object.top || top.field
+        if (parent.type === 'MemberExpression' && parent.property === node)
+            return false;
+
+        // Skip: { top: value }
+        if (parent.type === 'Property' && parent.key === node)
+            return false;
+
+        // Skip: { top }
+        if (parent.type === 'Property' && parent.value === node && parent.shorthand)
+            return false;
+
+        // Skip: top++ || top-- || ++top || --top
+        if (parent.type === 'UpdateExpression' && (parent.operator === '++' || parent.operator === '--'))
+            return false;
+
+        // Skip: function (top) { ... } || function func(top) { ... } || top => { ... }
+        if ((parent.type === 'FunctionExpression' || parent.type === 'FunctionDeclaration' ||
+            parent.type === 'ArrowFunctionExpression') && parent.params.indexOf(node) !== -1)
+            return false;
+
+        // Skip already transformed: __rhget$Top(top)
+        if (parent.type === 'CallExpression' && parent.callee.type === 'Identifier' &&
+            parent.callee.name === '__rhget$Top')
+            return false;
+
+        // Skip: class X { top () {} }
+        if (parent.type === 'MethodDefinition')
+            return false;
+
+        // Skip: class top { x () {} }
+        if (parent.type === 'ClassDeclaration')
+            return false;
+
+        // Skip: function x (...top) {}
+        if (parent.type === 'RestElement')
+            return false;
+
+        // Skip: export { top } from "module";
+        if (parent.type === 'ExportSpecifier')
+            return false;
+
+        // Skip: import { top } from "module";
+        if (parent.type === 'ImportSpecifier')
+            return false;
+
+        // fix class fields named like these breaking the page's script (brave search): class X { parent; top = 1 }
+        if ((parent.type === 'PropertyDefinition' || parent.type === 'MethodDefinition') && parent.key === node && !parent.computed)
+            return false;
+
+        // Skip: var x = class top {}
+        if (parent.type === 'ClassExpression' && parent.id === node)
+            return false;
+
+        // Skip: top: for (...) { break top; continue top; }
+        if ((parent.type === 'LabeledStatement' || parent.type === 'BreakStatement' || parent.type === 'ContinueStatement') && parent.label === node)
+            return false;
+
+        // Skip: catch (top) {}
+        if (parent.type === 'CatchClause' && parent.param === node)
+            return false;
+
+        // Skip: import top from "module"; import * as top from "module";
+        if (parent.type === 'ImportDefaultSpecifier' || parent.type === 'ImportNamespaceSpecifier')
+            return false;
+
+        // Skip: [top] = value || const [top] = value
+        if (parent.type === 'ArrayPattern')
+            return false;
+
+        // Skip: for (top of list) || for (top in object)
+        if ((parent.type === 'ForOfStatement' || parent.type === 'ForInStatement') && parent.left === node)
+            return false;
+
+        return true;
+    },run:function createRHGetWrapper(literal) {
+        let rewriteLiteral = '';
+        switch (literal.name) {
+            case 'top':
+                rewriteLiteral = 'Top';
+                break;
+            case 'parent':
+                rewriteLiteral = 'Parent';
+                break;
+            case 'frameElement':
+                rewriteLiteral = 'FrameElement';
+                break;
+            default:
+                console.error('unknown literal: ', literal);
+        }
+        const getRHIdentifier = createIdentifier('__rhget$' + rewriteLiteral);
+
+        return createSimpleCallExpression(getRHIdentifier, [literal]);
+    }},{name:"rh-im",nodeReplacementRequireTransform:!1,nodeTypes:"MetaProperty",condition:(e,r)=>"import"===e.meta.name&&"meta"===e.property.name,run:function(e){const r=createIdentifier("__rhget$IM");return createSimpleCallExpression(r,[e])}}, ...(function rhChainContinueTransformers() {
+    const hasRewrittenKeyBelow = (node) => {
+        let link = node.type === 'MemberExpression' ? node.object : node.callee;
+        while (link && (link.type === 'MemberExpression' || link.type === 'CallExpression') && link.optional) {
+            if (link.type === 'MemberExpression' && link.computed && link.property.type !== 'Literal') return true;
+            link = link.type === 'MemberExpression' ? link.object : link.callee;
+        }
+        return false;
+    };
+    return ['MemberExpression', 'CallExpression'].map((nodeTypes) => ({
+        name: 'rh-chain-continue',
+        nodeReplacementRequireTransform: false,
+        nodeTypes,
+        condition: (node, parent) => !!parent && node.optional && hasRewrittenKeyBelow(node),
+        // same node, so hammerhead's rewrites of its children end up in the output
+        run: (node) => {
+            node.optional = true;
+            return node;
+        }
+    }));
+})(),
 	    create$2(Syntax_1.FunctionDeclaration),
 	    create$2(Syntax_1.FunctionExpression),
 	    create$2(Syntax_1.ArrowFunctionExpression),
@@ -8184,14 +8507,13 @@
 	var STRICT_MODE_PLACEHOLDER = '{strict-placeholder}';
 	var SW_SCOPE_HEADER_VALUE = '{sw-scope-header-value}';
 	var WORKER_SETTINGS_PLACEHOLDER = '{worker-settings}';
-	// NOTE: we need try/catch if a worker with ES module (fix for https://github.com/DevExpress/testcafe/issues/8251)
-	var IMPORT_WORKER_HAMMERHEAD = "\nif (typeof importScripts !== \"undefined\" && /\\[native code]/g.test(importScripts.toString())) {\n    var ".concat(SCRIPT_PROCESSING_INSTRUCTIONS.getWorkerSettings, " = function () {return ").concat(WORKER_SETTINGS_PLACEHOLDER, "};\n    try {\n        importScripts((location.origin || (location.protocol + \"//\" + location.host)) + \"").concat(SERVICE_ROUTES.workerHammerhead, "\");\n    } catch (e) {\n        (async function () { await import((location.origin || (location.protocol + \"//\" + location.host)) + \"").concat(SERVICE_ROUTES.workerHammerhead, "\"); })();\n    }\n}\n");
-	var PROCESS_DOM_METHOD = "globalThis.window['".concat(INTERNAL_PROPS.processDomMethodName, "'] && globalThis.window['").concat(INTERNAL_PROPS.processDomMethodName, "']();");
+	var IMPORT_WORKER_HAMMERHEAD = "\nif (typeof importScripts !== \"undefined\" && /\\[native code]/g.test(importScripts.toString())) {\n    self.".concat(SCRIPT_PROCESSING_INSTRUCTIONS.getWorkerSettings, " = function () {return ").concat(WORKER_SETTINGS_PLACEHOLDER, "};\n    try { var rhUrl = (location.origin || (location.protocol + \"//\" + location.host)) + \"").concat(SERVICE_ROUTES.workerHammerhead, "\"; if (self.trustedTypes && self.trustedTypes.createPolicy && !self[\"hammerhead|trusted-policy\"]) try { Object.defineProperty(self, \"hammerhead|trusted-policy\", { value: self.trustedTypes.createPolicy(\"hammerhead\", { createScriptURL: function (s) { return s; }, createScript: function (s) { return s; } }) }); } catch (e) {} importScripts(self[\"hammerhead|trusted-policy\"] ? self[\"hammerhead|trusted-policy\"].createScriptURL(rhUrl) : rhUrl); } catch (e) { (async function () { await import((location.origin || (location.protocol + \"//\" + location.host)) + \"").concat(SERVICE_ROUTES.workerHammerhead, "\"); })(); }\n}\n");
+	var PROCESS_DOM_METHOD = "window['".concat(INTERNAL_PROPS.processDomMethodName, "'] && window['").concat(INTERNAL_PROPS.processDomMethodName, "']();");
 	function trim(val) {
 	    return val.replace(/\n(?!$)\s*/g, '');
 	}
-	var NATIVE_AUTOMATION_HEADER = trim("\n    ".concat(SCRIPT_PROCESSING_START_COMMENT, "\n    ").concat(STRICT_MODE_PLACEHOLDER, "\n\n    if (typeof globalThis.window !== 'undefined' && globalThis.window) {\n        ").concat(PROCESS_DOM_METHOD, "\n    }\n\n    ").concat(SCRIPT_PROCESSING_END_HEADER_COMMENT, "\n"));
-	var HEADER = trim("\n    ".concat(SCRIPT_PROCESSING_START_COMMENT, "\n    ").concat(STRICT_MODE_PLACEHOLDER, "\n    ").concat(SW_SCOPE_HEADER_VALUE, "\n\n    if (typeof globalThis.window !== 'undefined' && globalThis.window){\n        ").concat(PROCESS_DOM_METHOD, "\n\n        if (globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " && typeof ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " === 'undefined')\n            var ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setProperty, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setProperty, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getEval, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getEval, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processScript, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processScript, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restArray, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restArray, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restObject, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restObject, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, " = globalThis.window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, ";\n    } else {\n        if (typeof ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " === 'undefined')\n            var ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, " = function(l){return l},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, " = function(l,v){return l = v},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setProperty, " = function(o,p,v){return o[p] = v},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " = function(o,p,opt=false){return opt&&(o===undefined||o===null)?undefined:o[p]},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, " = function(o,p,a){return o[p].apply(o,a)},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getEval, " = function(e){return e},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processScript, " = function(s){return s},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, " = function(h){return h},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, " = function(w,p){return arguments.length===1?w.postMessage:p},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, " = function(u,d){return u},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restArray, " = function(a,i){return Array.prototype.slice.call(a, i)},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restObject, " = function(o,p){var k=Object.keys(o),n={};for(var i=0;i<k.length;++i)if(p.indexOf(k[i])<0)n[k[i]]=o[k[i]];return n},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, " = function(r){if(!r)return r;return!Array.isArray(r)&&\"function\"==typeof r[Symbol.iterator]?Array.from(r):r};\n\n        ").concat(IMPORT_WORKER_HAMMERHEAD, "\n    }\n    ").concat(SCRIPT_PROCESSING_END_HEADER_COMMENT, "\n"));
+	var NATIVE_AUTOMATION_HEADER = trim("\n    ".concat(SCRIPT_PROCESSING_START_COMMENT, "\n    ").concat(STRICT_MODE_PLACEHOLDER, "\n\n    if (typeof window !== 'undefined' && window) {\n        ").concat(PROCESS_DOM_METHOD, "\n    }\n\n    ").concat(SCRIPT_PROCESSING_END_HEADER_COMMENT, "\n"));
+	var HEADER = trim("\n    ".concat(SCRIPT_PROCESSING_START_COMMENT, "\n    ").concat(STRICT_MODE_PLACEHOLDER, "\n    ").concat(SW_SCOPE_HEADER_VALUE, "\n\n    if (typeof window !== 'undefined' && window){\n        ").concat(PROCESS_DOM_METHOD, "\n\n        if (window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " && typeof ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " === 'undefined')\n            var ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setProperty, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setProperty, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getEval, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getEval, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processScript, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processScript, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restArray, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restArray, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restObject, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restObject, ",\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, " = window.").concat(SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, ";\n    } else {\n        if (typeof ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " === 'undefined')\n            var ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, " = function(l){return l},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, " = function(l,v){return l = v},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.setProperty, " = function(o,p,v){return o[p] = v},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProperty, " = function(o,p){return o[p]},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, " = function(o,p,a){return o[p].apply(o,a)},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getEval, " = function(e){return e},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processScript, " = function(s){return s},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, " = function(h){return h},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, " = function(w,p){return arguments.length===1?w.postMessage:p},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, " = function(u,d){return u},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restArray, " = function(a,i){return Array.prototype.slice.call(a, i)},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.restObject, " = function(o,p){var k=Object.keys(o),n={};for(var i=0;i<k.length;++i)if(p.indexOf(k[i])<0)n[k[i]]=o[k[i]];return n},\n                ").concat(SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, " = function(r){if(!r)return r;return!Array.isArray(r)&&\"function\"==typeof r[Symbol.iterator]?Array.from(r):r};\n\n        ").concat(IMPORT_WORKER_HAMMERHEAD, "\n    }\n    ").concat(SCRIPT_PROCESSING_END_HEADER_COMMENT, "\n"));
 	var HEADER_RE = new RegExp("".concat(reEscape(SCRIPT_PROCESSING_START_COMMENT), "[\\S\\s]+?").concat(reEscape(SCRIPT_PROCESSING_END_HEADER_COMMENT), "\n?"), 'gi');
 	var PROCESSING_END_COMMENT_RE = new RegExp("\n?".concat(reEscape(SCRIPT_PROCESSING_END_COMMENT), "\\s*"), 'gi');
 	function remove$1(code) {
@@ -14045,7 +14367,7 @@
 	    formtarget: ['input', 'button'],
 	};
 	var TARGET_ATTRS = ['target', 'formtarget'];
-	var ATTRS_WITH_SPECIAL_PROXYING_LOGIC = ['sandbox', 'autocomplete', 'target', 'formtarget', 'style'];
+	var ATTRS_WITH_SPECIAL_PROXYING_LOGIC = ['sandbox', 'autocomplete', 'target', 'formtarget', 'style', 'content'];
 
 	// -------------------------------------------------------------
 	var arrayJoin = Array.prototype.join;
@@ -14082,7 +14404,7 @@
 	        if (!css || typeof css !== 'string' || shouldIncludeProcessingComments && IS_STYLE_SHEET_PROCESSED_RE.test(css))
 	            return css;
 	        // NOTE: Replace the :hover pseudo-class.
-	        css = css.replace(HOVER_PSEUDO_CLASS_RE, '[' + INTERNAL_ATTRIBUTES.hoverPseudoClass + ']$1');
+	        
 	        // NOTE: Remove all 'source map' directives.
 	        css = css.replace(SOURCE_MAP_RE, '');
 	        // NOTE: Replace URLs in CSS rules with proxy URLs.
@@ -14091,7 +14413,7 @@
 	        // NOTE: Replace url attributes to stored attributes
 	        css = this._replaceUrlAttributes(css);
 	        if (shouldIncludeProcessingComments)
-	            css = "".concat(STYLESHEET_PROCESSING_START_COMMENT, "\n").concat(css, "\n").concat(STYLESHEET_PROCESSING_END_COMMENT);
+	            css = "".concat(STYLESHEET_PROCESSING_START_COMMENT).concat(css).concat(STYLESHEET_PROCESSING_END_COMMENT);
 	        return css;
 	    };
 	    StyleProcessor.prototype.cleanUp = function (css, parseProxyUrl) {
@@ -14104,7 +14426,7 @@
 	        if (!this.nativeAutomation) {
 	            css = this._replaceStylesheetUrls(css, function (url) {
 	                var parsedProxyUrl = parseProxyUrl(url);
-	                return parsedProxyUrl ? parsedProxyUrl.destUrl : url;
+	                return parsedProxyUrl ? parsedProxyUrl.destUrl : (window['%hammerhead%'] && window['%hammerhead%'].rhSiteBlobUrl ? window['%hammerhead%'].rhSiteBlobUrl(url) : url);
 	            });
 	        }
 	        return css;
@@ -14563,8 +14885,7 @@
 	        }
 	        // TODO: remove after https://github.com/DevExpress/testcafe-hammerhead/issues/244 implementation
 	        else if (httpEquivAttrValue === BUILTIN_HEADERS.contentSecurityPolicy) {
-	            this.adapter.removeAttr(el, 'http-equiv');
-	            this.adapter.removeAttr(el, 'content');
+	            var rhPolicy = this.adapter.getAttr(el, 'content') || '';if (!this.adapter.hasAttr(el, DomProcessor.getStoredAttrName('content'))) {    this.adapter.setAttr(el, DomProcessor.getStoredAttrName('content'), rhPolicy);    var rhRewritten = rhCspRewrite.rewritePolicy(rhPolicy, rhCspOptions());    rhCspPolicies.set(rhRewritten, rhPolicy.trim());    this.adapter.setAttr(el, 'content', rhRewritten);}
 	        }
 	    };
 	    DomProcessor.prototype._processSandboxedIframe = function (el) {
@@ -14575,7 +14896,7 @@
 	        this.adapter.setAttr(el, storedAttr, attrValue);
 	        if (!allowSameOrigin || !allowScripts) {
 	            attrValue += !allowSameOrigin ? ' allow-same-origin' : '';
-	            attrValue += !allowScripts ? ' allow-scripts' : '';
+	            
 	        }
 	        this.adapter.setAttr(el, 'sandbox', attrValue);
 	    };
@@ -14591,7 +14912,7 @@
 	        // html5 specification). If the type is not set, it is considered 'text/javascript' by default.
 	        var scriptType = this.adapter.getAttr(script, 'type');
 	        var isExecutableScript = !scriptType || EXECUTABLE_SCRIPT_TYPES_REG_EX.test(scriptType);
-	        if (isExecutableScript) {
+	        if (isExecutableScript) { rhNonceIfHashAllowed(script, scriptContent);
 	            var result = scriptContent;
 	            var commentPrefix = '';
 	            var commentPrefixMatch = result.match(HTML_COMMENT_PREFIX_REG_EX);
@@ -14913,7 +15234,7 @@
 	        var context = this;
 	        return createOverriddenDescriptor(this.locationPropsOwner, 'search', {
 	            // eslint-disable-next-line no-restricted-properties
-	            getter: function () { return context.window.location.search; },
+	            getter: function () { return (new URL(get$2())).search; },
 	            setter: function (search) { var url = new URL(get$2()); url.search = search; window.location = convertToProxyUrl(url.href); return search;
 	                var newLocation = changeDestUrlPart(context.window.location.toString(), nativeMethods.anchorSearchSetter, search, context.resourceType);
 	                // @ts-ignore
@@ -14932,7 +15253,7 @@
 	    LocationContext.prototype.createOverriddenHashDescriptor = function () {
 	        var context = this;
 	        return createOverriddenDescriptor(this.locationPropsOwner, 'hash', {
-	            getter: function () { return context.window.location.hash; },
+	            getter: function () { return (new URL(get$2())).hash; },
 	            setter: function (hash) { var url = new URL(get$2()); url.hash = hash; window.location.hash = (new URL(convertToProxyUrl(url.href))).hash; return hash;
 	                context.window.location.hash = hash;
 	                return hash;
@@ -15096,11 +15417,11 @@
 	        // So, we need to define code instrumentation functions as 'configurable' so that they can be redefined.
 	        nativeMethods.objectDefineProperty(window, LOCATION_WRAPPER, { value: locationWrapper, configurable: true });
 	        nativeMethods.objectDefineProperty(document, LOCATION_WRAPPER, { value: locationWrapper, configurable: true });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.getLocation, {
 	            value: function (location) { return isLocation(location) ? locationWrapper : location; },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.setLocation, {
 	            value: function (location, value) {
 	                if (isLocation(location) && typeof value === 'string') {
 	                    // @ts-ignore
@@ -15218,7 +15539,7 @@
 	            .replace('{{{referer}}}', escapeStringPatterns(stringify(referer)))
 	            .replace('{{{iframeTaskScriptTemplate}}}', escapeStringPatterns(iframeTaskScriptTemplate));
 	        var contentWindow = nativeMethods.contentWindowGetter.call(iframe);
-	        contentWindow.eval.call(contentWindow, taskScript);
+	        rhRunInWindow(contentWindow, taskScript);
 	    };
 	    IframeSandbox.prototype.onIframeBeganToRun = function (iframe) {
 	        this._raiseReadyToInitEvent(iframe);
@@ -15347,7 +15668,7 @@
 	    var container = nativeMethods.createElement.call(getHtmlDocument(), 'div');
 	    html = wrapHtmlText(html);
 	    nativeMethods.appendChild.call(htmlParser, container);
-	    nativeMethods.elementInnerHTMLSetter.call(container, html);
+	    nativeMethods.elementInnerHTMLSetter.call(container, rhTrusted('HTML', html));
 	    var processedHtml = process(container) ? nativeMethods.elementInnerHTMLGetter.call(container) : html;
 	    removeElement(container);
 	    processedHtml = unwrapHtmlText(processedHtml);
@@ -15359,7 +15680,7 @@
 	        return;
 	    var storedAttr = DomProcessor.getStoredAttrName(urlAttr);
 	    if (nativeMethods.hasAttribute.call(el, storedAttr)) {
-	        nativeMethods.setAttribute.call(el, urlAttr, nativeMethods.getAttribute.call(el, storedAttr));
+	        nativeMethods.setAttribute.call(el, urlAttr, rhAttrValue(el, urlAttr, nativeMethods.getAttribute.call(el, storedAttr)));
 	        nativeMethods.removeAttribute.call(el, storedAttr);
 	    }
 	}
@@ -15386,7 +15707,7 @@
 	        nativeMethods.removeAttribute.call(el, storedAttr);
 	    }
 	}
-	function cleanUpSandboxAttr(el) {
+	function cleanUpSandboxAttr(el) {var rhStoredContent = DomProcessor.getStoredAttrName("content");if (nativeMethods.hasAttribute.call(el, rhStoredContent)) {    nativeMethods.setAttribute.call(el, "content", nativeMethods.getAttribute.call(el, rhStoredContent));    nativeMethods.removeAttribute.call(el, rhStoredContent);}
 	    if (domProcessor.adapter.getTagName(el) !== 'iframe' || !nativeMethods.hasAttribute.call(el, 'sandbox'))
 	        return;
 	    var storedAttr = DomProcessor.getStoredAttrName('sandbox');
@@ -15444,9 +15765,7 @@
 	            changed = true;
 	        });
 	        find(container, FAKE_ELEMENTS_SELECTOR, function (el) {
-	            var innerHtml = nativeMethods.elementInnerHTMLGetter.call(el);
-	            if (innerHtml.indexOf(sharedSelfRemovingScripts.iframeInit) !== -1) {
-	                nativeMethods.elementInnerHTMLSetter.call(el, innerHtml.replace(sharedSelfRemovingScripts.iframeInit, ''));
+	            var innerHtml = nativeMethods.elementInnerHTMLGetter.call(el);var rhStripped = rhStripScript(innerHtml, sharedSelfRemovingScripts.iframeInit);if (rhStripped !== null) {    nativeMethods.elementInnerHTMLSetter.call(el, rhTrusted('HTML', rhStripped));
 	                changed = true;
 	            }
 	        });
@@ -15488,13 +15807,13 @@
 	                    var htmlElement = htmlElements_1[_i];
 	                    var firstScriptOrStyle = nativeMethods.elementQuerySelector.call(htmlElement, SCRIPT_AND_STYLE_SELECTOR);
 	                    if (firstScriptOrStyle)
-	                        nativeMethods.insertAdjacentHTML.call(firstScriptOrStyle, InsertPosition$1.beforeBegin, sharedSelfRemovingScripts.iframeInit);
+	                        nativeMethods.insertAdjacentHTML.call(firstScriptOrStyle, InsertPosition$1.beforeBegin, rhTrusted('HTML', rhNonced(sharedSelfRemovingScripts.iframeInit)));
 	                    else
-	                        nativeMethods.insertAdjacentHTML.call(htmlElement, InsertPosition$1.beforeEnd, sharedSelfRemovingScripts.iframeInit);
+	                        nativeMethods.insertAdjacentHTML.call(htmlElement, InsertPosition$1.beforeEnd, rhTrusted('HTML', rhNonced(sharedSelfRemovingScripts.iframeInit)));
 	                }
 	            }
 	            else if (isPage)
-	                nativeMethods.insertAdjacentHTML.call(container, InsertPosition$1.afterBegin, sharedSelfRemovingScripts.iframeInit);
+	                nativeMethods.insertAdjacentHTML.call(container, InsertPosition$1.afterBegin, rhTrusted('HTML', rhNonced(sharedSelfRemovingScripts.iframeInit)));
 	        }
 	        urlResolver.updateBase(storedBaseUrl, document);
 	        return true;
@@ -15670,7 +15989,7 @@
 	        var span = nativeMethods.createElement.call(endMarker.ownerDocument, 'span');
 	        var endMarkerParent = nativeMethods.nodeParentNodeGetter.call(endMarker);
 	        nativeMethods.insertBefore.call(endMarkerParent, span, endMarker);
-	        nativeMethods.elementOuterHTMLSetter.call(span, sharedSelfRemovingScripts.onWindowRecreation);
+	        nativeMethods.elementOuterHTMLSetter.call(span, rhTrusted('HTML', rhNonced(sharedSelfRemovingScripts.onWindowRecreation)));
 	    };
 	    DocumentWriter.prototype._prepareDom = function (container, isDocumentCleaned) {
 	        var beginMarker = DocumentWriter._searchBeginMarker(container);
@@ -15704,7 +16023,7 @@
 	        htmlChunk = this._unwrapHtmlChunk(htmlChunk);
 	        // NOTE: Firefox recreate a window instance during the document.write function execution (T213930).
 	        if (htmlChunk && this.isBeginMarkerInDOM && isFirefox && !isPageHtml(htmlChunk))
-	            htmlChunk = sharedSelfRemovingScripts.iframeInit + htmlChunk;
+	            htmlChunk = rhNonced(sharedSelfRemovingScripts.iframeInit) + htmlChunk;
 	        return htmlChunk;
 	    };
 	    DocumentWriter.prototype.write = function (args, ln, isDocumentCleaned) {
@@ -15715,11 +16034,11 @@
 	                processedContent = processScript(this.contentForProcessing, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation);
 	            else if (isStyleElement(this.nonClosedEl))
 	                processedContent = styleProcessor.process(this.contentForProcessing, getProxyUrl, true);
-	            nativeMethods.nodeTextContentSetter.call(this.nonClosedEl, processedContent);
+	            rhSetText(this.nonClosedEl, rhWriteTrusted ? rhTrusted('Script', processedContent) : processedContent);
 	            this.contentForProcessing = '';
 	        }
 	        var nativeWriteMethod = ln ? nativeMethods.documentWriteLn : nativeMethods.documentWrite;
-	        var result = nativeWriteMethod.call(this.document, htmlChunk);
+	        var result = nativeWriteMethod.call(this.document, rhWriteTrusted ? rhTrusted('HTML', htmlChunk) : htmlChunk);
 	        if (!this.isEndMarkerInDOM && !this.isAddContentToEl) {
 	            var el = this.document.documentElement;
 	            while (nativeMethods.elementLastElementChildGetter.call(el))
@@ -15822,10 +16141,10 @@
 	        return getTagName(el);
 	    };
 	    ClientDomAdapter.prototype.setAttr = function (el, attr, value) {
-	        return nativeMethods.setAttribute.call(el, attr, value);
+        return nativeMethods.setAttribute.call(el, attr, rhAttrValue(el, attr, value));
 	    };
 	    ClientDomAdapter.prototype.setScriptContent = function (script, content) {
-	        nativeMethods.nodeTextContentSetter.call(script, content);
+        rhSetText(script, rhTrusted('Script', content));
 	    };
 	    ClientDomAdapter.prototype.getScriptContent = function (script) {
 	        return nativeMethods.nodeTextContentGetter.call(script);
@@ -15834,7 +16153,7 @@
 	        return nativeMethods.elementInnerHTMLGetter.call(style);
 	    };
 	    ClientDomAdapter.prototype.setStyleContent = function (style, content) {
-	        nativeMethods.elementInnerHTMLSetter.call(style, content);
+	        nativeMethods.elementInnerHTMLSetter.call(style, rhTrusted('HTML', content));
 	    };
 	    ClientDomAdapter.prototype.needToProcessContent = function (el) {
 	        return !DocumentWriter.hasUnclosedElementFlag(el);
@@ -15918,7 +16237,7 @@
 	        var shouldEmitEvents = DocumentSandbox._shouldEmitDocumentCleanedEvents(this.document);
 	        if (shouldEmitEvents)
 	            this._beforeDocumentCleaned();
-	        var result = this.writers.get(doc).write(args, ln, shouldEmitEvents);
+	        var rhPrevWrite = rhWriteTrusted; rhWriteTrusted = args.length > 0 && Array.prototype.every.call(args, function (a) { return rhTrustedKind(a) === "HTML"; }); try { var result = this.writers.get(doc).write(args, ln, shouldEmitEvents); } finally { rhWriteTrusted = rhPrevWrite; }
 	        // NOTE: B234357
 	        if (!shouldEmitEvents)
 	            this._nodeSandbox.processNodes(null, this.document);
@@ -16069,7 +16388,7 @@
 	    DocumentSandbox.prototype.overrideReferrer = function (window) {
 	        var referrerOverriddenDescriptor = createOverriddenDescriptor(window.Document.prototype, 'referrer', {
 	            getter: function () {
-	                var referrer = getDestinationUrl(nativeMethods.documentReferrerGetter.call(this));
+	                var rhReferrer = settings$1.get().rhReferrer;if (typeof rhReferrer === "string" && this === document) return rhReferrer;var referrer = getDestinationUrl(nativeMethods.documentReferrerGetter.call(this));
 	                if (referrer === getCrossDomainProxyOrigin() + '/')
 	                    return getReferrer();
 	                return isSpecialPage(referrer) ? '' : referrer;
@@ -16096,7 +16415,7 @@
 	        var domainOverriddenDescriptor = createOverriddenDescriptor(domainPropertyOwner, 'domain', {
 	            getter: function () {
 	                // eslint-disable-next-line no-restricted-properties
-	                return storedDomain || LocationAccessorsInstrumentation.getLocationWrapper(window).hostname;
+	                if (storedDomain) return storedDomain; var rhWin = (this && this.defaultView) || window; for (var rhI = 0; rhWin && rhI < 20; rhI++) { try { var rhHost = LocationAccessorsInstrumentation.getLocationWrapper(rhWin).hostname; if (rhHost) return rhHost; } catch (e) {} if (rhWin === rhWin.parent) break; rhWin = rhWin.parent; } return '';
 	            },
 	            setter: function (value) {
 	                storedDomain = value;
@@ -16582,14 +16901,17 @@
 	            if (nativeMethods.hasAttribute.call(el, storedAttr))
 	                args[0] = storedAttr;
 	        }
-	        return getAttrMeth.apply(el, args);
+	        var rhResult = getAttrMeth.apply(el, args);
+        var rhSite = window['%hammerhead%'] && window['%hammerhead%'].rhSiteBlobUrl;
+        return rhSite && loweredAttr === 'poster' ? rhSite(rhResult) : rhResult;
 	    };
 	    ElementSandbox.prototype.setAttributeCore = function (el, args, isNs) {
 	        var ns = isNs ? args[0] : null;
 	        var attr = String(args[isNs ? 1 : 0]);
 	        var loweredAttr = attr.toLowerCase();
 	        var valueIndex = isNs ? 2 : 1;
-	        var value = String(args[valueIndex]);
+        var rhOriginalValue = args[valueIndex];
+        var value = String(args[valueIndex]);
 	        var setAttrMeth = isNs ? nativeMethods.setAttributeNS : nativeMethods.setAttribute;
 	        var tagName = getTagName(el);
 	        var isUrlAttr = domProcessor.isUrlAttr(el, attr, ns);
@@ -16609,7 +16931,7 @@
 	        else if (isUrlAttr && (isSupportedProtocol$1 || isSpecialPage$1)) {
 	            var storedUrlAttr = DomProcessor.getStoredAttrName(attr);
 	            setAttrMeth.apply(el, isNs ? [ns, storedUrlAttr, value] : [storedUrlAttr, value]);
-	            if (tagName !== 'img' || el[INTERNAL_PROPS.forceProxySrcForImage]) {
+	            if (tagName !== 'img' || true) {
 	                if (tagName === 'img')
 	                    el[INTERNAL_PROPS.skipNextLoadEventForImage] = false;
 	                if (value !== '' && (!isSpecialPage$1 || tagName === 'a')) {
@@ -16657,7 +16979,7 @@
 	        else if (loweredAttr === 'target' && DomProcessor.isTagWithTargetAttr(tagName) ||
 	            loweredAttr === 'formtarget' && DomProcessor.isTagWithFormTargetAttr(tagName)) {
 	            var currentTarget = nativeMethods.getAttribute.call(el, loweredAttr);
-	            var newTarget = getCorrectedTargetForSinglePageMode(value);
+	            var newTarget = currentTarget === "_top" ? (isElementInIframe(el) ? "_parent" : "_self") : value;
 	            if (newTarget !== currentTarget) {
 	                var storedTargetAttr = DomProcessor.getStoredAttrName(attr);
 	                setAttrMeth.apply(el, isNs ? [ns, storedTargetAttr, value] : [storedTargetAttr, value]);
@@ -16674,7 +16996,7 @@
 	            setAttrMeth.apply(el, isNs ? [ns, storedSandboxAttr, value] : [storedSandboxAttr, value]);
 	            if (!allowSameOrigin || !allowScripts) {
 	                args[valueIndex] += !allowSameOrigin ? ' allow-same-origin' : '';
-	                args[valueIndex] += !allowScripts ? ' allow-scripts' : '';
+	                
 	            }
 	            if (el[this._nodeSandbox.win.SANDBOX_DOM_TOKEN_LIST_UPDATE_FN])
 	                el[this._nodeSandbox.win.SANDBOX_DOM_TOKEN_LIST_UPDATE_FN](value);
@@ -16746,8 +17068,11 @@
 	            setAttrMeth.apply(el, [storedAttr, value]);
 	            args[valueIndex] = domProcessor.adapter.processSrcdocAttr(value);
 	        }
-	        var result = setAttrMeth.apply(el, args);
-	        if (tagName === 'img' && !el[INTERNAL_PROPS.forceProxySrcForImage] && el.complete && !isFirefox) // eslint-disable-line no-extra-parens
+	        var rhBlob = window['%hammerhead%'] && window['%hammerhead%'].rhRealBlobUrl;
+        if (rhBlob && (isUrlAttr || isUrlsSet || loweredAttr === 'poster')) args[valueIndex] = rhBlob(args[valueIndex]);
+        args[valueIndex] = rhSinkValue(args[valueIndex], rhOriginalValue);
+        var result = setAttrMeth.apply(el, args);
+	        if (tagName === 'img' && !true && el.complete && !isFirefox) // eslint-disable-line no-extra-parens
 	            el[INTERNAL_PROPS.cachedImage] = true;
 	        if (needToCallTargetChanged)
 	            ElementSandbox._onTargetChanged(el);
@@ -16895,7 +17220,7 @@
 	        // some javascript frameworks create their own body element, perform
 	        // certain manipulations and then remove it.
 	        // Therefore, we need to check if the body element is present in DOM
-	        if (checkBody && isBodyElementWithChildren(parent) && isElementInDocument(parent)) {
+	        if (false) {
 	            var newNodes = nativeMethods.arraySlice.apply(args, newNodesRange);
 	            result = this._shadowUI.insertBeforeRoot(newNodes);
 	        }
@@ -16987,7 +17312,7 @@
 	                        processedContext: parent[INTERNAL_PROPS.processedContext],
 	                    });
 	                }
-	                nativeMethods.insertAdjacentHTML.apply(this, args);
+	                if (args.length > 1) args[1] = rhSinkValue(args[1], html); nativeMethods.insertAdjacentHTML.apply(this, args);
 	                if (!parent)
 	                    return;
 	                sandbox._nodeSandbox.processNodes(parent);
@@ -17199,7 +17524,7 @@
 	        if (!parentNode['tagName'])
 	            return str;
 	        if (isScriptElement(parentNode))
-	            return processScript(str, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation);
+	            return (rhNonceIfHashAllowed(parentNode, str), rhRememberScriptSource(processScript(str, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation), str));
 	        if (isStyleElement(parentNode))
 	            return styleProcessor.process(str, getProxyUrl);
 	        return str;
@@ -17337,7 +17662,7 @@
 	        overrideFunction(window.Element.prototype, 'removeAttribute', this.overriddenMethods.removeAttribute);
 	        overrideFunction(window.Element.prototype, 'removeAttributeNS', this.overriddenMethods.removeAttributeNS);
 	        overrideFunction(window.Element.prototype, 'removeAttributeNode', this.overriddenMethods.removeAttributeNode);
-	        overrideFunction(window.Element.prototype, 'cloneNode', this.overriddenMethods.cloneNode);
+	        overrideFunction(window.Node.prototype, 'cloneNode', this.overriddenMethods.cloneNode);
 	        overrideFunction(window.Element.prototype, 'querySelector', this.overriddenMethods.querySelector);
 	        overrideFunction(window.Element.prototype, 'querySelectorAll', this.overriddenMethods.querySelectorAll);
 	        overrideFunction(window.Element.prototype, 'hasAttribute', this.overriddenMethods.hasAttribute);
@@ -17435,7 +17760,7 @@
 	            preventEvent();
 	            stopEventPropagation();
 	        });
-	        if (!el[INTERNAL_PROPS.forceProxySrcForImage] && !settings$1.get().forceProxySrcForImage)
+	        if (!true && !settings$1.get().forceProxySrcForImage)
 	            this._setProxiedSrcUrlOnError(el);
 	    };
 	    ElementSandbox.prototype._setProxiedSrcUrlOnError = function (img) {
@@ -17909,7 +18234,7 @@
 	        rectangle = getSelectChildRectangle(el);
 	    else {
 	        var elementOffset = getOffsetPosition(el);
-	        var relativeRectangle = isSVGElementOrChild(el) ? getSvgElementRelativeRectangle(el) : getClientRectangle(el);
+	        var relativeRectangle = isSVGElementOrChild(el) ? getSvgElementRelativeRectangle(el) : el.getBoundingClientRect();
 	        rectangle = {
 	            height: relativeRectangle.height,
 	            left: elementOffset.left,
@@ -18294,7 +18619,7 @@
 	                    for (var _i = 0; _i < arguments.length; _i++) {
 	                        args[_i] = arguments[_i];
 	                    }
-	                    var nativeCollection = nativeMethods[nativeGetElementsByTagNameFnName].apply(this, args);
+	                    var nativeCollection = nativeMethods[nativeGetElementsByTagNameFnName].apply(this, args); return nativeCollection;
 	                    var tagName = args[0];
 	                    if (typeof tagName !== 'string' || !isHeadOrBodyOrHtmlElement(this) && !isFormElement(this) &&
 	                        tagName.toLowerCase() !== 'input' && nativeGetElementsByTagNameFnName !== 'getElementsByTagName')
@@ -18440,12 +18765,12 @@
 	        var bodyProto = window.HTMLBodyElement.prototype;
 	        var headProto = window.HTMLHeadElement.prototype;
 	        overrideFunction(elementProto, 'getElementsByTagName', this.wrapperCreators.getElementsByTagName('elementGetElementsByTagName'));
-	        overrideFunction(bodyProto, 'getElementsByClassName', this.wrapperCreators.getElementsByClassName('elementGetElementsByClassName'));
-	        overrideFunction(bodyProto, 'querySelector', this.wrapperCreators.querySelector('elementQuerySelector', 'elementQuerySelectorAll'));
-	        overrideFunction(bodyProto, 'querySelectorAll', this.wrapperCreators.querySelectorAll('elementQuerySelectorAll'));
-	        overrideFunction(headProto, 'getElementsByClassName', bodyProto.getElementsByClassName);
-	        overrideFunction(headProto, 'querySelector', bodyProto.querySelector);
-	        overrideFunction(headProto, 'querySelectorAll', bodyProto.querySelectorAll);
+	        
+	        
+	        
+	        
+	        
+	        
 	    };
 	    ShadowUI.prototype._getUIStyleSheetsHtml = function () {
 	        var stylesSelector = 'link.' + SHADOW_UI_CLASS_NAME.uiStylesheet;
@@ -18460,7 +18785,7 @@
 	        if (!head || !uiStyleSheetsHtml)
 	            return;
 	        var parser = this.nativeMethods.createElement.call(this.document, 'div');
-	        nativeMethods.elementInnerHTMLSetter.call(parser, uiStyleSheetsHtml);
+	        nativeMethods.elementInnerHTMLSetter.call(parser, rhTrusted('HTML', uiStyleSheetsHtml));
 	        var children = nativeMethods.elementChildrenGetter.call(parser);
 	        var length = nativeMethods.htmlCollectionLengthGetter.call(children);
 	        for (var i = 0; i < length; i++) {
@@ -18484,7 +18809,7 @@
 	        // GH-2418
 	        if (isChrome && !ShadowUI.isShadowContainer(this.document.body))
 	            this._markShadowUIContainerAndCollections(this.document.body);
-	        if (!this.root || /* NOTE: T225944 */ !this.document.body.contains(this.root)) {
+	        if (!this.root) {
 	            if (!this.root) {
 	                // NOTE: B254893
 	                this.root = nativeMethods.createElement.call(this.document, 'div');
@@ -18492,7 +18817,7 @@
 	                nativeMethods.setAttribute.call(this.root, 'contenteditable', 'false');
 	                this.addClass(this.root, this.ROOT_CLASS);
 	                ShadowUI.markElementAsShadow(this.root);
-	                nativeMethods.appendChild.call(this.document.body, this.root);
+	                ;
 	                var nativeDocumentAddEventListener = nativeMethods.documentAddEventListener || nativeMethods.addEventListener;
 	                for (var _i = 0, _a = domProcessor.EVENTS; _i < _a.length; _i++) {
 	                    var event_1 = _a[_i];
@@ -18505,7 +18830,7 @@
 	                });
 	            }
 	            else
-	                nativeMethods.appendChild.call(this.document.body, this.root);
+	                ;
 	        }
 	        return this.root;
 	    };
@@ -18538,7 +18863,7 @@
 	        // document.body was replaced, so we need to reattach a UI to a new body manually.
 	        var isRootInBody = nativeMethods.nodeParentNodeGetter.call(this.root) === this.document.body;
 	        if (!(isRootInDom && isRootLastChild && isRootInBody))
-	            this.nativeMethods.appendChild.call(this.document.body, this.root);
+	            ;
 	        this.markShadowUIContainers(this.document.head, this.document.body);
 	    };
 	    // Accessors
@@ -19474,10 +19799,10 @@
 	        if (nativeMethods.winOnUnhandledRejectionSetter)
 	            this.overrideEventPropDescriptor('unhandledrejection', nativeMethods.winOnUnhandledRejectionSetter);
 	        this.addMessageSandBoxListeners();
-	        if (window.EventTarget)
+	        if (window.EventTarget && !rhScriptsBlockedFor(window))
 	            this.overrideListenerMethodsInEventTarget();
 	        this.overrideFilesInHTMLInputElement();
-	        if (window.MutationObserver)
+	        if (window.MutationObserver && !rhScriptsBlockedFor(window))
 	            this.overrideMutationObserverInWindow();
 	        this.overrideLengthInHTMLCollection();
 	        this.overrideLengthInNodeList();
@@ -19611,7 +19936,7 @@
 	            this.overrideBaseURIInNode();
 	        this.overrideTextInHTMLScriptElement();
 	        this.overrideTextInHTMLAnchorElement();
-	        this.overrideTextContentInNode();
+	        this.overrideTextContentInNode(); this.rhOverrideScriptTextProps();
 	        this.overrideMethodInDOMTokenList('add', nativeMethods.tokenListAdd);
 	        this.overrideMethodInDOMTokenList('remove', nativeMethods.tokenListRemove);
 	        this.overrideMethodInDOMTokenList('toggle', nativeMethods.tokenListToggle);
@@ -19760,13 +20085,13 @@
 	                return isCalledWithoutNewKeyword ? nativeMethods.Worker() : new nativeMethods.Worker();
 	            if (isCalledWithoutNewKeyword)
 	                return nativeMethods.Worker.apply(this, args);
-	            var scriptURL = args[0];
-	            if (typeof scriptURL !== 'string')
+	            var scriptURL = args[0], rhOriginalUrl = args[0];
+            if (typeof scriptURL !== 'string')
 	                scriptURL = String(scriptURL);
-	            scriptURL = getProxyUrl(scriptURL, { resourceType: stringifyResourceType({ isScript: true }) });
+	            scriptURL = getProxyUrl(scriptURL, { resourceType: stringifyResourceType({ isScript: true }), rhNoShuffle: true });
 	            var worker = arguments.length === 1
-	                ? new nativeMethods.Worker(scriptURL)
-	                : new nativeMethods.Worker(scriptURL, args[1]);
+	                ? new nativeMethods.Worker(rhSinkValue(scriptURL, rhOriginalUrl))
+                : new nativeMethods.Worker(rhSinkValue(scriptURL, rhOriginalUrl), args[1]);
 	            return worker;
 	        }, true);
 	    };
@@ -19776,6 +20101,8 @@
 	                return new nativeMethods.Blob();
 	            if (WindowSandbox.isProcessableBlob(array, opts))
 	                array = [processScript(array.join(''), true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation, WindowSandbox.getBlobProcessingSettings())];
+            else if (/^text\/css\s*(;|$)/i.test(String(opts && opts.type || '')) && WindowSandbox.isProcessableBlobParts(array))
+                array = [styleProcessor.process(array.join(''), getProxyUrl)];
 	            return new nativeMethods.Blob(array, opts);
 	        });
 	    };
@@ -19785,6 +20112,8 @@
 	                return new nativeMethods.File();
 	            if (WindowSandbox.isProcessableBlob(array, opts))
 	                array = [processScript(array.join(''), true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation, WindowSandbox.getBlobProcessingSettings())];
+            else if (/^text\/css\s*(;|$)/i.test(String(opts && opts.type || '')) && WindowSandbox.isProcessableBlobParts(array))
+                array = [styleProcessor.process(array.join(''), getProxyUrl)];
 	            return new nativeMethods.File(array, fileName, opts);
 	        });
 	    };
@@ -19876,7 +20205,7 @@
 	    };
 	    WindowSandbox.prototype.overrideRegisterInServiceWorker = function () {
 	        var windowSandbox = this;
-	        overrideFunction(this.window.navigator.serviceWorker, 'register', function () {
+	        overrideFunction(this.window.ServiceWorkerContainer.prototype, 'register', function () {
 	            var args = [];
 	            for (var _i = 0; _i < arguments.length; _i++) {
 	                args[_i] = arguments[_i];
@@ -19929,7 +20258,7 @@
 	    };
 	    WindowSandbox.prototype.overrideGetRegistrationInServiceWorker = function () {
 	        var windowSandbox = this;
-	        overrideFunction(this.window.navigator.serviceWorker, 'getRegistration', function () {
+	        overrideFunction(this.window.ServiceWorkerContainer.prototype, 'getRegistration', function () {
 	            var args = [];
 	            for (var _i = 0; _i < arguments.length; _i++) {
 	                args[_i] = arguments[_i];
@@ -19947,10 +20276,10 @@
 	                args[_i] = arguments[_i];
 	            }
 	            var tagString = args[0];
-	            if (typeof tagString === 'string') {
-	                args[0] = processHtml(tagString, {
+	            if (typeof tagString === 'string' || rhTrustedKind(tagString) === 'HTML') {
+                args[0] = processHtml(String(tagString), {
 	                    processedContext: this.startContainer && this.startContainer[INTERNAL_PROPS.processedContext],
-	                });
+	                }); args[0] = rhSinkValue(args[0], tagString);
 	            }
 	            var fragment = nativeMethods.createContextualFragment.apply(this, args);
 	            nodeSandbox.processNodes(fragment);
@@ -20011,18 +20340,16 @@
 	    };
 	    WindowSandbox.prototype.overrideToStringInFunction = function () {
 	        overrideFunction(nativeMethods.Function.prototype, 'toString', function () {
-	            if (nativeMethods.objectHasOwnProperty.call(this, INTERNAL_PROPS.nativeStrRepresentation))
-	                return this[INTERNAL_PROPS.nativeStrRepresentation];
-	            return nativeMethods.functionToString.call(this);
+	            if (rhNativeStrings.has(this)) return rhNativeStrings.get(this);var rhSource = nativeMethods.functionToString.call(this);var rhSources = window["%hammerhead%"] && window["%hammerhead%"].rhSources;if (!rhSources || !rhSources.size) return rhSource;if (rhOriginalSources.has(this)) return rhOriginalSources.get(this);var rhHash = 0x811c9dc5; for (var rhI = 0; rhI < rhSource.length; rhI++) { rhHash ^= rhSource.charCodeAt(rhI); rhHash = Math.imul(rhHash, 0x01000193) >>> 0; }var rhOriginal = rhSources.get(rhSource.length + ":" + rhHash.toString(36));var rhResult = typeof rhOriginal === "string" ? rhOriginal : rhSource;rhOriginalSources.set(this, rhResult);return rhResult;
 	        });
 	    };
 	    WindowSandbox.prototype.overrideMethodInHistory = function (name, nativeMethod) {
-	        overrideFunction(this.window.history, name, function () {
+	        overrideFunction(this.window.History.prototype, name, function () {
 	            var args = [];
 	            for (var _i = 0; _i < arguments.length; _i++) {
 	                args[_i] = arguments[_i];
 	            }
-	            var url = args[2];
+	            if (args.length > 2 && args[2] !== null && args[2] !== void 0) { var rhDoc = get$2(), rhTarget; try { rhTarget = new nativeMethods.URL(String(args[2]), rhDoc); } catch (e) { rhTarget = null; } if (rhTarget && rhTarget.origin !== new nativeMethods.URL(rhDoc).origin) throw new DOMException("Failed to execute '" + name + "' on 'History': A history state object with URL '" + rhTarget.href + "' cannot be created in a document with origin '" + new nativeMethods.URL(rhDoc).origin + "' and URL '" + rhDoc + "'.", "SecurityError"); }var url = args[2];
 	            if (args.length > 2 && (url !== null && url !== void 0))
 	                args[2] = getProxyUrl(url);
 	            return nativeMethod.apply(this, args);
@@ -20036,7 +20363,7 @@
 	        });
 	    };
 	    WindowSandbox.prototype.overrideRegisterProtocolHandlerInNavigator = function () {
-	        overrideFunction(this.window.navigator, 'registerProtocolHandler', function () {
+	        overrideFunction(this.window.Navigator.prototype, 'registerProtocolHandler', function () {
 	            var args = [];
 	            for (var _i = 0; _i < arguments.length; _i++) {
 	                args[_i] = arguments[_i];
@@ -20121,9 +20448,7 @@
 	                        return parsedUrl.protocol + '//' + parsedUrl.host;
 	                }
 	                else if (isWindow(target)) {
-	                    var data = nativeMethods.messageEventDataGetter.call(this);
-	                    if (data)
-	                        return data.originUrl;
+	                    var data = nativeMethods.messageEventDataGetter.call(this);if (data && typeof data.type === "string" && data.type.startsWith("hammerhead|")) return data.originUrl;try { var rhSource = this.source; var rhDest = rhSource && getDestinationUrl(rhSource.location.href); var rhParsed = rhDest && parseUrl(rhDest); if (rhParsed && rhParsed.protocol) return getDomain(rhParsed); } catch (rhError) {}
 	                }
 	                return origin;
 	            },
@@ -20258,7 +20583,7 @@
 	                    return WindowSandbox.getUrlAttr(this, attr);
 	                },
 	                setter: function (value) {
-	                    windowSandbox.nodeSandbox.element.setAttributeCore(this, [attr, value]);
+	                    windowSandbox.nodeSandbox.element.setAttributeCore(this, [attr, rhPropertySink(this, attr, value)]);
 	                },
 	            });
 	        }
@@ -20332,7 +20657,7 @@
 	                return windowSandbox.nodeSandbox.element.getAttributeCore(this, ['srcdoc']) || '';
 	            },
 	            setter: function (value) {
-	                windowSandbox.nodeSandbox.element.setAttributeCore(this, ['srcdoc', value]);
+	                windowSandbox.nodeSandbox.element.setAttributeCore(this, ['srcdoc', rhPropertySink(this, 'srcdoc', value)]);
 	            },
 	        });
 	    };
@@ -20420,9 +20745,9 @@
 	            var str = args[0];
 	            var type = args[1];
 	            var processedHtml;
-	            if (args.length > 1 && typeof str === 'string' && type === 'text/html') {
-	                processedHtml = processHtml(str);
-	                args[0] = processedHtml;
+	            if (args.length > 1 && (typeof str === 'string' || rhTrustedKind(str) === 'HTML') && type === 'text/html') {
+                processedHtml = processHtml(String(str));
+                args[0] = rhSinkValue(processedHtml, str);
 	            }
 	            var document = nativeMethods.DOMParserParseFromString.apply(this, args);
 	            if (processedHtml)
@@ -20528,7 +20853,7 @@
 	                    if (isStyleEl)
 	                        processedValue = styleProcessor.process(processedValue, getProxyUrl, true);
 	                    else if (isScriptEl)
-	                        processedValue = processScript(processedValue, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation);
+	                        processedValue = (rhNonceIfHashAllowed(el, processedValue), rhRememberScriptSource(processScript(processedValue, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation), processedValue));
 	                    else {
 	                        processedValue = processHtml(processedValue, {
 	                            parentTag: el.tagName,
@@ -20538,7 +20863,7 @@
 	                }
 	                if (!isStyleEl && !isScriptEl)
 	                    domMutationTracker.onChildrenChanged(el);
-	                nativeMethods.elementInnerHTMLSetter.call(el, processedValue);
+	                nativeMethods.elementInnerHTMLSetter.call(el, rhSinkValue(processedValue, value));
 	                windowSandbox.setSandboxedTextForTitleElements(el);
 	                if (isStyleEl || isScriptEl)
 	                    return;
@@ -20566,7 +20891,7 @@
 	                if (windowSandbox.window.self) {
 	                    // NOTE: Use timeout, so that changes take effect.
 	                    if (isHtmlElement(el) || isBodyElement(el))
-	                        nativeMethods.setTimeout.call(windowSandbox.window, function () { return windowSandbox.nodeMutation.onBodyContentChanged(el); }, 0);
+	                        { if (!rhScriptsBlocked(windowSandbox.window)) nativeMethods.setTimeout.call(windowSandbox.window, function () { return windowSandbox.nodeMutation.onBodyContentChanged(el); }, 0); }
 	                }
 	            },
 	        });
@@ -20585,10 +20910,7 @@
 	                if (parentEl && value !== null && value !== void 0) {
 	                    var parentDocument = findDocument(parentEl);
 	                    var parentWindow = parentDocument ? parentDocument.defaultView : null;
-	                    nativeMethods.elementOuterHTMLSetter.call(el, processHtml(String(value), {
-	                        parentTag: parentEl && parentEl['tagName'],
-	                        processedContext: el[INTERNAL_PROPS.processedContext],
-	                    }));
+	                    nativeMethods.elementOuterHTMLSetter.call(el, rhSinkValue(processHtml(String(value), { parentTag: parentEl && parentEl['tagName'], processedContext: el[INTERNAL_PROPS.processedContext] }), value));
 	                    windowSandbox.setSandboxedTextForTitleElements(parentEl);
 	                    domMutationTracker.onChildrenChanged(parentEl);
 	                    // NOTE: For the iframe with an empty src.
@@ -20600,7 +20922,7 @@
 	                    // NOTE: This check is required for an element in an unavailable window.
 	                    // NOTE: Use timeout, so that changes take effect.
 	                    if (windowSandbox.window.self && isBodyElement(el))
-	                        nativeMethods.setTimeout.call(windowSandbox.window, function () { return windowSandbox.shadowUI.onBodyElementMutation(); }, 0);
+	                        { if (!rhScriptsBlocked(windowSandbox.window)) nativeMethods.setTimeout.call(windowSandbox.window, function () { return windowSandbox.shadowUI.onBodyElementMutation(); }, 0); }
 	                }
 	                else
 	                    nativeMethods.elementOuterHTMLSetter.call(el, value);
@@ -20636,7 +20958,7 @@
 	                }
 	                var processedValue = WindowSandbox.processTextPropValue(this, value);
 	                domMutationTracker.onChildrenChanged(this);
-	                nativeMethods.htmlElementInnerTextSetter.call(this, processedValue);
+	                nativeMethods.htmlElementInnerTextSetter.call(this, rhSinkValue(processedValue, value));
 	            },
 	        });
 	    };
@@ -20647,8 +20969,8 @@
 	                return remove$1(text);
 	            },
 	            setter: function (value) {
-	                var processedValue = value ? processScript(String(value), true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation) : value;
-	                nativeMethods.scriptTextSetter.call(this, processedValue);
+	                if (value) rhNonceIfHashAllowed(this, String(value)); var processedValue = value ? rhRememberScriptSource(processScript(String(value), true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation), String(value)) : value;
+	                nativeMethods.scriptTextSetter.call(this, rhSinkValue(processedValue, value));
 	            },
 	        });
 	    };
@@ -20681,11 +21003,23 @@
 	                }
 	                var processedValue = WindowSandbox.processTextPropValue(this, value);
 	                domMutationTracker.onChildrenChanged(this);
-	                nativeMethods.nodeTextContentSetter.call(this, processedValue);
+	                nativeMethods.nodeTextContentSetter.call(this, rhSinkValue(processedValue, value));
 	            },
 	        });
 	    };
-	    WindowSandbox.removeProcessingInstructions = function (text) {
+	    WindowSandbox.prototype.rhOverrideScriptTextProps = function () {
+        var win = this.window;
+        var textDesc = nativeMethods.objectGetOwnPropertyDescriptor(win.HTMLScriptElement.prototype, 'textContent');
+        ['textContent', 'innerText'].forEach(function (prop) {
+            var desc = nativeMethods.objectGetOwnPropertyDescriptor(win.HTMLScriptElement.prototype, prop);
+            if (!desc || !desc.set) return;
+            overrideDescriptor(win.HTMLScriptElement.prototype, prop, {
+                getter: function () { return WindowSandbox.removeProcessingInstructions(desc.get.call(this)); },
+                setter: function (value) { var processed = WindowSandbox.processTextPropValue(this, value); domMutationTracker.onChildrenChanged(this); (prop === 'innerText' && textDesc ? textDesc : desc).set.call(this, rhSinkValue(processed, value)); },
+            });
+        });
+    };
+    WindowSandbox.removeProcessingInstructions = function (text) {
 	        if (text) {
 	            text = remove$1(text);
 	            return styleProcessor.cleanUp(text, parseProxyUrl);
@@ -20696,7 +21030,7 @@
 	        var processedText = text !== null && text !== void 0 ? String(text) : text;
 	        if (processedText) {
 	            if (isScriptElement(el))
-	                return processScript(processedText, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation);
+	                return (rhNonceIfHashAllowed(el, processedText), rhRememberScriptSource(processScript(processedText, true, false, convertToProxyUrl, void 0, settings$1.nativeAutomation), processedText));
 	            else if (isStyleElement(el))
 	                return styleProcessor.process(processedText, getProxyUrl, true);
 	        }
@@ -20884,7 +21218,7 @@
 	        _super.prototype.attach.call(this, window);
 	        // NOTE: In Google Chrome, iframes whose src contains html code raise the 'load' event twice.
 	        // So, we need to define code instrumentation functions as 'configurable' so that they can be redefined.
-	        nativeMethods.objectDefineProperties(window, (_a = {},
+	        defineInstructions(window, (_a = {},
 	            _a[SCRIPT_PROCESSING_INSTRUCTIONS.getProperty] = {
 	                value: PropertyAccessorsInstrumentation._propertyGetter,
 	                configurable: true,
@@ -20895,7 +21229,7 @@
 	            },
 	            _a));
 	    };
-	    PropertyAccessorsInstrumentation._ACCESSORS = {
+	    PropertyAccessorsInstrumentation._ACCESSORS = { top: { condition: (owner) => isWindow(owner), get: (owner) => owner.rammerheadTop, set: (owner, value) => value },parent: { condition: (owner) => isWindow(owner), get: (owner) => owner.rammerheadParent, set: (owner, value) => value },stackTraceLimit: { condition: (owner) => typeof owner === "function" && owner.name === "Error" && typeof owner.captureStackTrace === "function", get: (owner) => { var h = window["%hammerhead%"]; return h && "rhSiteStackTraceLimit" in h ? h.rhSiteStackTraceLimit : owner.stackTraceLimit; }, set: (owner, value) => { var h = window["%hammerhead%"]; if (h) h.rhSiteStackTraceLimit = value; owner.stackTraceLimit = typeof value === "number" ? value + 50 : value; return value; } },frameElement: { condition: (owner) => isWindow(owner), get: (owner) => { var d = nativeMethods.objectGetOwnPropertyDescriptor(owner, "frameElement"); return d && d.get && nativeMethods.functionToString.call(d.get) !== "function get frameElement() { [native code] }" ? owner.frameElement : rhVisibleFrameElement(owner); }, set: (owner, value) => value },
 	        href: {
 	            condition: isLocation,
 	            // eslint-disable-next-line no-restricted-properties
@@ -20981,7 +21315,7 @@
 	        _super.prototype.attach.call(this, window);
 	        // NOTE: In Google Chrome, iframes whose src contains html code raise the 'load' event twice.
 	        // So, we need to define code instrumentation functions as 'configurable' so that they can be redefined.
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.callMethod, {
 	            value: function (owner, methName, args, optional, calleeOptional) {
 	                if (optional === void 0) { optional = false; }
 	                if (calleeOptional === void 0) { calleeOptional = false; }
@@ -21009,7 +21343,7 @@
 	            configurable: true,
 	        });
 	        var methodCallInstrumentation = this;
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.getPostMessage, {
 	            value: function (win, postMessageFn) {
 	                if (arguments.length === 1 && !isWindow(win)) {
 	                    // @ts-ignore
@@ -38249,21 +38583,23 @@
 	        // NOTE: In Google Chrome, iframes whose src contains html code raise the 'load' event twice.
 	        // So, we need to define code instrumentation functions as 'configurable' so that they can be redefined.
 	        // NOTE: GH-260
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.getEval, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.getEval, {
 	            value: function (evalFn) {
 	                if (evalFn !== window.eval)
 	                    return evalFn;
 	                var evalWrapper = function (script) {
 	                    if (typeof script === 'string')
-	                        script = processScript(script);
-	                    return evalFn(script);
+                        script = processScript(script);
+                    else if (rhTrustedKind(script) === 'Script')
+                        script = rhTrusted('Script', processScript(String(script)));
+                    return evalFn(script);
 	                };
 	                nativeMethods.objectDefineProperty(evalWrapper, CodeInstrumentation.WRAPPED_EVAL_FN, { value: evalFn });
 	                return evalWrapper;
 	            },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.processScript, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.processScript, {
 	            value: function (script, isApply) {
 	                if (isApply) {
 	                    if (script && script.length && typeof script[0] === 'string') {
@@ -38277,12 +38613,14 @@
 	                    }
 	                }
 	                else if (typeof script === 'string')
-	                    return processScript(script, false);
-	                return script;
+                    return processScript(script, false);
+                else if (rhTrustedKind(script) === 'Script')
+                    return rhTrusted('Script', processScript(String(script), false));
+                return script;
 	            },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.processHtml, {
 	            value: function (win, html) {
 	                if (typeof html === 'string')
 	                    html = processHtml("<html><body>".concat(html, "</body></html>"), { processedContext: win });
@@ -38290,7 +38628,7 @@
 	            },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.getProxyUrl, {
 	            value: function (url, baseUrl) {
 	                var storedBaseUrl = urlResolver.getBaseUrl(_this.document);
 	                var shouldChangeBase = baseUrl && baseUrl !== storedBaseUrl;
@@ -38303,11 +38641,11 @@
 	            },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.restArray, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.restArray, {
 	            value: function (array, startIndex) { return nativeMethods.arraySlice.call(array, startIndex); },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.arrayFrom, {
 	            value: function (target) {
 	                if (!target)
 	                    return target;
@@ -38317,7 +38655,7 @@
 	            },
 	            configurable: true,
 	        });
-	        nativeMethods.objectDefineProperty(window, SCRIPT_PROCESSING_INSTRUCTIONS.restObject, {
+	        defineInstruction(window, SCRIPT_PROCESSING_INSTRUCTIONS.restObject, {
 	            value: function (obj, excludeProps) {
 	                var rest = {};
 	                var keys = nativeMethods.objectKeys(obj);
@@ -38345,7 +38683,7 @@
 	    client: 'c',
 	    window: 'w',
 	};
-	var SYNCHRONIZATION_TYPE_RE = new RegExp("^[".concat(SYNCHRONIZATION_TYPE.server).concat(SYNCHRONIZATION_TYPE.client).concat(SYNCHRONIZATION_TYPE.window, "]+"));
+	window.__rhCookieSyncType = SYNCHRONIZATION_TYPE; var SYNCHRONIZATION_TYPE_RE = new RegExp("^[".concat(SYNCHRONIZATION_TYPE.server).concat(SYNCHRONIZATION_TYPE.client).concat(SYNCHRONIZATION_TYPE.window, "]+"));
 	function isSameCookies(cookie1, cookie2) {
 	    return cookie1.sid === cookie2.sid &&
 	        cookie1.key === cookie2.key &&
@@ -38438,8 +38776,8 @@
 	    if ('window' in flags)
 	        parsedCookie.isWindowSync = flags.window;
 	    var newSyncTypeStr = stringifySyncType(parsedCookie);
-	    parsedCookie.syncKey = (_a = parsedCookie.syncKey) === null || _a === void 0 ? void 0 : _a.replace(SYNCHRONIZATION_TYPE_RE, newSyncTypeStr);
-	    parsedCookie.cookieStr = (_b = parsedCookie.cookieStr) === null || _b === void 0 ? void 0 : _b.replace(SYNCHRONIZATION_TYPE_RE, newSyncTypeStr);
+	    parsedCookie.syncKey = (_a = parsedCookie.syncKey) === null || _a === void 0 ? void 0 : _a.replace(window.__rhCookieSyncTypeRE || SYNCHRONIZATION_TYPE_RE, newSyncTypeStr);
+	    parsedCookie.cookieStr = (_b = parsedCookie.cookieStr) === null || _b === void 0 ? void 0 : _b.replace(window.__rhCookieSyncTypeRE || SYNCHRONIZATION_TYPE_RE, newSyncTypeStr);
 	}
 	function isOutdatedSyncCookie(currentCookie, newCookie) {
 	    return newCookie.isServerSync === currentCookie.isServerSync &&
@@ -39517,6 +39855,8 @@
 	}
 	function addInternalAfterHandler(el, events, handler) {
 	    var elementCtx = getElementCtx(el);
+    if (!elementCtx)
+        return;
 	    for (var _i = 0, events_1 = events; _i < events_1.length; _i++) {
 	        var event_1 = events_1[_i];
 	        elementCtx[event_1].internalAfterHandlers.unshift(handler);
@@ -39525,6 +39865,8 @@
 	}
 	function addFirstInternalBeforeHandler(el, events, handler) {
 	    var elementCtx = getElementCtx(el);
+    if (!elementCtx)
+        return;
 	    for (var _i = 0, events_2 = events; _i < events_2.length; _i++) {
 	        var event_2 = events_2[_i];
 	        elementCtx[event_2].internalBeforeHandlers.unshift(handler);
@@ -39532,6 +39874,8 @@
 	}
 	function addInternalBeforeHandler(el, events, handler) {
 	    var elementCtx = getElementCtx(el);
+    if (!elementCtx)
+        return;
 	    for (var _i = 0, events_3 = events; _i < events_3.length; _i++) {
 	        var event_3 = events_3[_i];
 	        elementCtx[event_3].internalBeforeHandlers.push(handler);
@@ -39539,6 +39883,8 @@
 	}
 	function removeInternalBeforeHandler(el, events, handler) {
 	    var elementCtx = getElementCtx(el);
+    if (!elementCtx)
+        return;
 	    for (var _i = 0, events_4 = events; _i < events_4.length; _i++) {
 	        var event_4 = events_4[_i];
 	        var internalBeforeHandlers = elementCtx[event_4].internalBeforeHandlers;
@@ -39725,6 +40071,8 @@
 	    };
 	    Listeners.prototype.initElementListening = function (el, events) {
 	        if (events === void 0) { events = LISTENED_EVENTS; }
+        if (rhScriptsBlockedFor(el))
+            return;
 	        var nativeAddEventListener = nativeMethods.addEventListener;
 	        for (var _i = 0, events_1 = events; _i < events_1.length; _i++) {
 	            var event_1 = events_1[_i];
@@ -39768,7 +40116,8 @@
 	        for (var _i = 0, events_2 = events; _i < events_2.length; _i++) {
 	            var event_2 = events_2[_i];
 	            var eventCtx = this.listeningCtx.getEventCtx(el, event_2);
-	            eventCtx.outerHandlersWrapper = wrapper;
+	            if (eventCtx)
+	                eventCtx.outerHandlersWrapper = wrapper;
 	        }
 	    };
 	    Listeners.prototype.getEventListeners = function (el, event) {
@@ -41197,7 +41546,7 @@
 	        }
 	    };
 	    MessageSandbox.prototype._onWindowMessage = function (e, originListener) {
-	        var data = MessageSandbox._getMessageData(e);
+	        var data = MessageSandbox._getMessageData(e); if (!data || typeof data.type !== "string" || !data.type.startsWith("hammerhead|")) return callEventListener(this.window, originListener, e);
 	        if (data.type !== MessageType.Service) {
 	            var originUrl = get$2();
 	            if (data.targetUrl === '*' || sameOriginCheck(originUrl, data.targetUrl))
@@ -41294,17 +41643,19 @@
 	        });
 	    };
 	    MessageSandbox.prototype.postMessage = function (contentWindow, args) {
-	        var targetUrl = args[1] || getOriginHeader();
-	        // NOTE: We do NOT support the postMessage(message, options) overload.
-	        // The second argument is expected to be `targetOrigin` (string).
-	        // If an options object is provided instead, the call is considered invalid and will be aborted.
-	        if (typeof targetUrl !== 'string') {
-	            nativeMethods.consoleMeths.log("testcafe-hammerhead: postMessage called with invalid targetOrigin; aborting call (type: ".concat(typeof targetUrl, ")"));
-	            return null;
-	        }
+	        if (args[1] && typeof args[1] === 'object') args = [args[0], args[1].targetOrigin, args[1].transfer || []]; var targetUrl = args[1] || getOriginHeader();
 	        // NOTE: Here, we pass all messages as "no preference" ("*").
 	        // We do an origin check in "_onWindowMessage" to access the target origin.
-	        args[1] = '*';
+	        if (rhScriptsBlockedFor(contentWindow)) {
+            var rhSite = null;
+            try { rhSite = contentWindow.__get$(contentWindow, 'location').origin; } catch (e) {}
+            var rhTarget = args[1] || '/';
+            if (rhTarget !== '*' && rhSite !== (rhTarget === '/' ? getOriginHeader() : (function () { try { return new nativeMethods.URL(rhTarget).origin; } catch (e) { return null; } })()))
+                return;
+            args[1] = '*';
+            return fastApply(contentWindow, 'postMessage', args);
+        }
+        args[1] = '*';
 	        args[0] = MessageSandbox._wrapMessage(MessageType.User, args[0], targetUrl);
 	        return fastApply(contentWindow, 'postMessage', args);
 	    };
@@ -41313,7 +41664,7 @@
 	        var message = MessageSandbox._wrapMessage(MessageType.Service, msg);
 	        var canSendDirectly = !isCrossDomainWindows(targetWindow, this.window) && !!targetWindow[this.RECEIVE_MSG_FN];
 	        if (!canSendDirectly)
-	            return MessageSandbox._isWindowAvailable(targetWindow) && targetWindow.postMessage(message, '*', ports);
+	            return !rhScriptsBlockedFor(targetWindow) && MessageSandbox._isWindowAvailable(targetWindow) && targetWindow.postMessage(message, '*', ports);
 	        var sendFunc = function (force) {
 	            if (force || _this._removeInternalMsgFromQueue(sendFunc)) {
 	                // NOTE: The 'sendFunc' function may be called on timeout, so we must call 'canSendDirectly' again,
@@ -41434,6 +41785,10 @@
 	    };
 	    TimersSandbox.prototype.attach = function (window) {
 	        _super.prototype.attach.call(this, window);
+        if (rhScriptsBlockedFor(window)) {
+            this.setTimeout = window.setTimeout;
+            return;
+        }
 	        var timersSandbox = this;
 	        overrideFunction(window, 'setTimeout', function () {
 	            var args = [];
@@ -42368,10 +42723,6 @@
 	        this._createStorageWrappers();
 	        var localStorageWrapper = this.localStorageProxy.unwrapProxy();
 	        var sessionStorageWrapper = this.sessionStorageProxy.unwrapProxy();
-	        this.intervalId = nativeMethods.setInterval.call(this.window, function () {
-	            localStorageWrapper.checkStorageChanged();
-	            sessionStorageWrapper.checkStorageChanged();
-	        }, 10000000);
 	        this.localStorageChangeHandler = function (e) { return _this._simulateStorageEvent(_this.localStorageProxy, e); };
 	        this.sessionStorageChangeHandler = function (e) { return _this._simulateStorageEvent(_this.sessionStorageProxy, e); };
 	        localStorageWrapper.addChangeEventListener(this.localStorageChangeHandler);
@@ -42715,21 +43066,17 @@
 	    };
 	    StyleSandbox.prototype.detectBrowserFeatures = function () {
 	        var features = {};
-	        // @ts-expect-error NOTE: The CSS2Properties class is supported only in Firefox < 144
+	        // NOTE: The CSS2Properties class is supported only in the Firefox
 	        // and its prototype contains all property descriptors
+	        // @ts-ignore
 	        features.css2PropertiesProtoContainsAllProps = !!window.CSS2Properties;
-	        // @ts-expect-error NOTE: The CSSStyleProperties class is supported only in Firefox >= 144 and Safari >= 26
-	        var cssStylePropertiesClass = window.CSSStyleProperties;
-	        features.cssStylePropertiesProtoContainsAllProps = !!cssStylePropertiesClass
-	            && this.nativeMethods.objectHasOwnProperty.call(cssStylePropertiesClass.prototype, 'background')
-	            && this.nativeMethods.objectHasOwnProperty.call(cssStylePropertiesClass.prototype, 'background-image');
 	        features.cssStyleDeclarationProtoContainsUrlProps = this.nativeMethods.objectHasOwnProperty
 	            .call(window.CSSStyleDeclaration.prototype, 'background');
 	        features.cssStyleDeclarationProtoContainsDashedProps = this.nativeMethods.objectHasOwnProperty
 	            .call(window.CSSStyleDeclaration.prototype, 'background-image');
 	        features.cssStyleDeclarationContainsAllProps = features.cssStyleDeclarationProtoContainsUrlProps &&
 	            features.cssStyleDeclarationProtoContainsDashedProps;
-	        if (!features.css2PropertiesProtoContainsAllProps && !features.cssStylePropertiesProtoContainsAllProps && !features.cssStyleDeclarationProtoContainsUrlProps) {
+	        if (!features.css2PropertiesProtoContainsAllProps && !features.cssStyleDeclarationProtoContainsUrlProps) {
 	            var testDiv = this.nativeMethods.createElement.call(document, 'div');
 	            var propertySetterIsCalled_1 = false;
 	            var testDivDescriptor = this.nativeMethods.objectGetOwnPropertyDescriptor
@@ -42757,9 +43104,7 @@
 	        if (settings$1.nativeAutomation)
 	            return;
 	        this.overrideStyleInElement();
-	        if (this.FEATURES.cssStylePropertiesProtoContainsAllProps)
-	            this.overridePropsInCSSStyleProperties();
-	        else if (this.FEATURES.css2PropertiesProtoContainsAllProps)
+	        if (this.FEATURES.css2PropertiesProtoContainsAllProps)
 	            this.overridePropsInCSS2Properties();
 	        else
 	            this.overridePropsInCSSStyleDeclaration();
@@ -42778,7 +43123,7 @@
 	        var nativeMethods = this.nativeMethods;
 	        var styleSandbox = this;
 	        overrideDescriptor(this.window[nativeMethods.htmlElementStylePropOwnerName].prototype, 'style', {
-	            getter: this.FEATURES.css2PropertiesProtoContainsAllProps || this.FEATURES.cssStylePropertiesProtoContainsAllProps || this.FEATURES.cssStyleDeclarationContainsAllProps
+	            getter: this.FEATURES.css2PropertiesProtoContainsAllProps || this.FEATURES.cssStyleDeclarationContainsAllProps
 	                ? null
 	                : function () {
 	                    var style = nativeMethods.htmlElementStyleGetter.call(this);
@@ -42859,18 +43204,6 @@
 	            var prop = _c[_b];
 	            // @ts-ignore
 	            this.overrideStyleProp(this.window.CSS2Properties.prototype, prop);
-	        }
-	    };
-	    StyleSandbox.prototype.overridePropsInCSSStyleProperties = function () {
-	        for (var _i = 0, _a = this.URL_PROPS; _i < _a.length; _i++) {
-	            var prop = _a[_i];
-	            // @ts-ignore
-	            this.overrideStyleProp(this.window.CSSStyleProperties.prototype, prop);
-	        }
-	        for (var _b = 0, _c = this.DASHED_URL_PROPS; _b < _c.length; _b++) {
-	            var prop = _c[_b];
-	            // @ts-ignore
-	            this.overrideStyleProp(this.window.CSSStyleProperties.prototype, prop);
 	        }
 	    };
 	    StyleSandbox.prototype.overridePropsInCSSStyleDeclaration = function () {
@@ -43274,7 +43607,7 @@
 	        // NOTE: Eval Hammerhead code script.
 	        this.iframe.on(this.iframe.EVAL_HAMMERHEAD_SCRIPT_EVENT, function (e) {
 	            // @ts-ignore
-	            nativeMethods.contentWindowGetter.call(e.iframe).eval("(".concat(initHammerheadClient.toString(), ")();//# sourceURL=hammerhead.js"));
+	            var rhFrameWindow = nativeMethods.contentWindowGetter.call(e.iframe); rhRunInWindow(rhFrameWindow, "(".concat(initHammerheadClient.toString(), ")();//# sourceURL=").concat(location.origin, "/hammerhead.js")); if (hammerhead.rhLocalStorageOff) rhRunInWindow(rhFrameWindow, "window.rammerheadDisableLocalStorageImplementation = true;"); rhRunInWindow(rhFrameWindow, "!function(){var j=window[\"%hammerhead%\"];if(!j)throw new Error(\"hammerhead not loaded yet\");try{var e=document.currentScript&&document.currentScript.getAttribute(\"data-rh-csp\");e&&j.rhCspPolicies&&JSON.parse(atob(e)).forEach(function(e){j.rhCspPolicies.set(e[0],e[1])})}catch(e){}function main(){if(!function fixUrlRewrite(){let t=location;try{for(let e=window;\"about:\"===e.location.protocol&&e.parent!==e;e=e.parent)t=e.parent.location}catch(e){}const o=t.port||(\"https:\"===t.protocol?\"443\":\"80\"),r=j.utils.url.getProxyUrl;j.utils.url.overrideGetProxyUrl(function(e,t={}){return t.proxyPort||(t.proxyPort=o),r(e,t)}),window.overrideParseProxyUrl(r=>function(e){const t=r(e);return t&&t.proxy&&(t.proxy.port||(t.proxy.port=o)),t})}(),!function fixElementGetter(){const e={HTMLAnchorElement:[\"href\"],HTMLAreaElement:[\"href\"],HTMLBaseElement:[\"href\"],HTMLEmbedElement:[\"src\"],HTMLFormElement:[\"action\"],HTMLFrameElement:[\"src\"],HTMLIFrameElement:[\"src\"],HTMLImageElement:[\"src\"],HTMLInputElement:[\"src\"],HTMLLinkElement:[\"href\"],HTMLMediaElement:[\"src\"],HTMLModElement:[\"cite\"],HTMLObjectElement:[\"data\"],HTMLQuoteElement:[\"cite\"],HTMLScriptElement:[\"src\"],HTMLSourceElement:[\"src\"],HTMLTrackElement:[\"src\"]};for(const r in e)for(const o of e[r])if(window[r]){var t=Object.getOwnPropertyDescriptor(window[r].prototype,o);const n=t.get,i=t.set;j.utils.overriding.overrideDescriptor(window[r].prototype,o,{getter:function(){return e=n.call(this),j.rhSiteBlobUrl&&(e=j.rhSiteBlobUrl(e)),(j.utils.url.parseProxyUrl(e)||{}).destUrl||e;var e},setter:\"action\"===o?function(e){g=!0;try{var t=i.call(this,e)}catch(e){throw g=!1,e}return g=!1,t}:null})}else console.warn(\"unexpected unsupported element class \"+r)}(),!function hideProxyFromPerformance(){if(\"undefined\"!=typeof PerformanceEntry){const{overrideFunction:r,overrideDescriptor:o}=j.utils.overriding,n=j.utils.url.parseProxyUrl,i=location.origin,s=Object.getOwnPropertyDescriptor(PerformanceEntry.prototype,\"name\").get,a=Object.getOwnPropertyDescriptor(PerformanceEntry.prototype,\"entryType\").get,c=e=>\"string\"==typeof e&&e.startsWith(i+\"/\")&&!n(e),l=e=>{var t=\"string\"==typeof e&&e.startsWith(i+\"/\")&&n(e);return t?t.destUrl:e};for(const u of[window.Performance,window.PerformanceObserverEntryList])if(u)for(const p of[\"getEntries\",\"getEntriesByType\",\"getEntriesByName\"]){const d=u.prototype[p];\"function\"==typeof d&&r(u.prototype,p,function(){return d.apply(this,arguments).filter(e=>!(e=>c(s.call(e)))(e))})}if(window.PerformanceLongAnimationFrameTiming&&window.PerformanceScriptTiming){const f=Object.getOwnPropertyDescriptor(PerformanceLongAnimationFrameTiming.prototype,\"scripts\"),g=Object.getOwnPropertyDescriptor(PerformanceScriptTiming.prototype,\"sourceURL\");f&&f.get&&g&&g.get&&(o(PerformanceLongAnimationFrameTiming.prototype,\"scripts\",{getter:function(){return f.get.call(this).filter(e=>!c(g.get.call(e)))},setter:null}),o(PerformanceScriptTiming.prototype,\"sourceURL\",{getter:function(){return l(g.get.call(this))},setter:null}))}if(window.PerformanceResourceTiming){var e=PerformanceResourceTiming.prototype;const h=Object.getOwnPropertyDescriptor(e,\"serverTiming\"),y=window.PerformanceServerTiming&&Object.getOwnPropertyDescriptor(PerformanceServerTiming.prototype,\"name\").get,m=window.PerformanceServerTiming&&Object.getOwnPropertyDescriptor(PerformanceServerTiming.prototype,\"description\").get,w=e=>y&&\"rh\"===y.call(e),v=new WeakMap,S=e=>{if(v.has(e))return v.get(e);let t=null;try{for(const r of h&&h.get?h.get.call(e):[])w(r)&&(t=JSON.parse(atob(m.call(r))))}catch(e){t=null}return v.set(e,t),t},b=()=>window.__get$(window,\"location\").origin,P=e=>{if(\"resource\"!==a.call(e))return!1;var t=S(e),e=n(s.call(e));if(!t||!e)return!1;let r;try{r=new URL(e.destUrl).origin}catch(e){return!1}e=b();if(r===e)return!1;const o=String(t.t).split(\",\").map(e=>e.trim());return!(o.includes(\"*\")||o.includes(e))},O=[\"transferSize\",\"encodedBodySize\",\"decodedBodySize\",\"redirectStart\",\"redirectEnd\",\"domainLookupStart\",\"domainLookupEnd\",\"connectStart\",\"connectEnd\",\"secureConnectionStart\",\"requestStart\",\"responseStart\",\"firstInterimResponseStart\",\"finalResponseHeadersStart\",\"responseStatus\"],x=[\"nextHopProtocol\",\"contentType\",\"contentEncoding\",\"deliveryType\"],T={};for(const E of O.concat(x)){var t=Object.getOwnPropertyDescriptor(e,E);t&&t.get&&(T[E]=t.get)}const L=(e,t,r)=>{if(P(e)){if(O.includes(t))return 0;if(x.includes(t))return\"\"}if(\"decodedBodySize\"!==t&&\"encodedBodySize\"!==t&&\"transferSize\"!==t)return r;var o=S(e),o=o&&o.s||(e=>{e=s.call(e);const t=j.rhResourceSizes;if(t&&\"string\"==typeof e){const r=t.has(e)?null:n(e);return t.get(e)||r&&t.get(r.destUrl.split(\"#\")[0])}})(e);return o&&r?\"decodedBodySize\"===t?o[0]:\"encodedBodySize\"===t?o[1]:Math.max(0,r-T.encodedBodySize.call(e))+o[1]:r};for(const U of Object.keys(T)){const k=T[U];o(e,U,{getter:function(){return L(this,U,k.call(this))},setter:null})}h&&h.get&&o(e,\"serverTiming\",{getter:function(){return P(this)?[]:h.get.call(this).filter(e=>!w(e))},setter:null});for(const _ of[window.PerformanceEntry,window.PerformanceResourceTiming,window.PerformanceNavigationTiming])if(_&&Object.prototype.hasOwnProperty.call(_.prototype,\"toJSON\")){const R=_.prototype.toJSON;r(_.prototype,\"toJSON\",function(){const e=R.apply(this,arguments);if(!e)return e;if(this instanceof PerformanceResourceTiming){for(const t of Object.keys(T))t in e&&(e[t]=L(this,t,e[t]));Array.isArray(e.serverTiming)&&(e.serverTiming=P(this)?[]:e.serverTiming.filter(e=>\"rh\"!==e.name))}return\"string\"==typeof e.name&&(e.name=l(e.name)),e})}o(PerformanceEntry.prototype,\"name\",{getter:function(){const e=s.call(this);var t=\"string\"==typeof e&&e.startsWith(i+\"/\")&&n(e);return t?t.destUrl:e},setter:null})}}}(),!function fixNavigationApi(){if(\"undefined\"!=typeof NavigationHistoryEntry&&\"undefined\"!=typeof Navigation){const{overrideFunction:r,overrideDescriptor:o}=j.utils.overriding,n=j.utils.url.parseProxyUrl,i=location.origin;for(var[e,t]of[[window.NavigationHistoryEntry,\"url\"],[window.NavigationDestination,\"url\"]]){const a=e&&Object.getOwnPropertyDescriptor(e.prototype,t);a&&a.get&&o(e.prototype,t,{getter:function(){return e=a.get.call(this),(t=\"string\"==typeof e&&e.startsWith(i+\"/\")&&n(e))?t.destUrl:e;var e,t},setter:null})}const s=Navigation.prototype.navigate;\"function\"==typeof s&&r(Navigation.prototype,\"navigate\",function(e){const t=Array.prototype.slice.call(arguments);var r,o;return(\"string\"==typeof e||e instanceof URL)&&(r=n(location.href),o=new URL(String(e),r?r.destUrl:location.href).href,t[0]=j.utils.url.getProxyUrl(o,{resourceType:r&&r.resourceType})),s.apply(this,t)})}}(),!function fixUrlAttributeSelectors(){const e=j.utils.overriding[\"overrideFunction\"],r=j.sandbox.node.constructor;if(\"function\"==typeof r.processSelector){const i=\"-hammerhead-stored-value\",o=/\\[\\s*(href|src|action|formaction|manifest|data)\\s*([~|^$*]?=)\\s*(\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*'|[^\\]\\s]+)\\s*([is])?\\s*\\]/gi,n=new Map;if(r._processAttributeSelector=function(e){if(\"string\"!=typeof e||-1===e.indexOf(\"[\"))return e;let t=n.get(e);return void 0===t&&(t=e.replace(o,(e,t,r,o,n)=>{r=r+o+(n?\" \"+n:\"\");return\":is([\"+t+i+r+\"],[\"+t+r+\"]:not([\"+t+i+\"]))\"}),500<n.size&&n.clear(),n.set(e,t)),t},window.Element)for(const t of[\"matches\",\"closest\",\"webkitMatchesSelector\"]){const s=Element.prototype[t];\"function\"==typeof s&&e(Element.prototype,t,function(e){const t=Array.prototype.slice.call(arguments);return t[0]=r.processSelector(e),s.apply(this,t)})}}}(),!function fixLinkHrefRecalc(){const e=j.sandbox.node.element,o=j.nativeMethods,n=e&&e.setAttributeCore;if(\"function\"==typeof n){const i=\"href-hammerhead-stored-value\";e.setAttributeCore=function(e,t,r){return!r&&1<t.length&&\"href\"===String(t[0]).toLowerCase()&&e&&o.hasAttribute.call(e,i)&&t[1]===o.getAttribute.call(e,\"href\")&&((t=Array.prototype.slice.call(t))[1]=o.getAttribute.call(e,i)),n.call(this,e,t,r)}}}(),!function disableServiceWorkers(){const e=window.ServiceWorkerContainer,t=j.nativeMethods;if(e&&navigator.serviceWorker){const r=j.utils.overriding[\"overrideFunction\"],o=e.prototype.getRegistrations;t.registerServiceWorker&&(e.prototype.register=t.registerServiceWorker),t.getRegistrationServiceWorker&&(e.prototype.getRegistration=t.getRegistrationServiceWorker),r(e.prototype,\"register\",function(){return Promise.reject(new DOMException(\"Failed to register a ServiceWorker: The operation is insecure.\",\"SecurityError\"))}),r(e.prototype,\"getRegistration\",function(){return Promise.resolve(void 0)}),r(e.prototype,\"getRegistrations\",function(){return Promise.resolve([])}),o.call(navigator.serviceWorker).then(e=>{for(const t of e)t.unregister()}).catch(()=>{})}}(),!function hideHammerheadKeys(){const e=j.utils.overriding[\"overrideFunction\"],r=/^(%(is-)?hammerhead%$|hammerhead\\||__[a-zA-Z]+\\$|rammerhead(Top|Parent|AncestorOrigins)$|distanceRammerheadTopToTop$|isWindowBeyondRammerhead$|override(Get|Parse)ProxyUrl$)/,o=[\"%hammerhead%\",\"__get$\",\"__set$\",\"__call$\",\"__get$Loc\",\"__set$Loc\",\"__get$Eval\",\"__get$PostMessage\",\"__get$ProxyUrl\",\"__proc$Script\",\"__proc$Html\",\"__getWorkerSettings$\",\"__rest$Object\",\"__rest$Array\",\"__arrayFrom$\",\"_hh$temp\"],n=t=>\"string\"!=typeof t||!(r.test(t)||o.some(e=>t.startsWith(e)));for(var[t,i]of[[Object,\"keys\"],[Object,\"getOwnPropertyNames\"],[Reflect,\"ownKeys\"]]){const u=t[i];e(t,i,function(){{var t=u.apply(this,arguments);const r=[];for(let e=0;e<t.length;e++)n(t[e])&&r.push(t[e]);return r}})}const s=Object.entries,a=t=>{const r=[];for(let e=0;e<t.length;e++)n(t[e][0])&&r.push(t[e]);return r},c=(e(Object,\"entries\",function(){return a(s.apply(this,arguments))}),e(Object,\"values\",function(){var t=a(s.apply(this,arguments));const r=[];for(let e=0;e<t.length;e++)r.push(t[e][1]);return r}),Object.getOwnPropertyDescriptors),l=Object.getOwnPropertyNames;e(Object,\"getOwnPropertyDescriptors\",function(){const e=c.apply(this,arguments);for(const t of l(e))n(t)||delete e[t];return e})}(),!function hideHammerheadFromStacks(){if(\"function\"==typeof Error.captureStackTrace){const s=j.utils.url.parseProxyUrl,e=location.origin,i=new RegExp(\"^\"+e.replace(/[.*+?^${}()|[\\]\\\\]/g,\"\\\\$&\")+\"/[^/]*\\\\.js(\\\\?|$)\"),t=new RegExp(e.replace(/[.*+?^${}()|[\\]\\\\]/g,\"\\\\$&\")+\"/[^\\\\s)]+\",\"g\"),a=e=>e.replace(t,e=>{var t=/(:\\d+){1,2}$/.exec(e),r=t?e.slice(0,t.index):e,r=s(r);return r?r.destUrl+(t?t[0]:\"\"):e}),c=new Map,l=r=>{const e=[],o=[0,0,0,0,0,0];for(let t=0;t<r.length;t+=6){for(let e=0;e<6;e+=2){var n=o[e]+r[t+e];o[e+1]=n===o[e]?o[e+1]+r[t+e+1]:r[t+e+1],o[e]=n}e.push(...o)}return e},g=(e,t,r,o)=>e<r||e===r&&t<o,u=(e,t,r)=>{var o=t-1,n=r-1;let i=0,s=e.length/6-1,a=-1;for(;i<=s;){var c=i+s>>1;g(o,n,e[6*c],e[6*c+1])?s=c-1:(a=c,i=1+c)}if(-1===a)return null;var[t,r,l,u,p,d]=e.slice(6*a,6*a+6);if(g(o,n,l,u))return o===t?[p+1,d+(n-r)+1]:[p+(o-t)+1,1+n];var f=e.slice(6*(a+1),6*(a+1)+6);if(!f.length)return null;p+=l-t,l=l===t?d+(u-r):u;return g(f[4],f[5],p,l)?[f[4]+1,f[5]+1]:[p+1,l+1]};j.rhSiteStackTraceLimit=Error.stackTraceLimit,\"number\"==typeof Error.stackTraceLimit&&(Error.stackTraceLimit+=50);let n;const r=function(e,t){let r=t.filter(e=>!(i.test(e.getFileName()||\"\")||e.isEval()&&/\\/(hammerhead|rammerhead)\\.js:/.test(e.getEvalOrigin()||\"\")));t=j.rhSiteStackTraceLimit;if(\"number\"==typeof t&&0<=t&&(r=r.slice(0,t)),n)return n(e,r);let o;try{o=String(e)}catch(e){o=\"Error\"}return o+r.map(e=>\"\\n    at \"+(e=>{let t=String(e);var r=e.getFileName();const o=j.rhPositions;let n=o&&r&&o.get(r);if(o&&r&&!n){const i=s(r);n=i&&o.get(i.destUrl.split(\"#\")[0])}return n&&(c.has(r)||c.set(r,l(n)),(r=u(c.get(r),e.getLineNumber(),e.getColumnNumber()))&&(t=t.replace(/:\\d+:\\d+(\\)?)$/,\":\"+r[0]+\":\"+r[1]+\"$1\"))),a(t)})(e)).join(\"\")};Object.defineProperty(Error,\"prepareStackTrace\",{get:()=>r,set:e=>{n=\"function\"==typeof e?e:void 0},configurable:!0,enumerable:!1})}}(),!function hideProxyFromBlobUrls(){if(\"undefined\"!=typeof URL&&\"function\"==typeof URL.createObjectURL){const r=j.utils.overriding[\"overrideFunction\"],o=\"blob:\"+location.origin+\"/\";let e=j;try{e=window.rammerheadTop[\"%hammerhead%\"]||j}catch(e){}const n=e.rhBlobUrls||(e.rhBlobUrls=new Map),i=e.rhSiteBlobUrls||(e.rhSiteBlobUrls=new Map),s=/blob:[^\\s\"'()<>,]+?\\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;var t=t=>e=>\"string\"==typeof e&&-1!==e.indexOf(\"blob:\")?e.replace(s,e=>t.has(e)?t.get(e):e):e;j.rhRealBlobUrl=t(n),j.rhSiteBlobUrl=t(i);const a=URL.createObjectURL,c=URL.revokeObjectURL,l=(r(URL,\"createObjectURL\",function(){const e=a.apply(this,arguments);if(\"string\"!=typeof e||!e.startsWith(o))return e;var t=\"blob:\"+window.__get$(window,\"location\").origin+\"/\"+e.slice(o.length);return n.set(t,e),i.set(e,t),t}),r(URL,\"revokeObjectURL\",function(e){var t=\"string\"==typeof(t=e)&&n.has(t)?n.get(t):t;return n.delete(e),i.delete(t),c.call(this,t)}),j.utils.url.getProxyUrl);j.utils.url.overrideGetProxyUrl(function(e,t){return l(j.rhRealBlobUrl(e),t)})}}(),!function processStyleSheetText(){if(\"undefined\"!=typeof CSSStyleSheet){const{overrideFunction:e,overrideDescriptor:t}=j.utils.overriding,o=j.processors.styleProcessor;for(const n of[\"replace\",\"replaceSync\"]){const i=CSSStyleSheet.prototype[n];\"function\"==typeof i&&e(CSSStyleSheet.prototype,n,function(e){const t=Array.prototype.slice.call(arguments);var r;return\"string\"==typeof e&&(t[0]=(r=e,o.process(r,j.utils.url.getProxyUrl))),i.apply(this,t)})}const r=window.CSSRule&&Object.getOwnPropertyDescriptor(CSSRule.prototype,\"cssText\");r&&r.get&&t(CSSRule.prototype,\"cssText\",{getter:function(){return o.cleanUp(r.get.call(this),j.utils.url.parseProxyUrl)},setter:null})}}(),!function proxyImageUrlProperties(){const e=j.utils.overriding[\"overrideDescriptor\"],t=Element.prototype.setAttribute,r=Element.prototype.getAttribute,o=window.HTMLVideoElement&&Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype,\"poster\");o&&o.get&&o.set&&e(HTMLVideoElement.prototype,\"poster\",{getter:function(){var e=o.get.call(this);return j.rhSiteBlobUrl?j.rhSiteBlobUrl(e):e},setter:function(e){t.call(this,\"poster\",e)}});for(const i of[window.HTMLImageElement,window.HTMLSourceElement]){var n=i&&Object.getOwnPropertyDescriptor(i.prototype,\"srcset\");n&&n.get&&n.set&&e(i.prototype,\"srcset\",{getter:function(){var e=r.call(this,\"srcset\");return null===e?\"\":e},setter:function(e){t.call(this,\"srcset\",e)}})}}(),!function applyPermissionsPolicy(){const i=[\"geolocation\",\"camera\",\"microphone\",\"midi\",\"clipboard-read\",\"clipboard-write\",\"display-capture\",\"screen-wake-lock\",\"local-fonts\",\"window-management\",\"idle-detection\",\"captured-surface-control\",\"summarizer\",\"translator\",\"language-detector\",\"language-model\",\"writer\",\"rewriter\",\"proofreader\"],e={Summarizer:\"summarizer\",Translator:\"translator\",LanguageDetector:\"language-detector\",LanguageModel:\"language-model\",Writer:\"writer\",Rewriter:\"rewriter\",Proofreader:\"proofreader\"},{overrideFunction:t,overrideDescriptor:r}=j.utils.overriding,s=e=>{try{return e.__get$(e,\"location\").origin}catch(e){return null}},o=t=>{if(!i.includes(t))return!1;var e=window.rammerheadTop||window;if(e===window)return!1;var r=s(window);if(!r||\"null\"===r||r===s(e))return!1;let o=\"\";try{const n=Object.getOwnPropertyDescriptor(Window.prototype,\"frameElement\")?Object.getOwnPropertyDescriptor(Window.prototype,\"frameElement\").get.call(window):window.frameElement;o=n&&n.getAttribute(\"allow\")||\"\"}catch(e){}return!o.split(\";\").some(e=>e.trim().split(/\\s+/)[0]===t)},n=Promise,a=DOMException;for(const u of Object.keys(e)){var c=window[u];\"function\"==typeof c&&o(e[u])&&(\"function\"==typeof c.availability&&t(c,\"availability\",function(){return n.resolve(\"unavailable\")}),\"function\"==typeof c.create&&t(c,\"create\",function(){return n.reject(new a(\"Access denied because the Permission Policy is not enabled.\",\"NotAllowedError\"))}))}var l=window.FeaturePolicy;if(l&&l.prototype){const{allowsFeature:p,allowedFeatures:d}=l.prototype;\"function\"==typeof p&&t(l.prototype,\"allowsFeature\",function(e){var t=p.apply(this,arguments);return!(t&&arguments.length<2&&o(String(e)))&&t}),\"function\"==typeof d&&t(l.prototype,\"allowedFeatures\",function(){return d.apply(this,arguments).filter(e=>!o(e))})}if(\"undefined\"!=typeof Permissions&&\"undefined\"!=typeof PermissionStatus){const f=new WeakSet,g=Permissions.prototype.query,h=(t(Permissions.prototype,\"query\",function(e){const t=g.apply(this,arguments);var r=e&&e.name;return o(r)?t.then(e=>(f.add(e),e)):t}),Object.getOwnPropertyDescriptor(PermissionStatus.prototype,\"state\"));h&&h.get&&r(PermissionStatus.prototype,\"state\",{getter:function(){return f.has(this)?\"denied\":h.get.call(this)},setter:null})}}(),!function hideProxyFromCspViolations(){const t=j.rhCspPolicies;if(t){const i=j.utils.overriding[\"overrideDescriptor\"],s=j.utils.url.parseProxyUrl,a=location.origin;var e=e=>{if(\"string\"!=typeof e||!e.startsWith(a+\"/\"))return e;var e=s(e);return e?e.destUrl:(e=s(location.href))?e.destUrl:location.href},r=(e,t)=>{if(e&&e.prototype)for(const r of Object.keys(t)){const o=Object.getOwnPropertyDescriptor(e.prototype,r);if(o&&o.get){const n=t[r];i(e.prototype,r,{getter:function(){return n(o.get.call(this))},setter:null})}}},o=e=>t.has(e)?t.get(e):e;const c=\"/*hammerhead|script|start*/\";var n=t=>{if(\"string\"!=typeof t||-1===t.indexOf(c))return t;var r=t.indexOf(c);const o=j.rhScriptSources||[];for(let e=o.length-1;0<=e;e--)if(o[e][0].startsWith(t.slice(r)))return t.slice(0,r)+o[e][1].slice(0,40);return t};const l=j.rhNoncedScripts,u=window.HTMLElement&&Object.getOwnPropertyDescriptor(HTMLElement.prototype,\"nonce\");l&&u&&u.get&&i(HTMLElement.prototype,\"nonce\",{getter:function(){return l.has(this)?\"\":u.get.call(this)},setter:function(e){l.delete(this),u.set.call(this,e)}}),r(window.SecurityPolicyViolationEvent,{originalPolicy:o,blockedURI:e,documentURI:e,sourceFile:e,referrer:e,sample:n}),r(window.CSPViolationReportBody,{originalPolicy:o,blockedURL:e,documentURL:e,sourceFile:e,referrer:e,sample:n})}}(),!function lowPowerWebGLInCrossOriginFrames(){const r=window.rammerheadParent||window;if(r!==window){let e,t;try{e=window.__get$(window,\"location\").origin,t=r.__get$(r,\"location\").origin}catch(e){return}if(e&&\"null\"!==e&&e!==t){const o=j.utils.overriding[\"overrideFunction\"],n=new WeakSet;for(const i of[window.HTMLCanvasElement,window.OffscreenCanvas])if(i&&\"function\"==typeof i.prototype.getContext){const s=i.prototype.getContext;o(i.prototype,\"getContext\",function(e,t){var r=s.apply(this,arguments);return r&&t&&\"object\"==typeof t&&t.powerPreference&&n.add(r),r})}for(const a of[window.WebGLRenderingContext,window.WebGL2RenderingContext])if(a&&\"function\"==typeof a.prototype.getContextAttributes){const c=a.prototype.getContextAttributes;o(a.prototype,\"getContextAttributes\",function(){const e=c.apply(this,arguments);return e&&!n.has(this)&&\"default\"===e.powerPreference&&(e.powerPreference=\"low-power\"),e})}}}}(),!function applyCookieSyncLetters(){var e=j.settings.get().rhCookieLetters;e&&window.__rhCookieSyncType&&(Object.assign(window.__rhCookieSyncType,e),window.__rhCookieSyncTypeRE=new RegExp(\"^[\"+e.server+e.client+e.window+\"]+\"))}(),!function fixCrossWindowLocalStorage(){const r=window.__get$(window,\"location\").host,t=(j.settings.get().rhStorageKeys||{}).coreStorageWrapper||\"rammerhead|storage-wrapper|\",o=e=>\"\"+t+j.settings._settings.sessionId+`|${e}|`,c=(e=\"\",t=r)=>o(t)+e,l=(e=\"\",t=r)=>e.startsWith(o(t))?e.slice(o(t).length):null,e=(e,i)=>{const s=[\"internal\",\"clear\",\"key\",\"getItem\",\"setItem\",\"removeItem\",\"length\",\"addChangeEventListener\",\"hasOwnProperty\",\"propertyIsEnumerable\",\"constructor\",\"isPrototypeOf\",\"toLocaleString\",\"toString\",\"valueOf\"],a=[],n=e=>a.push(e);Object.defineProperty(window,e,{configurable:!0,writable:!0,value:new Proxy(window[e],{get(e,t,r){if(s.includes(t)&&\"length\"!==t)return Reflect.get(e,t,r);if(\"length\"!==t)return\"addChangeEventListener\"===t?n:i[c(t)];{let e=0;for(var[o]of Object.entries(i))l(o)&&e++;return e}},set(e,t,r){if(!s.includes(t)){for(const n of a)try{var o=i[c(t)];r!==o&&n({key:t,value:r,oldValue:o})}catch(e){console.error(e)}i[c(t)]=r}return!0},deleteProperty(e,t){return delete i[c(t)],!0},has(e,t){return c(t)in i||t in e},ownKeys(){const e=[];for(var[t]of Object.entries(i)){t=l(t);t&&!s.includes(t)&&e.push(t)}return e},getOwnPropertyDescriptor(e,t){return Object.getOwnPropertyDescriptor(i,c(t))},defineProperty(e,t,r){return s.includes(t)||Object.defineProperty(i,c(t),r),!0}})})},n=(e,o)=>{Storage.prototype[e]=new Proxy(Storage.prototype[e],{apply(e,t,r){return o.apply(t,r)}})};e(\"localStorage\",j.storages.localStorageProxy.internal.nativeStorage),e(\"sessionStorage\",j.storages.sessionStorageProxy.internal.nativeStorage),n(\"clear\",function(){for(var[e]of Object.entries(this))delete this[e]}),n(\"key\",function(e){return(Object.entries(this)[e]||[])[0]||null}),n(\"getItem\",function(e){return this.internal.nativeStorage[c(e,this.internal.nativeStorageKey.split(\"|\")[3])]||null}),n(\"setItem\",function(e,t){e&&(this.internal.nativeStorage[c(e,this.internal.nativeStorageKey.split(\"|\")[3])]=t)}),n(\"removeItem\",function(e){delete this.internal.nativeStorage[c(e,this.internal.nativeStorageKey.split(\"|\")[3])]})}(),!function addCloudflareChallengeSolver(){const i=j.nativeMethods.fetch,s=j.settings._settings.sessionId,l=window.__get$(window,\"location\"),u=window.sessionStorage.internal.nativeStorage,e=l.hostname.match(/[a-z0-9-]+\\.[a-z0-9-]+$/)?.[0],p=\"\"+((j.settings.get().rhStorageKeys||{}).cfResponse||\"rh_needs_our_response|\")+e;document.addEventListener(\"DOMContentLoaded\",()=>{if(j.settings.get().rhCloudflareSolver){for(const e of document.head.querySelectorAll(\"script\"))if(e.src.includes(\"/orchestrate/chl_page/v1\")){console.log(\"cloudflare detected\"),window.rhHookCloudflareDetected&&(window.rhHookCloudflareDetected(),delete window.rhHookCloudflareDetected),u[p]&&(delete u[p],i(`/api/cloudflare-bulldozer-response?sessionId=${s}&url=${encodeURIComponent(l.href)}&status=failed`));const c=i(`/api/cloudflare-bulldozer-free?sessionId=${s}&url=`+encodeURIComponent(l.href)).then(e=>e.ok?e.text():\"try\",()=>\"try\");let r=null,e=(c.then(e=>r=e),setInterval(()=>{if(window.turnstile){clearInterval(e),window.turnstile._rh_render=window.turnstile.render;let t=!1;i(`/api/cloudflare-bulldozer-status?sessionId=${s}&url=`+encodeURIComponent(l.href)).then(e=>{e.ok&&setTimeout(()=>{t||window.location.reload()},6e3)}),window.turnstile.render=function(o,n){if(t=!0,\"skip\"!==r){let e=!1,t=null,r;const s=()=>{if(!e){if(e=!0,clearTimeout(t),window.rhHookCloudflareFreeFailed)try{window.rhHookCloudflareFreeFailed()}catch(e){console.error(e)}try{void 0!==r&&window.turnstile.remove(r)}catch(e){}a(o,n)}};var i=Object.assign({},n,{callback:function(){if(clearTimeout(t),!e&&n.callback)return n.callback.apply(this,arguments)},\"error-callback\":function(){return s(),!0},\"unsupported-callback\":s,\"before-interactive-callback\":s});return t=setTimeout(s,3e4),c.then(e=>\"skip\"===e&&s()),r=window.turnstile._rh_render(o,i)}a(o,n)};const a=async(e,t)=>{var r={sitekey:t.sitekey,pageurl:l.href,data:t.cData,pagedata:t.chlPageData,action:t.action,userAgent:navigator.userAgent};if(200!==(await i(\"/api/cloudflare-bulldozer?sessionId=\"+s,{method:\"POST\",body:JSON.stringify(r)})).status)return console.warn(\"cloudflare js challenge support not enabled\"),void window.turnstile._rh_render(e,t);let o=!0;const n=setInterval(async()=>{const e=await(await i(`/api/cloudflare-bulldozer-status?sessionId=${s}&url=`+encodeURIComponent(l.href))).text();\"reload\"===e?(clearInterval(n),window.location.reload()):e.startsWith(\"token: \")?(u[p]=!0,t.callback(e.slice(7))):\"wait\"===e?o&&(o=!1,showCFSolverMessage()):(console.error(\"Unknown response from js challenge solver endpoint: \"+e),clearInterval(n))},2e3)}}},1));return}u[p]&&(delete u[p],i(`/api/cloudflare-bulldozer-response?sessionId=${s}&url=${encodeURIComponent(l.href)}&status=success`)),delete window.rhHookCloudflareDetected}})}(),!function rewriteTargetAttributeToSelf(){var i=j.processors.domProcessor.constructor,e=(i.prototype._processTargetBlank=function(t,e,r){if(r.targetAttr){var o=i.getStoredAttrName(r.targetAttr),n=this.adapter.hasAttr(t,o);if(!n){let e=this.adapter.getAttr(t,r.targetAttr);e=e&&e.replace(/\\s/g,\"\"),j.utils.dom.isElementInIframe(t)?\"_top\"===e&&(this.adapter.setAttr(t,r.targetAttr,\"_parent\"),this.adapter.setAttr(t,o,e)):\"_top\"===e&&(this.adapter.setAttr(t,r.targetAttr,\"_self\"),this.adapter.setAttr(t,o,e))}}},j.processors.domProcessor);e.elementProcessorPatterns=e._createProcessorPatterns(e.adapter)}(),!function dontShuffleWorkerUrls(){if(window.Worker){const e=window.Worker;function a3(){g=!0;try{return new.target?Reflect.construct(e,arguments,new.target===a3?e:new.target):e.apply(this,arguments)}finally{g=!1}}a3.prototype=e.prototype,e.prototype.constructor=a3,j.utils.overriding.overrideStringRepresentation(a3,e),window.Worker=a3}window.SharedWorker&&(window.SharedWorker=new Proxy(window.SharedWorker,{construct(e,t,r){g=!0;try{return Reflect.construct(e,t,r)}finally{g=!1}}}))}(),delete window.overrideGetProxyUrl,delete window.overrideParseProxyUrl,delete window.overrideIsCrossDomainWindows,window.rammerheadStartListeners){for(const a of window.rammerheadStartListeners)try{a()}catch(e){console.error(e)}delete window.rammerheadStartListeners}if(window.rammerheadDisableLocalStorageImplementation)return delete window.rammerheadDisableLocalStorageImplementation,void(j.rhLocalStorageOff=!0);if(!j.rhScriptsBlocked||!j.rhScriptsBlocked(window)){var r=\"rammerhead_synctimestamp\",o=!1,n=localStorage,i=n.internal.nativeStorage,e=j.settings._settings.sessionId,t=window.__get$(window,\"location\").origin,s=[];try{!function syncLocalStorage(){o=!0;var e,t=function getTimestamp(){var e=i[r],t=parseInt(e);if(isNaN(t))return e&&console.warn(\"invalid timestamp retrieved from storage: \"+e),null;return t}();t?(e=localStorageRequest({type:\"sync\",timestamp:t,data:n})).timestamp&&(updateTimestamp(e.timestamp),overwriteLocalStorage(e.data)):(e=localStorageRequest({type:\"sync\",fetch:!0})).timestamp&&(updateTimestamp(e.timestamp),overwriteLocalStorage(e.data));function overwriteLocalStorage(e){if(!e||\"object\"!=typeof e)throw new TypeError(\"data must be an object\");for(var t in n.clear(),e)n[t]=e[t]}o=!1}()}catch(e){if(\"server wants to disable localStorage syncing\"!==e.message)throw e;return}n.addChangeEventListener(function(e){o||-1===s.indexOf(e.key)&&s.push(e.key)}),setInterval(function(){var e=compileUpdate();e&&(localStorageRequest({type:\"update\",updateData:e},function(e){updateTimestamp(e.timestamp)}),s=[])},5e3),document.addEventListener(\"visibilitychange\",function(){var e;\"hidden\"===document.visibilityState&&(e=compileUpdate())&&j.nativeMethods.sendBeacon.call(window.navigator,getSyncStorageEndpoint(),JSON.stringify({type:\"update\",updateData:e}))})}function updateTimestamp(e){if(!e)throw new TypeError(\"timestamp must be defined\");if(isNaN(parseInt(e)))throw new TypeError(\"timestamp must be a number. received\"+e);i[r]=e}function getSyncStorageEndpoint(){return\"/syncLocalStorage?sessionId=\"+encodeURIComponent(e)+\"&origin=\"+encodeURIComponent(t)}function localStorageRequest(e,t){if(!e||\"object\"!=typeof e)throw new TypeError(\"data must be an object\");var r=j.createNativeXHR();function check(){if(404===r.status)throw new Error(\"server wants to disable localStorage syncing\");if(200!==r.status)throw new Error(\"server sent a non 200 code. got \"+r.status+\". Response: \"+r.responseText)}if(r.open(\"POST\",getSyncStorageEndpoint(),!!t),r.setRequestHeader(\"content-type\",\"application/json\"),r.send(JSON.stringify(e)),!t)return check(),JSON.parse(r.responseText);r.onload=function(){check(),t(JSON.parse(r.responseText))}}function compileUpdate(){if(!s.length)return null;for(var e={},t=0;t<s.length;t++)e[s[t]]=n[s[t]];return s=[],e}}j.settings._settings.sessionId?(console.warn(\"unexpected task.js to load before rammerhead.js. url shuffling cannot be used\"),main()):(function hookHammerheadStartOnce(e){var t=j.__proto__.start;j.__proto__.start=function(){t.apply(this,arguments),j.__proto__.start=t,e()}}(main),function addUrlShuffling(){let e=null;if(\"about:\"===location.protocol)try{e=window.parent[\"%hammerhead%\"]}catch(e){}let t,r;if(e&&\"rhShuffleDict\"in e)t=e.rhShuffleDict,r=e.rhCacheTag;else{const s=new XMLHttpRequest;var o=(location.pathname.slice(1).match(/^[a-z0-9]+/i)||[])[0];if(!o)return console.warn(\"cannot get session id from url\");if(s.open(\"GET\",\"/api/dictionary?id=\"+o,!1),s.send(),200!==s.status)return console.warn(`received a non 200 status code while trying to fetch shuffleDict:\nstatus: ${s.status}\nresponse: `+s.responseText);t=JSON.parse(s.responseText),r=s.getResponseHeader(\"x-cache-tag\")}j.rhShuffleDict=t,j.rhCacheTag=r||null;function K(e){return!n||\"string\"!=typeof e||e.endsWith(n)||/^wss?:/i.test(e)?e:e+n}function L(e){if(!n||\"string\"!=typeof e)return e;if(e.endsWith(n))return e.slice(0,-n.length);var t=e.search(/[?#]/);return t>=n.length&&e.slice(t-n.length,t)===n?e.slice(0,t-n.length)+e.slice(t):e}const n=r?\"!v\"+r:null;if(t){const a=(e,t)=>(e%t+t)%t,c=\"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz~-\",l=\"_rhs\";const u=(e,o)=>(e||\"\").replace(/^((?:[a-z0-9]+:\\/\\/[^/]+)?(?:\\/[^/]+\\/))([^]+)/i,function(e,t,r){return t+o(r)}),p=new class StrShuffler{constructor(e=function(){let e=\"\";const t=c.split(\"\");for(;0<t.length;)e+=t.splice(Math.floor(Math.random()*t.length),1)[0];return e}()){this.dictionary=e}shuffle(t){if(window.rhDisableShuffling)return t;if(t.startsWith(l))return t;let r=\"\";for(let e=0;e<t.length;e++){var o=t.charAt(e),n=c.indexOf(o);\"%\"===o&&3<=t.length-e?r=(r=(r+=o)+t.charAt(++e))+t.charAt(++e):r+=-1===n?o:this.dictionary.charAt(a(n+e,c.length))}return l+r}unshuffle(t){if(!t.startsWith(l))return t;t=t.slice(l.length);let r=\"\";for(let e=0;e<t.length;e++){var o=t.charAt(e),n=this.dictionary.indexOf(o);\"%\"===o&&3<=t.length-e?r=(r=(r+=o)+t.charAt(++e))+t.charAt(++e):r+=-1===n?o:c.charAt(a(n-e,c.length))}return r}}(t);var o=location.href,i=u(location.href,e=>p.shuffle(e));o!==i&&history.replaceState(null,null,i);const d=j.utils.url.getProxyUrl,f=j.utils.url.parseProxyUrl;j.utils.url.overrideGetProxyUrl(function(e,t){return g||t&&t.rhNoShuffle?K(d(e,t)):K(u(d(e,t),e=>p.shuffle(e)))}),j.utils.url.overrideParseProxyUrl(function(e){return f(L(u(L(e),e=>p.unshuffle(e))))}),window.overrideGetProxyUrl(r=>function(e,t){return g||t&&t.rhNoShuffle?K(r(e,t)):K(u(r(e,t),e=>p.shuffle(e)))}),window.overrideParseProxyUrl(t=>function(e){return t(L(u(L(e),e=>p.unshuffle(e))))})}else{if(!n)return;const d=j.utils.url.getProxyUrl,f=j.utils.url.parseProxyUrl;j.utils.url.overrideGetProxyUrl((e,t)=>K(d(e,t))),j.utils.url.overrideParseProxyUrl(e=>f(L(e))),window.overrideGetProxyUrl(r=>(e,t)=>K(r(e,t))),window.overrideParseProxyUrl(t=>e=>t(L(e)))}}());var g=!1;function showCFSolverMessage(){if(!showCFSolverMessage.shown){showCFSolverMessage.shown=!0;const e=document.createElement(\"div\"),t=e.attachShadow({mode:\"closed\"}),r=document.createElement(\"div\"),o=(Object.assign(r.style,{position:\"fixed\",inset:\"0\",zIndex:\"2147483647\",display:\"flex\",flexDirection:\"column\",alignItems:\"center\",justifyContent:\"center\",gap:\"12px\",padding:\"24px\",background:\"#111\",color:\"#eee\",fontFamily:\"system-ui, sans-serif\",textAlign:\"center\"}),document.createElement(\"div\")),n=(o.textContent=\"Checking if the site connection is secure...\",Object.assign(o.style,{fontSize:\"22px\",fontWeight:\"600\"}),document.createElement(\"div\"));n.textContent=\"Cloudflare wants extra verification on this site, so we're solving it for you. This usually takes 5 to 20 seconds, and the page may reload once.\",Object.assign(n.style,{fontSize:\"15px\",maxWidth:\"480px\",lineHeight:\"1.5\",opacity:\"0.85\"}),r.append(o,n),t.append(r),document.documentElement.append(e)}}}();" + "\n//# sourceURL=" + location.origin + "/rammerhead.js");
 	        });
 	        // NOTE: We need to reattach a sandbox to the recreated iframe document.
 	        this.node.mutation.on(this.node.mutation.DOCUMENT_CLEANED_EVENT, function (e) { return _this.reattach(e.window, e.document); });
@@ -43331,14 +43664,14 @@
 	    };
 	    TransportBase._getStoredMessages = function () {
 	        var nativeLocalStorage = nativeMethods.winLocalStorageGetter.call(window);
-	        var storedMessagesStr = nativeMethods.storageGetItem.call(nativeLocalStorage, settings$1.get().sessionId);
+	        var storedMessagesStr = nativeMethods.storageGetItem.call(nativeLocalStorage, settings$1.get().rhTransportQueueKey || settings$1.get().sessionId);
 	        return storedMessagesStr ? parse$1(storedMessagesStr) : [];
 	    };
 	    TransportBase._storeMessage = function (msg) {
 	        var storedMessages = TransportBase._getStoredMessages();
 	        var nativeLocalStorage = nativeMethods.winLocalStorageGetter.call(window);
 	        storedMessages.push(msg);
-	        nativeMethods.storageSetItem.call(nativeLocalStorage, settings$1.get().sessionId, stringify(storedMessages));
+	        nativeMethods.storageSetItem.call(nativeLocalStorage, settings$1.get().rhTransportQueueKey || settings$1.get().sessionId, stringify(storedMessages));
 	    };
 	    TransportBase._removeMessageFromStore = function (cmd) {
 	        var messages = TransportBase._getStoredMessages();
@@ -43353,7 +43686,7 @@
 	        // NOTE: this condition is needed for nativeAutomation mode to preserve saving any data to localStorage
 	        // TODO: research why this works in proxy mode and does not work in nativeAutomation
 	        if (messages.length < initialMsgLength)
-	            nativeMethods.storageSetItem.call(nativeLocalStorage, settings$1.get().sessionId, stringify(messages));
+	            nativeMethods.storageSetItem.call(nativeLocalStorage, settings$1.get().rhTransportQueueKey || settings$1.get().sessionId, stringify(messages));
 	    };
 	    TransportBase.prototype.batchUpdate = function () {
 	        var storedMessages = TransportBase._getStoredMessages();
@@ -43456,7 +43789,7 @@
 	        var _this = this;
 	        if (window === window.rammerheadTop) {
 	            // @ts-ignore
-	            this._transportWorker = new nativeMethods.Worker(settings$1.get().transportWorkerUrl, { name: 'Transport' });
+	            this._transportWorker = new nativeMethods.Worker(rhTrusted('ScriptURL', settings$1.get().transportWorkerUrl), { name: 'Transport' });
 	            this._transportWorker.postMessage({
 	                cmd: SET_INITIAL_WORKER_SETTINGS_CMD,
 	                sessionId: settings$1.get().sessionId,
@@ -43466,7 +43799,7 @@
 	            this._processQueue();
 	        }
 	        else
-	            messageSandbox.sendServiceMsg({ cmd: GET_MESSAGE_PORT }, window.rammerheadTop);
+	            if (!rhScriptsBlockedFor(window)) messageSandbox.sendServiceMsg({ cmd: GET_MESSAGE_PORT }, window.rammerheadTop);
 	        messageSandbox.on(messageSandbox.SERVICE_MSG_RECEIVED_EVENT, function (_a) {
 	            var message = _a.message, source = _a.source, ports = _a.ports;
 	            if (message.cmd === GET_MESSAGE_PORT) {
@@ -43895,7 +44228,7 @@
 	    };
 	    return Hammerhead;
 	}());
-	var hammerhead = new Hammerhead();
+	var hammerhead = new Hammerhead(); hammerhead.rhCspNonce = rhCspNonce; hammerhead.rhCspPolicies = rhCspPolicies; hammerhead.rhScriptSources = rhScriptSources; hammerhead.rhNoncedScripts = rhNoncedScripts; hammerhead.rhTrusted = rhTrusted; hammerhead.rhScriptsBlocked = rhScriptsBlocked;
 	// NOTE: The 'load' event is raised after calling document.close for a same-domain iframe
 	// So, we need to define the '%hammerhead%' variable as 'configurable' so that it can be redefined.
 	nativeMethods.objectDefineProperty(window, INTERNAL_PROPS.hammerhead, {

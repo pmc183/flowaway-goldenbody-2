@@ -82,7 +82,10 @@ const proxyServer = new RammerheadProxy({
     getServerInfo: config.getServerInfo,
     disableLocalStorageSync: config.disableLocalStorageSync,
     jsCache: config.jsCache,
-    disableHttp2: config.disableHttp2
+    disableHttp2: config.disableHttp2,
+    requestTimeoutAjax: config.requestTimeoutAjax,
+    requestTimeoutPage: config.requestTimeoutPage,
+    stuckRequestTimeout: config.stuckRequestTimeout
 });
 
 if (config.publicDir) addStaticDirToProxy(proxyServer, config.publicDir);
@@ -93,6 +96,9 @@ if (!cluster.isMaster) {
 }
 const sessionStore = new RammerheadSessionFileCache(fileCacheOptions);
 sessionStore.attachToProxy(proxyServer);
+if (config.cloudflareSolver) {
+    config.cloudflareSolver.attachToProxy(proxyServer, sessionStore);
+}
 
 setupPipeline(proxyServer, sessionStore);
 setupRoutes(proxyServer, sessionStore, logger);

@@ -932,6 +932,15 @@ window.__goldenbodyAPI = {
         window.parent.postMessage({setTheme: true, theme}, '*');
     },
 
+    getAvaliableAppsToLaunch: async () => {
+        let requestId = createRequestId();
+        window.parent.postMessage({getAvaliableAppsToLaunch: true, requestId}, '*');
+        return new Promise((resolve, reject) => {
+            const handleMessage = createRequestMessageHandler(requestId, resolve, reject);
+            window.addEventListener('message', handleMessage);
+        });
+    },
+
     Observer: class {
         constructor(callback, type) {
             this.callback = callback;

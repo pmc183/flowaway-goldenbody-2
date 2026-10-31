@@ -1438,6 +1438,8 @@
             iframe.contentWindow.postMessage({ liveInstanceIndex: liveInstanceIndex, requestId: e.data.requestId }, "*");
           } else if (e.data.getTheme) {
             iframe.contentWindow.postMessage({ requestId: e.data.requestId, theme: window.protectedGlobals.data.dark ? "dark" : "light" }, "*");
+          } else if (e.data.getAvaliableAppsToLaunch) {
+            iframe.contentWindow.postMessage({ requestId: e.data.requestId, result: JSON.parse(JSON.stringify(window.protectedGlobals.apps)) }, "*");
           }
         });
         instance.iframe = iframe;

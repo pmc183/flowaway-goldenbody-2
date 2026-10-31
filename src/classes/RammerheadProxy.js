@@ -11,6 +11,7 @@ const streamToString = require('../util/streamToString');
 const URLPath = require('../util/URLPath');
 const RammerheadLogging = require('../classes/RammerheadLogging');
 const RammerheadJSMemCache = require('./RammerheadJSMemCache.js');
+const getSessionId = require('../util/getSessionId.js');
 
 require('../util/fixCorsHeader');
 require('../util/fixCorsMissingOriginHeader.js');
@@ -18,10 +19,26 @@ require('../util/fixWebsocket');
 require('../util/addMoreErrorGuards');
 require('../util/addUrlShuffling');
 require('../util/patchAsyncResourceProcessor');
+require('../util/rewriteTargetAttributeToSelf.js');
+require('../util/keepDomAttributes.js');
+require('../util/contentSecurityPolicy.js');
+require('../util/referrerPolicy.js');
+require('../util/scriptPositions.js');
+require('../util/resourceTiming.js');
+require('../util/rewriteWindowLiteral.js');
+require('../util/rewriteWindowProperty.js');
+require('../util/rewriteImportMeta.js');
+require('../util/lazyOptionalChainKey.js');
+require('../util/fixHttp2Sessions.js');
+require('../util/retryReusedSocket.js');
+require('../util/fixHotPaths.js');
+require('../util/fixModuleWorkers.js');
+const sanitizeHeaderValues = require('../util/sanitizeHeaderValues.js');
+require('../util/fixCookieParsing.js');
 let addJSDiskCache = function (jsCache) {
     require('../util/addJSDiskCache')(jsCache);
     // modification only works once
-    addJSDiskCache = () => { };
+    addJSDiskCache = () => {};
 };
 
 /**
@@ -84,75 +101,46 @@ class RammerheadProxy extends Proxy {
      * need to rewrite the hostname/port/protocol
      * @param {boolean} options.disableLocalStorageSync - disables localStorage syncing (default: false)
      * @param {import('../classes/RammerheadJSAbstractCache.js')} options.jsCache - js cache class. (default: memory class 50mb)
-     * @param {boolean} options.disableHttp2
+     * @param {boolean} options.disableHttp2 - some sites want you to use http2, but if you disable it, pipeline is much simpler and less errors.
+     * @param {number} options.requestTimeoutAjax - request timeout of ajax requests. defaults to 2 minutes (hammerhead default)
+     * @param {number} options.requestTimeoutPage - request timeout of page requests. defaults to 25 seconds (hammerhead default)
+     * @param {number} options.stuckRequestTimeout - answer 504 and log requests that haven't started responding after this long. defaults to 3 minutes. 0 disables
      */
     constructor({
         loggerGetIP = (req) => req.socket.remoteAddress,
         logger = new RammerheadLogging({ logLevel: 'disabled' }),
-    // bindingAddress: hostname/address to bind the proxy to. If not provided, reads
-    // from env var BINDING_ADDRESS, otherwise defaults to 0.0.0.0 (all interfaces).
-    bindingAddress = process.env.BINDING_ADDRESS || '0.0.0.0',
-        port = 80,
+        bindingAddress = '0.0.0.0',
+        port = 8080,
         crossDomainPort = 8081,
         dontListen = false,
         ssl = null,
         getServerInfo = (req) => {
-            // Determine original protocol when running behind TLS-terminating proxies
-            // (cloudflared, nginx, etc). Prefer explicit forwarded headers, fall
-            // back to socket.encrypted when not present.
-            const hdr = req.headers || {};
-            // x-forwarded-proto is most common and may contain 'http' or 'https'
-            const protoHeader = (hdr['x-forwarded-proto'] || hdr['x-forwarded-protocol'] || hdr['x-forwarded-scheme'] || hdr['x-forwarded'] || hdr.forwarded || '').toString();
-
-            let proto = '';
-            if (protoHeader) {
-                // try to extract a protocol token
-                const m = protoHeader.match(/https?|:(https?|http)/i);
-                if (m) proto = m[0].replace(/^:/, '');
-                else proto = protoHeader.split(',')[0].trim();
-            }
-
-            const protocol = (proto ? (proto.endsWith(':') ? proto : proto + ':') : (req.socket && req.socket.encrypted ? 'https:' : 'http:'));
-
-            // Host header may include port
-            const hostHeader = req.headers && req.headers.host ? req.headers.host : '';
-            let hostname = hostHeader;
-            let port = protocol === 'https:' ? 443 : 80;
-            if (hostHeader) {
-                // handle IPv6 [::1]:port
-                if (hostHeader[0] === '[') {
-                    const end = hostHeader.indexOf(']');
-                    hostname = hostHeader.slice(0, end + 1);
-                    const rest = hostHeader.slice(end + 1);
-                    if (rest.startsWith(':')) port = parseInt(rest.slice(1), 10) || port;
-                } else if (hostHeader.indexOf(':') !== -1 && hostHeader.split(':').length === 2) {
-                    const parts = hostHeader.split(':');
-                    hostname = parts[0];
-                    port = parseInt(parts[1], 10) || port;
-                } else {
-                    hostname = hostHeader;
-                }
-            }
-
+            const { hostname, port } = new URL('http://' + req.headers.host);
             return {
                 hostname,
                 port,
-                protocol
+                protocol: req.socket.encrypted ? 'https:' : 'http:'
             };
         },
         disableLocalStorageSync = false,
         jsCache = new RammerheadJSMemCache(50 * 1024 * 1024),
-        disableHttp2 = false
+        disableHttp2 = false,
+        requestTimeoutAjax = 2 * 60 * 1000,
+        requestTimeoutPage = 25 * 1000,
+        stuckRequestTimeout = 3 * 60 * 1000
     } = {}) {
         // as of testcafe-hammerhead version 31.6.2, they put the code for starting the server in a separate "start()"
         // method. due to the proxy focused nature of rammerhead, and backwards-compatibility, there won't be a need for
         // start()
 
         super({ staticContentCaching: true });
+        this.requestTimeoutAjax = requestTimeoutAjax;
+        this.requestTimeoutPage = requestTimeoutPage;
+        this.stuckRequestTimeout = stuckRequestTimeout;
 
         if (!crossDomainPort) {
             const httpOrHttps = ssl ? https : http;
-            const proxyHttpOrHttps = http;
+            const proxyHttpOrHttps = httpOrHttps;
             const originalProxyCreateServer = proxyHttpOrHttps.createServer;
             const originalCreateServer = httpOrHttps.createServer; // handle recursion case if proxyHttpOrHttps and httpOrHttps are the same
             let onlyOneHttpServer = null;
@@ -161,7 +149,7 @@ class RammerheadProxy extends Proxy {
             // a downside to using only one proxy server is that crossdomain requests
             // will not be simulated correctly
             proxyHttpOrHttps.createServer = function (...args) {
-                const emptyFunc = () => { };
+                const emptyFunc = () => {};
                 if (onlyOneHttpServer) {
                     // createServer for server1 already called. now we return a mock http server for server2
                     return { on: emptyFunc, listen: emptyFunc, close: emptyFunc };
@@ -172,12 +160,10 @@ class RammerheadProxy extends Proxy {
 
             // now, we force the server to listen to a specific port and a binding address, regardless of what
             // hammerhead server.listen(anything)
-            const originalListen = http.Server.prototype.listen;
-            http.Server.prototype.listen = function (_proxyPort) {
+            const originalListen = httpOrHttps.Server.prototype.listen;
+            httpOrHttps.Server.prototype.listen = function (_proxyPort) {
                 if (dontListen) return;
-                // If bindingAddress is truthy, pass it to listen(), otherwise let OS choose
-                if (bindingAddress) originalListen.call(this, port, bindingAddress);
-                else originalListen.call(this, port);
+                originalListen.call(this, port, bindingAddress);
             };
 
             // actual proxy initialization
@@ -192,23 +178,24 @@ class RammerheadProxy extends Proxy {
 
             // restore hooked functions to their original state
             proxyHttpOrHttps.createServer = originalProxyCreateServer;
-            http.Server.prototype.listen = originalListen;
+            httpOrHttps.Server.prototype.listen = originalListen;
         } else {
             // just initialize the proxy as usual, since we don't need to do hacky stuff like the above.
             // we still need to make sure the proxy binds to the correct address though
-            const originalListen = http.Server.prototype.listen;
-            http.Server.prototype.listen = function (portArg) {
+            const httpOrHttps = ssl ? https : http;
+            const originalListen = httpOrHttps.Server.prototype.listen;
+            httpOrHttps.Server.prototype.listen = function (portArg) {
                 if (dontListen) return;
-                if (bindingAddress) originalListen.call(this, portArg, bindingAddress);
-                else originalListen.call(this, portArg);
+                originalListen.call(this, portArg, bindingAddress);
             };
             super.start({
                 hostname: 'doesntmatter',
                 port1: port,
-                port2: crossDomainPort
+                port2: crossDomainPort,
+                ssl
             });
             this.crossDomainPort = crossDomainPort;
-            http.Server.prototype.listen = originalListen;
+            httpOrHttps.Server.prototype.listen = originalListen;
         }
 
         this._setupRammerheadServiceRoutes();
@@ -221,8 +208,7 @@ class RammerheadProxy extends Proxy {
             'permissions-policy': (headerValue) => headerValue && headerValue.replace(/sync-xhr/g, 'sync-yes'),
             'feature-policy': (headerValue) => headerValue && headerValue.replace(/sync-xhr/g, 'sync-yes'),
             'referrer-policy': () => 'no-referrer-when-downgrade',
-            'report-to': () => undefined,
-            'cross-origin-embedder-policy': () => undefined
+            'report-to': () => undefined
         };
 
         this.getServerInfo = getServerInfo;
@@ -238,7 +224,9 @@ class RammerheadProxy extends Proxy {
     }
 
     start() {
-        throw new TypeError('rammerhead does not need a start(). server will automatically start when constructor is initialized.');
+        throw new TypeError(
+            'rammerhead does not need a start(). server will automatically start when constructor is initialized.'
+        );
     }
 
     // add WS routing
@@ -432,6 +420,7 @@ class RammerheadProxy extends Proxy {
                     }
                 }
 
+                sanitizeHeaderValues(headers);
                 if (statusMessage) {
                     originalWriteHead.call(this, statusCode, statusMessage, headers);
                 } else {
@@ -443,18 +432,69 @@ class RammerheadProxy extends Proxy {
         const isRoute = this.checkIsRoute(req);
         const ip = this.loggerGetIP(req);
 
+        // fix zstd responses (chrome offers it, cloudflare uses it) skipping rewriting. hammerhead can't decode zstd
+        const acceptEncoding = req.headers['accept-encoding'];
+        if (acceptEncoding) {
+            req.headers['accept-encoding'] =
+                acceptEncoding
+                    .split(',')
+                    .filter((encoding) => /^\s*(gzip|deflate|br|identity)\b/i.test(encoding))
+                    .join(',') || 'identity';
+        }
+
+        // pipeline stage, for the stuck request log
+        let stage = 'onRequestPipeline[0]';
+        if (!isWebsocket && this.stuckRequestTimeout) {
+            const timer = setTimeout(() => {
+                if (res.headersSent || res.writableEnded) return;
+                // leave the session id out of logs
+                const dest = (req.url || '').replace(/^\/[^/]+\//, '').slice(0, 100);
+                this.logger.warn(
+                    `(proxy) stuck request: no response after ${this.stuckRequestTimeout / 1000}s, in ${stage}: ${
+                        req.method
+                    } ${dest}`
+                );
+                try {
+                    res.writeHead(504);
+                    res.end();
+                } catch (e) {
+                    // headers may already be partly sent
+                }
+                req.socket.destroy();
+            }, this.stuckRequestTimeout);
+            timer.unref();
+            const clear = () => clearTimeout(timer);
+            res.once('finish', clear);
+            res.once('close', clear);
+        }
+
         this.logger.traffic(`${isRoute ? 'ROUTE ' : ''}${ip} ${req.url}`);
-        for (const handler of this.onRequestPipeline) {
-            if ((await handler.call(this, req, res, serverInfo, isRoute, isWebsocket)) === true) {
+        for (let i = 0; i < this.onRequestPipeline.length; i++) {
+            stage = `onRequestPipeline[${i}]`;
+            if ((await this.onRequestPipeline[i].call(this, req, res, serverInfo, isRoute, isWebsocket)) === true) {
                 return;
             }
         }
+        stage = isRoute ? 'route handler' : 'hammerhead pipeline';
         // hammerhead's routing does not support websockets. Allowing it
         // will result in an error thrown
         if (isRoute && isWebsocket) {
             httpResponse.badRequest(this.logger, req, res, ip, 'Rejected unsupported websocket request');
             return;
         }
+
+        // inject timeout options
+        const sessionId = getSessionId(req.url) || getSessionId(req.headers.referer);
+        /**
+         * @type {import('./RammerheadSession.js')}
+         */
+        const session = sessionId && this.openSessions.get(sessionId || '');
+        if (session) {
+            if (!session.options.requestTimeout) session.options.requestTimeout = {};
+            session.options.requestTimeout.ajax = this.requestTimeoutAjax;
+            session.options.requestTimeout.page = this.requestTimeoutPage;
+        }
+
         super._onRequest(req, res, serverInfo);
     }
     /**
@@ -495,18 +535,32 @@ class RammerheadProxy extends Proxy {
      * @private
      */
     _setupRammerheadServiceRoutes() {
+        // fix rammerhead.js's cloudflare solver calls (with the session id) being forwarded to the site when no
+        // solver is attached. a solver's attachToProxy replaces these
+        const solverNotEnabled = (_req, res) => {
+            res.writeHead(404);
+            res.end('cloudflare solver not enabled');
+        };
+        this.POST('/api/cloudflare-bulldozer', solverNotEnabled);
+        this.GET('/api/cloudflare-bulldozer-status', solverNotEnabled);
+        this.GET('/api/cloudflare-bulldozer-response', solverNotEnabled);
+        this.GET('/api/cloudflare-bulldozer-free', solverNotEnabled);
         this.GET('/rammerhead.js', {
             content: fs.readFileSync(
                 path.join(__dirname, '../client/rammerhead' + (process.env.DEVELOPMENT ? '.js' : '.min.js'))
             ),
             contentType: 'application/x-javascript'
         });
-        this.GET('/api/shuffleDict', (req, res) => {
+        this.GET('/api/dictionary', (req, res) => {
             const { id } = new URLPath(req.url).getParams();
             if (!id || !this.openSessions.has(id)) {
                 return httpResponse.badRequest(this.logger, req, res, this.loggerGetIP(req), 'Invalid session id');
             }
-            res.end(''); // JSON.stringify(this.openSessions.get(id).shuffleDict) || 
+            // the deployment cache tag travels as a header so old and
+            // new clients/servers inter-operate (old clients just ignore it)
+            const tag = require('../util/deployCacheTag').tag;
+            if (tag) res.setHeader('x-cache-tag', tag);
+            res.end(JSON.stringify(this.openSessions.get(id).shuffleDict) || '');
         });
     }
     /**
@@ -621,7 +675,8 @@ class RammerheadProxy extends Proxy {
     }
     close() {
         super.close();
-        this.openSessions.close();
+        // plain Map until a session store is attached
+        if (typeof this.openSessions.close === 'function') this.openSessions.close();
     }
 
     /**

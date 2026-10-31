@@ -169,7 +169,6 @@ async function handleWatchConnection(ws, req) {
       type: 'watch',
       event: eventName,
       path: toRelativePath(root, absolutePath),
-      username,
       recursive,
       ...extra,
     };

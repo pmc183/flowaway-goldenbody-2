@@ -1,19 +1,26 @@
 node_modules/
 
 # don't commit generated builds or env files
-src/server/zmcdfiles/
-node_modules/
-dist/
-build/
-archive/
-.vscode/
+src/client/*.min.*
+src/client/hammerhead.js
+src/client/worker-hammerhead.js
+src/client/transport-worker.js
 .env
 
-# don't commit session and cache data
-sessions/*
+# don't commit session, cache, and cf token data
+cf-clearances/*
+src/server/zmcdfiles/
+archive/
 
 # but commit the empty folders
 !sessions/.gitkeep
 !cache-js/.gitkeep
+!cf-clearances/.gitkeep
 !moderation/.gitkeep
+
 # ignore any custom configurations
+config.js
+
+# local scratch scripts and build tarballs
+test.sh
+*.tar.bz2

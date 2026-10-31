@@ -3,10 +3,12 @@ const fs = require('fs');
 const os = require('os');
 const RammerheadJSMemCache = require('./classes/RammerheadJSMemCache.js');
 const RammerheadJSFileCache = require('./classes/RammerheadJSFileCache.js');
+const RammerheadCloudflareCapSolver = require('./classes/RammerheadCloudflareCapSolver.js');
+const RammerheadCloudflare2Captcha = require('./classes/RammerheadCloudflare2Captcha.js');
 
 // Local raw uploads are unreliable in multi-worker mode.
 // workers are unsupported in the current version, it may be supported later
-const enableWorkers = process.env.ENABLE_WORKERS === '1' || process.env.ENABLE_WORKERS === 'true';
+const enableWorkers = false;
 
 module.exports = {
     //// HOSTING CONFIGURATION ////

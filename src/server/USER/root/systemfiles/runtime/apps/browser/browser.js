@@ -79,21 +79,6 @@ window.browser = async function (
     let getCurProfileName = function() { return curProfileName; };
     window.browserGlobals.getCurProfileName = getCurProfileName;
 
-    // Only create/inject the built-in userscript when a profile is created.
-    // We do not auto-write it on every startup for existing profiles.
-    async function ensureDefaultUserscriptForProfile(profileName) {
-      if (!profileName) return;
-      const scriptPath = "/systemfiles/runtime/apps/browser/" + profileName + "/userscripts/EggPatcher/script.txt";
-      if (await window.protectedGlobals.FileExists(scriptPath)) return;
-
-      const assetPath = "/systemfiles/runtime/apps/browser/asset/defaultUserscripts/EggPatcher/script.txt";
-      const targetFolder = "/systemfiles/runtime/apps/browser/" + profileName + "/userscripts/EggPatcher";
-      const src = await window.protectedGlobals.ReadFile(assetPath, { text: true, direct: true });
-      await window.protectedGlobals.WriteFile(scriptPath, src, { text: true }).catch(() => {});
-      await window.protectedGlobals.WriteFile(targetFolder + "/active.txt", "true", { text: true });
-      await window.protectedGlobals.WriteFile(targetFolder + "/name.txt", "EggPatcher", { text: true });
-    }
-
     // initialize curProfileName from defaultprofile.txt if present
     async function initDefaultProfile() {
       try {
@@ -122,7 +107,6 @@ window.browser = async function (
           await populateActivatedUserscripts();
           // load userscripts into in-memory map so iframe patches do not need to read files
           try { await loadActivatedUserscripts(); } catch (e) {}
-          if (needscript) try { await ensureDefaultUserscriptForProfile(getCurProfileName()); } catch {}
         } catch (e) {}
       } catch (e) {}
     }
@@ -994,7 +978,6 @@ setTimeout(() => {
               try { await window.protectedGlobals.WriteFolder(folderPath + "/localstorage").catch(() => {}); } catch (e) {}
               await window.protectedGlobals.WriteFile(folderPath + "/localstorage/cookies.json", "{}", { text: true }).catch(() => {});
               await window.protectedGlobals.WriteFile(folderPath + "/localstorage/localstorage.json", "{}", { text: true }).catch(() => {});
-              try { await ensureDefaultUserscriptForProfile(safeName).catch(()=>{}); } catch (e) {}
               let content = "";
               try {
                 content = await window.protectedGlobals.ReadFile(listPath, { text: true, direct: true }).catch(() => "") || "";

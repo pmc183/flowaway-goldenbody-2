@@ -246,7 +246,7 @@ window.protectedGlobals.firstlogin = false;
     });
   }
 
-  function send(needNewAcc) {
+  async function send(needNewAcc) {
     const username = document.getElementById('zmc-user').value;
     const password = document.getElementById('zmc-pass').value;
 
@@ -285,7 +285,7 @@ window.protectedGlobals.firstlogin = false;
       needNewAcc,
     };
 
-    fetch(window.protectedGlobals.zmcdserver, {
+    return fetch(window.protectedGlobals.zmcdserver, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -313,7 +313,7 @@ window.protectedGlobals.firstlogin = false;
           return;
         }
 
-        msg.textContent = 'Success!';
+        msg.textContent = 'Success! Waiting for system to load...';
         msg.style.color = 'lime';
         await fetch('/server/updatesystem?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
         window.protectedGlobals.data = window.protectedGlobals.zmcdata;
@@ -332,8 +332,32 @@ window.protectedGlobals.firstlogin = false;
       });
   }
 
-  document.getElementById('zmc-login').onclick = () => send(false);
-  document.getElementById('zmc-register').onclick = () => send(true);
+  const disableButtons = () => {
+    document.getElementById('zmc-login').disabled = true;
+    document.getElementById('zmc-register').disabled = true;
+  };
+  const enableButtons = () => {
+    document.getElementById('zmc-login').disabled = false;
+    document.getElementById('zmc-register').disabled = false;
+  }
+  document.getElementById('zmc-login').onclick = async () => {
+    disableButtons();
+    try {
+      await send(false);
+    }
+    finally {
+      enableButtons();
+    }
+  };
+  document.getElementById('zmc-register').onclick = async () => {
+    disableButtons();
+    try {
+      await send(true);
+    }
+    finally {
+      enableButtons();
+    }
+  };
 
   const tryLoadRecoveryCatalog = async () => {
     if (recoveryUserInput.value.trim() && recoveryPassInput.value.trim()) {

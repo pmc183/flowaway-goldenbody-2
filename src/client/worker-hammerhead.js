@@ -14,7 +14,7 @@
   OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
   PERFORMANCE OF THIS SOFTWARE.
   ***************************************************************************** */
-  /* global Reflect, Promise, SuppressedError, Symbol, Iterator */
+  /* global Reflect, Promise, SuppressedError, Symbol */
 
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf ||
@@ -179,7 +179,7 @@
       if (opts.reqOrigin)
           params.push(encodeURIComponent(makeShortOrigin(opts.reqOrigin)));
       var descriptor = params.join(REQUEST_DESCRIPTOR_VALUES_SEPARATOR);
-      var proxyProtocol = opts.proxyProtocol || (typeof window !== 'undefined' && window.location && window.location.protocol ? window.location.protocol : 'http:');
+      var proxyProtocol = opts.proxyProtocol || 'http:';
       return "".concat(proxyProtocol, "//").concat(opts.proxyHostname, ":").concat(opts.proxyPort, "/").concat(descriptor, "/").concat(convertHostToLowerCase(url));
   }
   function getDomain(parsed) {
@@ -2139,6 +2139,9 @@
       if (nativeAutomation)
           return String(url);
       url = getURLString(url);
+      var rhBlob = /^blob:([^/]+\/\/[^/]+)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(url);
+      if (rhBlob && rhBlob[1] !== self.location.origin)
+          url = 'blob:' + self.location.origin + '/' + rhBlob[2];
       var resourceType = opts && opts.resourceType;
       var parsedResourceType = parseResourceType(resourceType);
       if (!parsedResourceType.isWebSocket && !isSupportedProtocol(url) && !isSpecialPage(url))
@@ -3010,7 +3013,7 @@
               }
               for (var i = 0; i < urls.length; i++)
                   urls[i] = getProxyUrl(urls[i], { resourceType: stringifyResourceType({ isScript: true }) });
-              return nativeMethods.importScripts.apply(self, urls);
+              var rhPolicy = self["hammerhead|trusted-policy"]; if (rhPolicy) for (var rhI = 0; rhI < urls.length; rhI++) urls[rhI] = rhPolicy.createScriptURL(urls[rhI]); return nativeMethods.importScripts.apply(self, urls);
           });
       };
       WorkerHammerhead.prototype._getBlobSettings = function () {

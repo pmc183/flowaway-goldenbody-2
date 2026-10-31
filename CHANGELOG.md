@@ -202,6 +202,20 @@
 - removed legacy trailing /root/ in front of path more.
 - added zip and unzip for zipUtility app.
 
-# V 2.6.4
+## V 2.6.4
 - Removed startup tree loader (expensive).
 - which made goldenbody 10x faster than b4.
+
+## V 2.7.0
+- **Update Rammerhead to newest version**
+- Removed excessive treedata fetch in file pickers.
+- Added multiple support for file/folder picker for iframe apps.
+- new normal for the compact taskbar, updated taskbar to be more compact for the compact mode.
+- Added take screenshot in shortcuts tab.
+- Fixed spamming login/signup creates dupe load overlays that wont clear.
+- Fixed double window open in iframe apps when using ctrl+n
+- File name overflow handling. 
+- Fixed "All Files Loaded." style dont dynamic change
+- Added __goldenbodyAPI.getAvaliableAppsToLaunch() for iframe apps.
+- Updated login/signup page so users wont think they got stuck by more state feedback.
+- Some annoying bugs fixed are not documented.
