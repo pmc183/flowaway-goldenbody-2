@@ -2871,10 +2871,10 @@ setTimeout(() => {
           ev.clientY - 20,
         ); // your custom function
         // console.log(root);
-        window.browserGlobals.dragstartwindow.closeTab(window.browserGlobals.draggedtab.id);
         window.protectedGlobals.changeCursorToWait();
         try {
           await __promise;
+          window.browserGlobals.dragstartwindow.closeTab(window.browserGlobals.draggedtab.id);
         } catch {}
         finally {
           window.protectedGlobals.changeCursorToDefault();
@@ -3305,10 +3305,13 @@ setTimeout(() => {
       let pendingNavigation = null;
       Object.defineProperty(tab.iframe, "src", {
         set(value) {
+          if (value === "about:blank") {
+            this.setAttribute("src", "about:blank");
+            return;
+          }
           clearTimeout(pendingNavigation);
 
           this.setAttribute("src", "about:blank");
-
           pendingNavigation = setTimeout(() => {
             pendingNavigation = null;
             this.setAttribute("src", value);

@@ -151,64 +151,323 @@
         </div>
     </div>
 
-    <script>
-        const musicToggle = document.createElement('button');
-        musicToggle.textContent = 'Onlypuppy\'s Theme';
-        musicToggle.className = 'action-btn secondary';
-        musicToggle.onclick = () => {
-          if (window.backgroundMusic && !window.backgroundMusic.paused) {
-            window.backgroundMusic.pause();
-            localStorage.setItem('musicEnabled', 'false');
-          } else {
-            if (!window.backgroundMusic) {
-              window.backgroundMusic = new Audio("https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/onlypuppy'sTheme.mp3");
-              window.backgroundMusic.loop = true;
+
+<script>
+    // ==========================================
+    // BACKGROUND MUSIC CONTROLLER
+    // ==========================================
+
+    const MUSIC_STORAGE_KEY = 'backgroundMusicTrack';
+
+    const MUSIC_TRACKS = {
+        puppy: {
+            name: "Onlypuppy's Theme",
+            url: "https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/onlypuppy'sTheme.mp3"
+        },
+
+        statefarm: {
+            name: "We Are The StateFarm Client",
+            url: "https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/weAreTheStatefarmClient.mp3"
+        }
+    };
+
+    let backgroundAudio = new Audio();
+    backgroundAudio.loop = true;
+    backgroundAudio.preload = 'auto';
+
+    let currentTrack = null;
+    let musicPlaying = false;
+    let musicButtons = {};
+
+    function saveMusicPreference(track) {
+        try {
+            if (track) {
+                localStorage.setItem(MUSIC_STORAGE_KEY, track);
+            } else {
+                localStorage.removeItem(MUSIC_STORAGE_KEY);
             }
-            window.backgroundMusic.play();
-            localStorage.setItem('musicEnabled', 'true');
-          }
+        } catch (error) {
+            console.warn('Unable to save music preference:', error);
+        }
+    }
+
+    function getSavedMusicPreference() {
+        try {
+            const saved = localStorage.getItem(MUSIC_STORAGE_KEY);
+
+            return MUSIC_TRACKS[saved] ? saved : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function updateMusicButtons() {
+        for (const [track, button] of Object.entries(musicButtons)) {
+            const active = currentTrack === track && musicPlaying;
+
+            button.setAttribute('aria-pressed', String(active));
+
+            button.textContent = active
+                ? MUSIC_TRACKS[track].name + ' (Playing)'
+                : MUSIC_TRACKS[track].name;
+        }
+    }
+
+    async function playBackgroundMusic(track, savePreference = true) {
+        if (!MUSIC_TRACKS[track]) return;
+
+        const selectedTrack = MUSIC_TRACKS[track];
+
+        // Already playing the selected song.
+        if (
+            currentTrack === track &&
+            !backgroundAudio.paused
+        ) {
+            return;
+        }
+
+        // Stop the previous song before switching.
+        backgroundAudio.pause();
+
+        // Only change the source when necessary.
+        if (currentTrack !== track) {
+            currentTrack = track;
+            backgroundAudio.src = selectedTrack.url;
+            backgroundAudio.load();
+        }
+
+        if (savePreference) {
+            saveMusicPreference(track);
+        }
+
+        musicPlaying = false;
+        updateMusicButtons();
+
+        try {
+            await backgroundAudio.play();
+
+            // Confirm that playback actually started.
+            musicPlaying = !backgroundAudio.paused;
+            updateMusicButtons();
+
+        } catch (error) {
+            musicPlaying = false;
+            updateMusicButtons();
+
+            console.warn('Background music could not play:', error);
+        }
+    }
+
+    function stopBackgroundMusic(savePreference = true) {
+        backgroundAudio.pause();
+
+        musicPlaying = false;
+
+        if (savePreference) {
+            saveMusicPreference(null);
+        }
+
+        updateMusicButtons();
+    }
+
+    function toggleBackgroundMusic(track) {
+        if (
+            currentTrack === track &&
+            !backgroundAudio.paused
+        ) {
+            stopBackgroundMusic(true);
+        } else {
+            playBackgroundMusic(track, true);
+        }
+    }
+
+    // Keep playback state synchronized with the actual audio element.
+    backgroundAudio.addEventListener('play', () => {
+        musicPlaying = true;
+        updateMusicButtons();
+    });
+
+    backgroundAudio.addEventListener('pause', () => {
+        musicPlaying = false;
+        updateMusicButtons();
+    });
+
+    backgroundAudio.addEventListener('ended', () => {
+        musicPlaying = false;
+        updateMusicButtons();
+    });
+
+    backgroundAudio.addEventListener('error', () => {
+        musicPlaying = false;
+        updateMusicButtons();
+
+        console.warn('Background music failed to load.');
+    });
+
+    // ==========================================
+    // MUSIC BUTTONS
+    // ==========================================
+
+    const musicToggle = document.createElement('button');
+
+    musicToggle.type = 'button';
+    musicToggle.className = 'action-btn secondary';
+    musicToggle.textContent = MUSIC_TRACKS.puppy.name;
+    musicToggle.dataset.musicControl = 'true';
+
+    musicToggle.onclick = () => {
+        toggleBackgroundMusic('puppy');
+    };
+
+    const music2 = document.createElement('button');
+
+    music2.type = 'button';
+    music2.className = 'action-btn secondary';
+    music2.textContent = MUSIC_TRACKS.statefarm.name;
+    music2.dataset.musicControl = 'true';
+
+    music2.onclick = () => {
+        toggleBackgroundMusic('statefarm');
+    };
+
+    musicButtons = {
+        puppy: musicToggle,
+        statefarm: music2
+    };
+
+    updateMusicButtons();
+
+    // ==========================================
+    // RESTORE PREVIOUS MUSIC PREFERENCE
+    // ==========================================
+
+    const savedTrack = getSavedMusicPreference();
+
+    if (savedTrack) {
+        // Do not attempt autoplay immediately.
+        // Browsers generally require user interaction.
+        const resumeMusic = (event) => {
+            // Avoid interfering with the music buttons themselves.
+            if (
+                event.target instanceof Element &&
+                event.target.closest('[data-music-control]')
+            ) {
+                return;
+            }
+
+            document.removeEventListener('pointerdown', resumeMusic);
+
+            playBackgroundMusic(savedTrack, false);
         };
-        if (localStorage.getItem('musicEnabled') === 'true') {
-            document.addEventListener('pointerdown', () => {musicToggle.click();}, { once: true });
-        }
-        function playAudio(url) {
-          let audio = new Audio(url);
-          audio.play();
-        }
-        function playCompoundAudio() {
-          playAudio('https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/enterMusic.wav');
-          setTimeout(() => {
-            playAudio("https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/Karazhan'sDoors.wav");
-          }, 200);
-        }
-        function launchHomepage(newTab = false) {
-          try { playCompoundAudio(); } catch {}
-          let a;
-            const width = window.screen.availWidth;
-            const height = window.screen.availHeight;
-          if (newTab) a = window.open('about:blank', '_blank', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=yes`);
-          else a = window.open('about:blank', '_blank');
-          let script = a.document.createElement('script');
-          script.src = 'ouchbad.js';
-          a.document.body.appendChild(script);
+
+        document.addEventListener('pointerdown', resumeMusic);
+    }
+
+    // ==========================================
+    // SHORT COMPOUND AUDIO
+    // ==========================================
+
+    let compoundAudio = null;
+    let compoundAudioSecond = null;
+
+    function playCompoundAudio() {
+        // Prevent multiple overlapping compound sequences.
+        if (compoundAudio) {
+            compoundAudio.pause();
+            compoundAudio.currentTime = 0;
         }
 
-        const actions = document.getElementById('actions');
+        if (compoundAudioSecond) {
+            compoundAudioSecond.pause();
+            compoundAudioSecond.currentTime = 0;
+        }
 
-        let a = document.createElement('button');
-        a.type = 'button';
-        a.textContent = 'Open homepage in new tab';
-        a.className = 'action-btn primary';
-        a.onclick = () => launchHomepage(false);
-        actions.appendChild(a);
+        compoundAudio = new Audio(
+            'https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/enterMusic.wav'
+        );
 
-        let b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = 'Open homepage in new window';
-        b.className = 'action-btn secondary';
-        b.onclick = () => launchHomepage(true);
-        actions.appendChild(b);
-        document.querySelector('.actions').appendChild(musicToggle);
-    </script>
+        compoundAudioSecond = new Audio(
+            "https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/Karazhan'sDoors.wav"
+        );
+
+        compoundAudio.addEventListener('ended', () => {
+            compoundAudioSecond.play().catch(error => {
+                console.warn('Second compound audio failed:', error);
+            });
+        }, { once: true });
+
+        compoundAudio.play().catch(error => {
+            console.warn('Compound audio failed:', error);
+        });
+    }
+
+    // ==========================================
+    // HOMEPAGE LAUNCHER
+    // ==========================================
+
+    function launchHomepage(newTab = false) {
+        playCompoundAudio();
+
+        const width = window.screen.availWidth;
+        const height = window.screen.availHeight;
+
+        let a;
+
+        if (newTab) {
+            a = window.open(
+                'about:blank',
+                '_blank',
+                `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=yes`
+            );
+        } else {
+            a = window.open('about:blank', '_blank');
+        }
+
+        // Popup blockers can prevent window.open().
+        if (!a) {
+            console.warn('Homepage popup was blocked.');
+            return;
+        }
+
+        try {
+            const script = a.document.createElement('script');
+
+            script.src = 'ouchbad.js';
+
+            a.document.body.appendChild(script);
+        } catch (error) {
+            console.error('Unable to launch homepage:', error);
+        }
+    }
+
+    // ==========================================
+    // ACTION BUTTONS
+    // ==========================================
+
+    const actions = document.getElementById('actions');
+
+    const a = document.createElement('button');
+
+    a.type = 'button';
+    a.textContent = 'Open homepage in new tab';
+    a.className = 'action-btn primary';
+    a.onclick = () => launchHomepage(false);
+
+    actions.appendChild(a);
+
+    const b = document.createElement('button');
+
+    b.type = 'button';
+    b.textContent = 'Open homepage in new window';
+    b.className = 'action-btn secondary';
+    b.onclick = () => launchHomepage(true);
+
+    actions.appendChild(b);
+
+    actions.appendChild(musicToggle);
+    actions.appendChild(music2);
+
+</script>
+
 </body>
 </html>

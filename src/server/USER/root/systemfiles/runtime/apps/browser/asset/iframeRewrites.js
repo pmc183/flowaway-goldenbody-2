@@ -263,12 +263,27 @@ async function iframePatches() {
     menu.appendChild(item);
     return item;
   }
-
+  async function checkEruda() {
+    let win = patchedTab.iframe.contentWindow;
+    if (!win.eruda) {
+      let script = document.createElement("script");
+      script.textContent = window.protectedGlobals.erudaText;
+      win.document.head.appendChild(script);
+      win.eruda.init();
+      win.eruda.get("entryBtn").hide();
+      await new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (win.eruda) clearInterval(checkInterval), resolve();
+        }, 100);
+      });
+    }
+  }
   function addInspectContextMenuItem() {
     addContextMenuItem(
       "inspect\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0Ctrl+Shift+I",
-      () => {
+      async () => {
         let win = patchedTab.iframe.contentWindow;
+        await checkEruda();
         win.eruda[win._goldenbodyIns ? "hide" : "show"]();
         win._goldenbodyIns = !win._goldenbodyIns;
       },
@@ -502,186 +517,10 @@ function getAbsoluteMousePosition(e) {
     });
     root.focus();
   }
-  // ----------------------------
-  // **Inject override into iframe
-  // ----------------------------
 
-  const observedDocs = new WeakSet();
-  const observedRoots = new WeakSet();
-  const trackedFrames = new WeakSet();
-
-  function installDOMIframeHooks(rootNode) {
-    const win = rootNode?.defaultView || rootNode?.ownerDocument?.defaultView;
-    if (!win || win.__gbIframeDomHooksInstalled) return;
-    win.__gbIframeDomHooksInstalled = true;
-
-    try {
-      const docProto = win.Document && win.Document.prototype;
-      if (docProto && !docProto.__gbCreateElementIframeWrapped) {
-        docProto.__gbCreateElementIframeWrapped = true;
-        const nativeCreateElement = docProto.createElement;
-        docProto.createElement = function (tagName, options) {
-          const created = nativeCreateElement.call(this, tagName, options);
-          try {
-            if (String(tagName || "").toLowerCase() === "iframe" && created) {
-              watchFrame(created, this);
-            }
-          } catch (e) {}
-          return created;
-        };
-      }
-    } catch (e) {}
-
-    try {
-      const nodeProto = win.Node && win.Node.prototype;
-      if (nodeProto && !nodeProto.__gbIframeNodeOpsWrapped) {
-        nodeProto.__gbIframeNodeOpsWrapped = true;
-
-        const nativeAppendChild = nodeProto.appendChild;
-        nodeProto.appendChild = function (child) {
-          const ret = nativeAppendChild.call(this, child);
-          try {
-            scanNodeForFrames(child, this.getRootNode?.() || this);
-          } catch (e) {}
-          return ret;
-        };
-
-        const nativeInsertBefore = nodeProto.insertBefore;
-        nodeProto.insertBefore = function (newNode, referenceNode) {
-          const ret = nativeInsertBefore.call(this, newNode, referenceNode);
-          try {
-            scanNodeForFrames(newNode, this.getRootNode?.() || this);
-          } catch (e) {}
-          return ret;
-        };
-
-        const nativeReplaceChild = nodeProto.replaceChild;
-        nodeProto.replaceChild = function (newChild, oldChild) {
-          const ret = nativeReplaceChild.call(this, newChild, oldChild);
-          try {
-            scanNodeForFrames(newChild, this.getRootNode?.() || this);
-          } catch (e) {}
-          return ret;
-        };
-      }
-    } catch (e) {}
-
-    try {
-      const elemProto = win.Element && win.Element.prototype;
-      if (elemProto && !elemProto.__gbIframeAppendOpsWrapped) {
-        elemProto.__gbIframeAppendOpsWrapped = true;
-
-        const nativeAppend = elemProto.append;
-        if (nativeAppend) {
-          elemProto.append = function (...nodes) {
-            const ret = nativeAppend.apply(this, nodes);
-            for (const node of nodes) {
-              try {
-                scanNodeForFrames(node, this.getRootNode?.() || this);
-              } catch (e) {}
-            }
-            return ret;
-          };
-        }
-
-        const nativePrepend = elemProto.prepend;
-        if (nativePrepend) {
-          elemProto.prepend = function (...nodes) {
-            const ret = nativePrepend.apply(this, nodes);
-            for (const node of nodes) {
-              try {
-                scanNodeForFrames(node, this.getRootNode?.() || this);
-              } catch (e) {}
-            }
-            return ret;
-          };
-        }
-
-        const nativeAttachShadow = elemProto.attachShadow;
-        if (nativeAttachShadow && !elemProto.__gbAttachShadowWrapped) {
-          elemProto.__gbAttachShadowWrapped = true;
-          elemProto.attachShadow = function (init) {
-            const sr = nativeAttachShadow.call(this, init);
-            try {
-              observeDocumentFrames(sr);
-              recurseFrames(sr);
-            } catch (e) {}
-            return sr;
-          };
-        }
-      }
-    } catch (e) {}
-  }
-
-  function scanNodeForFrames(node, parentRoot) {
-    if (!node) return;
-
-    if (node.nodeType === 1 && node.tagName === "IFRAME") {
-      watchFrame(node, parentRoot);
-    }
-
-    if ((node.querySelectorAll)) {
-      const nestedFrames = node.querySelectorAll("iframe");
-      for (const nestedFrame of nestedFrames) {
-        watchFrame(nestedFrame, parentRoot);
-      }
-
-      const possibleHosts = node.querySelectorAll("*");
-      for (const host of possibleHosts) {
-        if (host && host.shadowRoot) {
-          observeDocumentFrames(host.shadowRoot);
-        }
-      }
-    }
-
-    if (node.shadowRoot) {
-      observeDocumentFrames(node.shadowRoot);
-    }
-  }
-
-  function observeDocumentFrames(doc) {
-    if (!doc || observedRoots.has(doc)) return;
-    observedRoots.add(doc);
-    if (doc.nodeType === 9) observedDocs.add(doc);
-    installDOMIframeHooks(doc);
-  }
-
-  function watchFrame(frame, parentDoc = null) {
-    if (!frame || trackedFrames.has(frame)) return;
-    trackedFrames.add(frame);
-
-    frame.addEventListener("load", function onFrameLoad() {
-      try {
-        if (parentDoc) recurseFrames(parentDoc);
-        recurseFrames(frame.contentDocument || frame.contentWindow?.document);
-      } catch (e) {}
-    });
-
-    try {
-      const readyDoc = frame.contentDocument || frame.contentWindow?.document;
-      if (readyDoc) {
-        recurseFrames(readyDoc);
-
-        if (readyDoc.readyState !== "complete") {
-          const onReady = () => {
-            try {
-              recurseFrames(readyDoc);
-            } catch (e) {}
-          };
-          readyDoc.addEventListener("readystatechange", onReady, {
-            once: true,
-          });
-          readyDoc.addEventListener("DOMContentLoaded", onReady, {
-            once: true,
-          });
-        }
-      }
-    } catch (e) {}
-  }
   exposedToTabs.recurseFrames = (doc, event = null, argFrame = false, observe = true, RAFObject = false) => {
     if (!root) { let info = window.browserGlobals.findWindowById(assignedId); tab = patchedTab; tabs = info.tabs; root = info.rootElement; }
     if (!doc) return;
-    if (observe) observeDocumentFrames(doc);
 
     // do something for this document (attach context menu, log, etc.)
     const frames = [...doc.querySelectorAll("iframe")];
@@ -700,7 +539,6 @@ function getAbsoluteMousePosition(e) {
 
     for (const frame of frames) {
       try {
-        watchFrame(frame, doc);
         if (event) {
           if (event.source == frame.contentWindow) {
             return frame;
@@ -838,27 +676,18 @@ function getAbsoluteMousePosition(e) {
           
           // Patch links to handle proxy URLs and new tab behavior
           const hooked = new WeakSet();
+
           function patchLink(link) {
-            if (hooked.has(link)) return;
-            hooked.add(link);
-            if (link.target !== "_blank") link.target = "_self";
-            if (
-              !link.href.includes(window.browserGlobals.id) &&
-              link.href.startsWith("http")
-            ) {
-              link.href = a(link.href, window.browserGlobals.proxyurl);
-            }
-            link.addEventListener("click", (e) => {
-              if (e.metaKey || link.target === "_blank" || e.shiftKey) {
-                e.preventDefault();
-                const url = window.browserGlobals.unshuffleURL(link.href);
-                frame.contentWindow.open(
-                  url,
-                  (e.metaKey || e.shiftKey) ? "_blank" : link.target || "_self",
-                  {newWindow: e.shiftKey}
-                );
+              if (hooked.has(link)) return;
+              hooked.add(link);
+              link.target = "_self";
+
+              if (
+                  !link.href.includes(window.browserGlobals.id) &&
+                  link.href.startsWith("http")
+              ) {
+                  link.href = a(link.href, window.browserGlobals.proxyurl);
               }
-            });
           }
           frameDoc.querySelectorAll("a").forEach(patchLink);
           const observer = new MutationObserver((mutations) => {
@@ -880,19 +709,6 @@ function getAbsoluteMousePosition(e) {
             GMAPIPATCH.textContent = await window.protectedGlobals.ReadFile('/systemfiles/runtime/apps/browser/asset/GM_patch.js', { text: true, direct: true});
             frameDoc.body.appendChild(GMAPIPATCH);
           })();
-          let tmpinterval = setInterval(() => {
-            if (!patchedTab.iframe.isConnected) clearInterval(tmpinterval);
-            let errorTimes = 0;
-            try {
-              if (!win.eruda) {
-                const script = document.createElement("script");
-                script.textContent = window.protectedGlobals.erudaText;
-                frameDoc.head.appendChild(script);
-                win.eruda.init();
-                win.eruda.get("entryBtn").hide();
-              } else clearInterval(tmpinterval);
-            } catch (e) { errorTimes++; if (errorTimes < 5) { clearInterval(tmpinterval); } }
-          }, 10);
           let themeOverride = document.createElement("script");
           themeOverride.textContent = `
           (function(){
@@ -1322,8 +1138,9 @@ function getAbsoluteMousePosition(e) {
 
           const mwin = patchedTab.iframe.contentWindow;
           win.tabIndex = "0";
-          win.erudaKeyHandler = function () {
+          win.erudaKeyHandler = async function () {
             // toggle show/hide
+            await checkEruda();
             if (!win._goldenbodyIns) {
               win.eruda.show();
 
@@ -1335,26 +1152,19 @@ function getAbsoluteMousePosition(e) {
             }
           };
 
-          let injectInterval = setInterval(() => {
-            if (win.eruda) {
-              clearInterval(injectInterval);
-              try {
-              for (let folderName of activatedUserscriptNames) {
-                try {
-                  const src = (window.browserGlobals.userscripts[folderName])
-                  if (src) {
-                    let script = document.createElement("script");
-                    script.textContent = src;
-                    frameDoc.body.appendChild(script);
-                  }
-                } catch (e) {}
+          for (let folderName of activatedUserscriptNames) {
+            try {
+              const src = (window.browserGlobals.userscripts[folderName])
+              if (src) {
+                let script = document.createElement("script");
+                script.textContent = src;
+                frameDoc.body.appendChild(script);
               }
-              } catch (e) {}
-            }
-          }, 10);
-          win.suberudaKeyHandler = function (e) {
+            } catch (e) {}
+          }
+          win.suberudaKeyHandler = async function (e) {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "i") {
-              win.erudaKeyHandler();
+              await win.erudaKeyHandler();
             } else if (
               (e.ctrlKey && (e.key === "+" || e.key === "=")) ||
               (e.ctrlKey && e.key === "-")
