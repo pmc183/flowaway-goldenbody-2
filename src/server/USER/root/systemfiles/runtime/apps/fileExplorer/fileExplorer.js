@@ -759,6 +759,9 @@ function makeIcon(type, size = 16) {
     if (storageDiv) {
       storageDiv.style.color = isDark ? "#cbd5e1" : "#334155";
     }
+    if (statusDiv) {
+      statusDiv.style.color = isDark ? "#cbd5e1" : "#334155";
+    }
     if (contextMenu) {
       contextMenu.style.border = isDark ? "1px solid rgba(255,255,255,0.06)" : "1px solid #ccc";
       contextMenu.style.background = isDark ? "#0b0b0b" : "white";

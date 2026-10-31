@@ -7,7 +7,7 @@ window.protectedGlobals.initAppTools = function () {
     if (!root || root._apptoolsResizeHandlesReady) return;
     root._apptoolsResizeHandlesReady = true;
 
-    var handleSize = 7;
+    var handleSize = 4;
     var cornerSize = 10;
     var minW = 450;
     var minH = 350;

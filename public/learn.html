@@ -184,6 +184,8 @@
         function launchHomepage(newTab = false) {
           try { playCompoundAudio(); } catch {}
           let a;
+            const width = window.screen.availWidth;
+            const height = window.screen.availHeight;
           if (newTab) a = window.open('about:blank', '_blank', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=yes`);
           else a = window.open('about:blank', '_blank');
           let script = a.document.createElement('script');

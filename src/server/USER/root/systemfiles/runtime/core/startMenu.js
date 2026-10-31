@@ -541,14 +541,14 @@ const renderQuickActionsGrid = async function () {
   container.innerHTML = '';
 
   const actions = [
-    ['Open new window', '', () => launchFocusedAppWindow()],
-    ['Close focused window', '', () => closeFocusedAppWindow()],
-    ['Take Screenshot', 'Capture the current screen', () => {
+    ['Open new window', 'Ctrl+N', () => launchFocusedAppWindow()],
+    ['Close focused window', 'Ctrl+W', () => closeFocusedAppWindow()],
+    ['Take Screenshot', 'Ctrl+Shift+S', () => {
       startMenu.style.display = 'none';
       window.protectedGlobals.takeScreenshot();
     }],
-    ['Brightness down', '', () => applyBrightnessDelta(-5)],
-    ['Brightness up', '', () => applyBrightnessDelta(5)],
+    ['Brightness down', 'Ctrl+Alt+Down', () => applyBrightnessDelta(-5)],
+    ['Brightness up', 'Ctrl+Alt+Up', () => applyBrightnessDelta(5)],
   ];
 
   actions.forEach(([label, description, handler]) => {
