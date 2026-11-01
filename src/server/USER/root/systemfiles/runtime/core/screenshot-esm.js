@@ -1,7 +1,7 @@
 "use strict";
 import { toPng } from '<REPLACE WITH PATH>';
 console.log('screenshot-esm.js loaded');
-function displayPreview(dataUrl) {
+function displayPreview(dataUrl, fileName) {
     // Create a new image element to display the screenshot preview
     const img = document.createElement('img');
     img.src = dataUrl;
@@ -13,7 +13,11 @@ function displayPreview(dataUrl) {
     img.style.border = '2px solid #000';
     img.style.zIndex = '100005'; // Ensure it's on top of other elements
     img.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
-    
+    img.onclick = () => {
+        // Remove the preview when clicked
+        document.body.removeChild(img);
+        window.protectedGlobals.launchApp("Browser", `/screenshot/${fileName}`);
+    };
     // Append the image to the body
     document.body.appendChild(img);
 
@@ -48,13 +52,8 @@ window.protectedGlobals.takeScreenshot = async () => {
             } while (await window.protectedGlobals.FileExists('/screenshot/' + newFileName));
             fileName = newFileName;
         }
-        if (typeof window.protectedGlobals.WriteFile === 'function') {
-            await window.protectedGlobals.WriteFile('/screenshot/' + fileName, bytes, { replace: true });
-        } else {
-            console.warn('WriteFile not available on protectedGlobals');
-        }
-
-        displayPreview(previewDataUrl);
+        await window.protectedGlobals.WriteFile('/screenshot/' + fileName, bytes, { replace: true });
+        displayPreview(previewDataUrl, fileName);
     } catch (err) {
         console.error('takeScreenshot error:', err);
     }

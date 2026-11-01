@@ -1,5 +1,6 @@
 "use strict";
 (async function () {
+await (async function () {
   let iconDataToBase64 = window.protectedGlobals.iconDataToBase64;
   let fullScreenLightImage = await window.protectedGlobals.ReadFile("/systemfiles/runtime/helpers/fullScreen-light.png", { buffer: true, direct: true }).then(res => res = iconDataToBase64(res));
   let fullScreenDarkImage = await window.protectedGlobals.ReadFile("/systemfiles/runtime/helpers/fullScreen-dark.png", { buffer: true, direct: true }).then(res => res = iconDataToBase64(res));
@@ -1833,4 +1834,6 @@
     });
   });
   appObserver.observe(document.body, { childList: true, subtree: true });
+})();
+window.protectedGlobals.goldenbodyInitialized = true;
 })();

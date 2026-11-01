@@ -1112,15 +1112,4 @@ __goldenbodyAPI.setDragstripHeight = (options = {}) => {
     }, '*');
     __dragstripHeight = Number.isFinite(options.percent) ? (window.innerHeight * options.percent) / 100 : options.px;
 };
-
-
-(() => {
-    let Observer = window.__goldenbodyAPI.Observer;
-    let pingObserver = new Observer((data) => {
-        if (data.type === "ping") {
-            window.parent.postMessage({type: "pong"}, '*');
-        }
-    }, "ping");
-    window.pingObserver = pingObserver;
-})();
 window.userPickedFileHandle = new __goldenbodyAPI.FShandle({path: window.__path__, key: window.__filehandle__});

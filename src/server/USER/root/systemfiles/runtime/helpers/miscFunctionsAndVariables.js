@@ -297,11 +297,27 @@ window.protectedGlobals.showModal = function(title, body, level, forceModal) {
 }
 
 window.alert = function (message) {
-  window.protectedGlobals.showModal("System Notification", String(message || ""), "info", true);
+  if (window.protectedGlobals.goldenbodyInitialized) window.protectedGlobals.showModal("System Notification", String(message || ""), "info", true);
+  else {
+    const interval = setInterval(() => {
+      if (window.protectedGlobals.goldenbodyInitialized) {
+        window.protectedGlobals.showModal("System Notification", String(message || ""), "info", true);
+        clearInterval(interval);
+      }
+    }, 100);
+  }
 };
 window.softAlert = function (message) {
-  window.protectedGlobals.showModal("Notification", String(message || ""), "info", false);
-}
+  if (window.protectedGlobals.goldenbodyInitialized) window.protectedGlobals.showModal("Notification", String(message || ""), "info", true);
+  else {
+    const interval = setInterval(() => {
+      if (window.protectedGlobals.goldenbodyInitialized) {
+        window.protectedGlobals.showModal("Notification", String(message || ""), "info", true);
+        clearInterval(interval);
+      }
+    }, 100);
+  }
+};
 window.protectedGlobals.showConfirmDialog = (title, message, okText, cancelText) => {
     return new Promise((resolve) => {
       document.getElementById("confirm-dialog")?.remove();

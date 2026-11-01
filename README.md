@@ -336,9 +336,9 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>pasteFolder(destinationOrHandle, clipboard, options)</code> - copy or move a folder payload into a destination.</li>
     <li><code>folderExists(pathOrHandle, options)</code> - check whether a path is a folder.</li>
     <li><code>fileExists(pathOrHandle, options)</code> - check whether a path is a file.</li>
-    <li><code>showOpenFilePicker(options)</code> - let the user pick a file or folder and return a permission handle.</li>
+    <li><code>showOpenFilePicker(options)</code> - let the user pick a file or folder and return a permission handle. If <code>multiple: true</code>, return an array of handles.</li>
     <li><code>showSaveFilePicker(options)</code> - let the user choose a save target and return a handle.</li>
-    <li><code>showDirectoryPicker(options)</code> - let the user pick a directory and return a handle.</li>
+    <li><code>showDirectoryPicker(options)</code> - let the user pick a directory and return a handle. If <code>multiple: true</code>, return an array of handles.</li>
     <li><code>watchFile(pathOrHandle, callback, options)</code> - watch a file for changes, renames, and deletes.</li>
     <li><code>watchFolder(pathOrHandle, callback, options)</code> - watch a folder tree and receive change events.</li>
     <li><code>closeWatch(watchId)</code> - stop a specific watcher by the id returned when it was created.</li>
@@ -349,7 +349,8 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>setInstanceTitle(title)</code> - update the title of the current instance.</li>
     <li><code>setDragThreshold({ px })</code> - change the pointer drag threshold for the current instance.</li>
     <li><code>setDragstripHeight({ percent || px })</code> - change the titlebar/dragstrip height for the current instance.</li>
-    <li><code>api.setDragstripVisibility(visible)</code> - show or hide the dragstrip for the current instance.</li>
+    <li><code>setDragstripVisibility(visible)</code> - show or hide the dragstrip for the current instance.</li>
+    <li><code>getAvaliableAppsToLaunch()</code> - get a list of apps that can be launched from this instance.</li>
     <li><code>setTitlebarVisibility(visible)</code> - show or hide the titlebar for the current instance.</li>
     <li><code>message(message, toInstance)</code> - send a message to another instance or broadcast to all instances.</li>
     <li><code>messageToWorker(message)</code> - relay a message to the app worker for this instance.</li>
@@ -602,6 +603,16 @@ await window.__goldenbodyAPI.writeFile(handle, updatedText, { replace: true });<
 <h4>Picker results</h4>
 <p>Results from external pickers include:</p>
 <pre><code>{ kind: 'file' | 'directory', path, key, name }</code></pre>
+<p>When you pass <code>{ multiple: true }</code> to <code>showOpenFilePicker()</code> or <code>showDirectoryPicker()</code>, the runtime resolves to an array of handles instead of a single handle. Each item keeps the same shape as above.</p>
+<pre><code>// pick multiple files or folders
+const handles = await window.__goldenbodyAPI.showOpenFilePicker({ multiple: true });
+console.log(handles[0].path);
+
+const folders = await window.__goldenbodyAPI.showDirectoryPicker({ multiple: true });
+for (const folder of folders) {
+  console.log(folder.path);
+}
+</code></pre>
 <p>If the picker path is not authorized with a valid key, writes do not go to the external path.</p>
 <h4>How to write a file inside a folder you picked</h4>
 <p>

@@ -216,6 +216,7 @@
     let selectedPath = "";
     let selectedPaths = new Set();
     let selectionAnchorIndex = -1;
+    let renderEntriesToken = 0;
     const overlay = document.createElement("div");
     overlay.id = "vfs-picker-overlay";
     overlay.addEventListener('keydown', (e) => e.stopPropagation());
@@ -475,9 +476,28 @@
     }
 
     async function renderEntries() {
+      const token = ++renderEntriesToken;
       renderBreadcrumb();
       list.innerHTML = "";
-      let entries = await getEntries();
+      const loadingIndicator = document.createElement("div");
+      loadingIndicator.textContent = "Loading...";
+      loadingIndicator.style.display = "flex";
+      loadingIndicator.style.alignItems = "center";
+      loadingIndicator.style.justifyContent = "center";
+      loadingIndicator.style.minHeight = "120px";
+      loadingIndicator.style.width = "100%";
+      loadingIndicator.style.padding = "20px 0";
+      loadingIndicator.style.color = theme.muted;
+      loadingIndicator.style.fontWeight = "600";
+      list.appendChild(loadingIndicator);
+      let entries = [];
+      try {
+        entries = await getEntries();
+      } catch {
+        entries = [];
+      }
+      if (token !== renderEntriesToken) return;
+      loadingIndicator.remove();
       entries = entries.filter((entry) => {
         if (entry.kind === "file" && isProtectedPickerFileName(entry.label)) {
           return false;
@@ -740,22 +760,8 @@
         reject(new Error("The user aborted a request."));
       };
       actionButton.onclick = () => finishPicker(resolve, reject);
-      const loadingIndicator = document.createElement("div");
-      loadingIndicator.textContent = "Loading...";
-      loadingIndicator.style.position = "absolute";
-      loadingIndicator.style.inset = "0";
-      loadingIndicator.style.display = "flex";
-      loadingIndicator.style.alignItems = "center";
-      loadingIndicator.style.justifyContent = "center";
-      loadingIndicator.style.pointerEvents = "none";
-      loadingIndicator.style.color = window.protectedGlobals.data.dark ? "#aaa" : "#999";
-      loadingIndicator.style.fontSize = "16px";
-      loadingIndicator.style.fontWeight = "700";
-      loadingIndicator.style.background = "rgba(0,0,0,0.02)";
-      panel.appendChild(loadingIndicator);
-      try {
-        await renderEntries();
-      } catch {}
+
+      await renderEntries();
       loadingIndicator.remove();
     });
   }
@@ -1113,57 +1119,6 @@
         iframe.src = URL.createObjectURL(blob);
         appObj.allIframe.push(iframe);
         root.appendChild(iframe);
-        let awaitingDlg = false;
-        let lastPongAt = performance.now();
-        let pageHidden = document.hidden;
-        const visibilityChangeHandler = () => {
-          pageHidden = document.hidden;
-
-          if (!pageHidden) {
-            lastPongAt = performance.now();
-          }
-        };
-        document.addEventListener("visibilitychange", visibilityChangeHandler);
-
-        const pongHandler = (e) => {
-          if (e.source !== iframe.contentWindow) return;
-          lastPongAt = performance.now();
-        };
-
-        window.addEventListener("message", pongHandler);
-
-        const pingInterval = setInterval(() => {
-          try {
-            if (pageHidden) return;
-            if (!iframe.isConnected) instance.closeWindow(true);
-            // Keep pinging the app once per second.
-            iframe.contentWindow.postMessage(
-              {
-                type: "ping",
-                channel: appObj.id,
-              },
-              "*",
-            );
-
-            // No pong received from this iframe for 15 seconds.
-            if (!awaitingDlg && performance.now() - lastPongAt >= 15000) {
-              awaitingDlg = true;
-
-              window.protectedGlobals.showConfirmDialog("App Unresponsive", `Instance "${instance.title}" (${instanceNum}) of "${entryObj.label}" is not responding.`, "Close App", "Wait").then((terminate) => {
-                awaitingDlg = false;
-
-                if (terminate) {
-                  instance.closeWindow(true);
-                } else {
-                  // Start a fresh 15-second window after choosing Wait.
-                  lastPongAt = performance.now();
-                }
-              });
-            }
-          } catch {
-            clearInterval(pingInterval);
-          }
-        }, 1000);
 
         window.addEventListener(appObj.id + root.goldenbodyId, "message", async (e) => {
           if (e.source !== iframe.contentWindow) {
@@ -1453,9 +1408,6 @@
           if (!confirmed) return;
           window.protectedGlobals.clearAppInstanceWatchers(iframe.contentWindow);
           origClose(force);
-          clearInterval(pingInterval);
-          window.removeEventListener("message", pongHandler);
-          window.removeEventListener("visibilitychange", visibilityChangeHandler);
           appObj.allIframe.splice(appObj.allIframe.indexOf(iframe), 1);
         };
         window.protectedGlobals.apptools.api.trackInstance(instance, entryObj.id);

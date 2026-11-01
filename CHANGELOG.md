@@ -219,3 +219,11 @@
 - Added __goldenbodyAPI.getAvaliableAppsToLaunch() for iframe apps.
 - Updated login/signup page so users wont think they got stuck by more state feedback.
 - Some annoying bugs fixed are not documented.
+
+# V 2.7.1
+- Removed the broken app unresponsiveness checks.
+- Fixed stale rendering in file pickers.
+- Added loading status for file pickers.
+- Open in browser when clicking on screenshot thumbnail.
+- Fixed startup notifications from app package errors not shown in notification logs.
+- Added status feedback for cmd that does stuff to the cloud drive, if a cmd is taking longer than expected output xxxing...

@@ -366,40 +366,16 @@
     // ==========================================
     // SHORT COMPOUND AUDIO
     // ==========================================
-
-    let compoundAudio = null;
-    let compoundAudioSecond = null;
-
-    function playCompoundAudio() {
-        // Prevent multiple overlapping compound sequences.
-        if (compoundAudio) {
-            compoundAudio.pause();
-            compoundAudio.currentTime = 0;
+        function playAudio(url) {
+          let audio = new Audio(url);
+          audio.play();
         }
-
-        if (compoundAudioSecond) {
-            compoundAudioSecond.pause();
-            compoundAudioSecond.currentTime = 0;
+        function playCompoundAudio() {
+          playAudio('https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/enterMusic.wav');
+          setTimeout(() => {
+            playAudio("https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/Karazhan'sDoors.wav");
+          }, 200);
         }
-
-        compoundAudio = new Audio(
-            'https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/enterMusic.wav'
-        );
-
-        compoundAudioSecond = new Audio(
-            "https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/Karazhan'sDoors.wav"
-        );
-
-        compoundAudio.addEventListener('ended', () => {
-            compoundAudioSecond.play().catch(error => {
-                console.warn('Second compound audio failed:', error);
-            });
-        }, { once: true });
-
-        compoundAudio.play().catch(error => {
-            console.warn('Compound audio failed:', error);
-        });
-    }
 
     // ==========================================
     // HOMEPAGE LAUNCHER

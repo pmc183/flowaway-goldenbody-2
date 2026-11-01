@@ -926,6 +926,30 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       return window.protectedGlobals.data.dark ? "rgba(96,165,250,0.28)" : "#d0e6ff";
     }
 
+    const getPickerEntryKey = (entry) => {
+      const meta = Array.isArray(entry) ? entry[2] : entry;
+      const rawPath = meta && typeof meta.path === "string" ? meta.path : "";
+      return rawPath.replace(/\/+/g, "/").replace(/\/+$/, "") || null;
+    };
+
+    const isPickerEntrySelected = (entry) => {
+      const targetKey = getPickerEntryKey(entry);
+      if (!targetKey) return false;
+      return pickerSelection.some((selected) => getPickerEntryKey(selected) === targetKey);
+    };
+
+    const setPickerSelectionFromPath = (nextPath, fallbackName = "") => {
+      const cleanedPath = String(nextPath || "")
+        .replace(/\/+/g, "/")
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "");
+      if (!cleanedPath) {
+        pickerSelection = [];
+        return;
+      }
+      pickerSelection = [[fallbackName || cleanedPath.split("/").pop() || "Folder", [], { path: cleanedPath, kind: "folder" }]];
+    };
+
     function applySavePickerTheme() {
       const dark = !!window.protectedGlobals.data.dark;
       pickerBox.style.background = dark ? "#222" : "#fff";
@@ -952,6 +976,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     }
 
     async function renderPicker() {
+      const renderId = ++pickerRenderId;
       breadcrumbDiv.innerHTML = "";
       const parts = pickerCurrentPath ? pickerCurrentPath.split("/").filter(Boolean) : [];
       const homeLink = document.createElement("span");
@@ -959,6 +984,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       homeLink.style.cursor = "pointer";
       homeLink.onclick = () => {
         pickerCurrentPath = "";
+        pickerSelection = [];
         renderPicker();
       };
       breadcrumbDiv.appendChild(homeLink);
@@ -974,14 +1000,34 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         link.title = part;
         link.style.cursor = "pointer";
         link.onclick = () => {
-          pickerCurrentPath = parts.slice(0, index + 1).join("/");
+          const nextPath = parts.slice(0, index + 1).join("/");
+          pickerCurrentPath = nextPath;
+          setPickerSelectionFromPath(nextPath, part);
           renderPicker();
         };
         breadcrumbDiv.appendChild(link);
       });
 
       fileArea.innerHTML = "";
-      const entries = await readFolderEntriesForPicker(pickerCurrentPath);
+      const loadingIndicator = document.createElement("div");
+      loadingIndicator.textContent = "Loading...";
+      loadingIndicator.style.display = "flex";
+      loadingIndicator.style.alignItems = "center";
+      loadingIndicator.style.justifyContent = "center";
+      loadingIndicator.style.minHeight = "120px";
+      loadingIndicator.style.width = "100%";
+      loadingIndicator.style.padding = "20px 0";
+      loadingIndicator.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
+      loadingIndicator.style.fontWeight = "600";
+      fileArea.appendChild(loadingIndicator);
+      let entries = [];
+      try {
+        entries = await readFolderEntriesForPicker(pickerCurrentPath);
+      } catch {
+        entries = [];
+      }
+      if (renderId !== pickerRenderId) return;
+      loadingIndicator.remove();
       entries.forEach((item) => {
         const row = document.createElement("div");
         row.dataset.pickerItem = "true";
@@ -991,7 +1037,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         row.style.padding = "6px";
         row.style.cursor = "pointer";
         row.style.color = window.protectedGlobals.data.dark ? "#e6eef8" : "#0f1724";
-        if (pickerSelection.indexOf(item) !== -1) {
+        if (isPickerEntrySelected(item)) {
           row.style.background = getPickerSelectionColor();
         }
 
@@ -1005,6 +1051,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
         row.onclick = (e) => {
           const isToggle = e.ctrlKey || e.metaKey;
+          const itemKey = getPickerEntryKey(item);
           if (!isToggle) {
             pickerSelection = [item];
             fileArea
@@ -1012,7 +1059,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
               .forEach((d) => (d.style.background = ""));
             row.style.background = getPickerSelectionColor();
           } else {
-            const idx = pickerSelection.indexOf(item);
+            const idx = pickerSelection.findIndex((selected) => getPickerEntryKey(selected) === itemKey);
             if (idx >= 0) {
               pickerSelection.splice(idx, 1);
               row.style.background = "";
@@ -1025,7 +1072,9 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
         if (isFolder) {
           row.ondblclick = () => {
-            pickerCurrentPath = item[2]?.path || pickerCurrentPath;
+            const nextPath = item[2]?.path || pickerCurrentPath;
+            pickerCurrentPath = nextPath;
+            setPickerSelectionFromPath(nextPath, item[0]);
             renderPicker();
           };
         }
@@ -1039,6 +1088,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
     root.addEventListener("styleapplied", onSavePickerStyleApplied);
 
+    let pickerRenderId = 0;
     renderPicker();
     applySavePickerTheme();
 
@@ -1177,6 +1227,30 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       return window.protectedGlobals.data.dark ? "rgba(96,165,250,0.28)" : "#d0e6ff";
     }
 
+    const getPickerEntryKey = (entry) => {
+      const meta = Array.isArray(entry) ? entry[2] : entry;
+      const rawPath = meta && typeof meta.path === "string" ? meta.path : "";
+      return rawPath.replace(/\/+/g, "/").replace(/\/+$/, "") || null;
+    };
+
+    const isPickerEntrySelected = (entry) => {
+      const targetKey = getPickerEntryKey(entry);
+      if (!targetKey) return false;
+      return pickerSelection.some((selected) => getPickerEntryKey(selected) === targetKey);
+    };
+
+    const setPickerSelectionFromPath = (nextPath, fallbackName = "") => {
+      const cleanedPath = String(nextPath || "")
+        .replace(/\/+/g, "/")
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "");
+      if (!cleanedPath) {
+        pickerSelection = [];
+        return;
+      }
+      pickerSelection = [[fallbackName || cleanedPath.split("/").pop() || "Folder", [], { path: cleanedPath, kind: "folder" }]];
+    };
+
     function applyOpenPickerTheme() {
       const dark = !!window.protectedGlobals.data.dark;
       pickerBox.style.background = dark ? "#222" : "#fff";
@@ -1197,6 +1271,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     }
 
     async function renderPicker() {
+      const renderId = ++pickerRenderId;
       breadcrumbDiv.innerHTML = "";
       const parts = pickerCurrentPath ? pickerCurrentPath.split("/").filter(Boolean) : [];
       const homeLink = document.createElement("span");
@@ -1204,6 +1279,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       homeLink.style.cursor = "pointer";
       homeLink.onclick = () => {
         pickerCurrentPath = "";
+        pickerSelection = [];
         renderPicker();
       };
       breadcrumbDiv.appendChild(homeLink);
@@ -1219,14 +1295,34 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         link.title = part;
         link.style.cursor = "pointer";
         link.onclick = () => {
-          pickerCurrentPath = parts.slice(0, index + 1).join("/");
+          const nextPath = parts.slice(0, index + 1).join("/");
+          pickerCurrentPath = nextPath;
+          setPickerSelectionFromPath(nextPath, part);
           renderPicker();
         };
         breadcrumbDiv.appendChild(link);
       });
 
       fileArea.innerHTML = "";
-      const entries = await readFolderEntriesForPicker(pickerCurrentPath);
+      const loadingIndicator = document.createElement("div");
+      loadingIndicator.textContent = "Loading...";
+      loadingIndicator.style.display = "flex";
+      loadingIndicator.style.alignItems = "center";
+      loadingIndicator.style.justifyContent = "center";
+      loadingIndicator.style.minHeight = "120px";
+      loadingIndicator.style.width = "100%";
+      loadingIndicator.style.padding = "20px 0";
+      loadingIndicator.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
+      loadingIndicator.style.fontWeight = "600";
+      fileArea.appendChild(loadingIndicator);
+      let entries = [];
+      try {
+        entries = await readFolderEntriesForPicker(pickerCurrentPath);
+      } catch {
+        entries = [];
+      }
+      if (renderId !== pickerRenderId) return;
+      loadingIndicator.remove();
       entries.forEach((item) => {
         const row = document.createElement("div");
         row.dataset.pickerItem = "true";
@@ -1236,7 +1332,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         row.style.padding = "6px";
         row.style.cursor = "pointer";
         row.style.color = window.protectedGlobals.data.dark ? "#e6eef8" : "#0f1724";
-        if (pickerSelection.indexOf(item) !== -1) {
+        if (isPickerEntrySelected(item)) {
           row.style.background = getPickerSelectionColor();
         }
 
@@ -1250,6 +1346,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
         row.onclick = (e) => {
           const isToggle = e.ctrlKey || e.metaKey;
+          const itemKey = getPickerEntryKey(item);
           if (!isToggle) {
             pickerSelection = [item];
             fileArea
@@ -1257,7 +1354,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
               .forEach((d) => (d.style.background = ""));
             row.style.background = getPickerSelectionColor();
           } else {
-            const idx = pickerSelection.indexOf(item);
+            const idx = pickerSelection.findIndex((selected) => getPickerEntryKey(selected) === itemKey);
             if (idx >= 0) {
               pickerSelection.splice(idx, 1);
               row.style.background = "";
@@ -1270,7 +1367,9 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
         if (isFolder) {
           row.ondblclick = () => {
-            pickerCurrentPath = item[2]?.path || pickerCurrentPath;
+            const nextPath = item[2]?.path || pickerCurrentPath;
+            pickerCurrentPath = nextPath;
+            setPickerSelectionFromPath(nextPath, item[0]);
             renderPicker();
           };
         }
@@ -1284,6 +1383,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
     root.addEventListener("styleapplied", onOpenPickerStyleApplied);
 
+    let pickerRenderId = 0;
     renderPicker();
     applyOpenPickerTheme();
 
@@ -1296,7 +1396,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
       btnOpen.onclick = () => {
         const selections = [...pickerSelection];
-        if (!selections.length) return alert("Select a file or folder");
+        if (!selections.length) return alert("Select a file");
 
         const mapped = selections.map((sel) => {
           const name = sel[0];
