@@ -429,33 +429,15 @@
           });
         }
 
-         window.browserGlobals.showOpenFilePicker = function (frameWin) {
-                  sentreqframe = resolveRequestFrame(frameWin) || sentreqframe;
-          if (!window.protectedGlobals.treeData) {
-            window.protectedGlobals.onlyloadTree();
-          }
-
-          pickerTree = JSON.parse(
-            JSON.stringify(window.protectedGlobals.treeData),
-          );
+         window.browserGlobals.showOpenFilePicker = async function (frameWin) {
+          sentreqframe = resolveRequestFrame(frameWin) || sentreqframe;
+          pickerTree = null;
           pickerCurrentPath = ["root"];
           pickerSelection = [];
 
-          // Create overlay if it doesn't exist
+          // Create overlay immediately so the user sees feedback while the legacy tree is loading.
           if (!pickerOverlay) {
             let theme = getPickerTheme();
-          root.addEventListener('styleapplied', () => {
-            theme = getPickerTheme();
-            // pickerBox.style.borderBottom = `1px solid ${theme.border}`;
-            breadcrumbDiv.style.borderBottom = `1px solid ${theme.border}`;
-            titleBar.style.borderBottom = `1px solid ${theme.border}`;
-            stylePickerDialogBox(pickerBox, theme);
-            fileArea.style.background = theme.panelBg;
-            btnBar.style.borderTop = `1px solid ${theme.border}`;
-            stylePickerButton(btnCancel, theme, false);
-            stylePickerButton(btnOpen, theme, true);
-            render();
-          });
             pickerOverlay = document.createElement("div");
             document.body.appendChild(pickerOverlay);
 
@@ -487,7 +469,18 @@
             fileArea.style.flex = "1";
             fileArea.style.overflowY = "auto";
             fileArea.style.background = theme.panelBg;
+            fileArea.style.display = "flex";
+            fileArea.style.flexDirection = "column";
+            fileArea.style.alignItems = "stretch";
+            fileArea.style.justifyContent = "flex-start";
             pickerBox.appendChild(fileArea);
+
+            const loadingIndicator = document.createElement("div");
+            loadingIndicator.textContent = "Loading...";
+            loadingIndicator.style.color = theme.muted;
+            loadingIndicator.style.fontWeight = "600";
+            loadingIndicator.style.fontSize = "14px";
+            fileArea.appendChild(loadingIndicator);
 
             const btnBar = document.createElement("div");
             btnBar.style.padding = "8px";
@@ -522,6 +515,19 @@
               });
 
               fileArea.innerHTML = "";
+              if (!pickerTree) {
+                const loadingIndicator = document.createElement("div");
+                loadingIndicator.textContent = "Loading...";
+                loadingIndicator.style.color = theme.muted;
+                loadingIndicator.style.fontWeight = "600";
+                loadingIndicator.style.display = "flex";
+                loadingIndicator.style.alignItems = "center";
+                loadingIndicator.style.justifyContent = "center";
+                loadingIndicator.style.width = "100%";
+                loadingIndicator.style.height = "100%";
+                fileArea.appendChild(loadingIndicator);
+                return;
+              }
               let node = pickerTree;
               for (let i = 1; i < pickerCurrentPath.length; i++) {
                 node = node[1].find((c) => c[0] === pickerCurrentPath[i]);
@@ -583,6 +589,13 @@
               });
             }
 
+            renderPicker();
+            await window.protectedGlobals.onlyloadTree();
+            pickerTree = JSON.parse(
+              JSON.stringify(window.protectedGlobals.treeData),
+            );
+            pickerCurrentPath = ["root"];
+            pickerSelection = [];
             renderPicker();
 
             // Cancel / Open buttons
@@ -670,33 +683,9 @@
         // 3b. Custom save-as overlay
         // ----------------------------
         let post = window.protectedGlobals.filePost;
-        function openCustomSaveUI(frameWin, suggestedName) {
+        async function openCustomSaveUI(frameWin, suggestedName) {
           sentreqframe = frameWin || sentreqframe;
-          if (!window.protectedGlobals.treeData) {
-            window.protectedGlobals.onlyloadTree();
-          }
-          root.addEventListener('styleapplied', () => {
-            theme = getPickerTheme();
-            box.style.borderBottom = `1px solid ${theme.border}`;
-            breadcrumb.style.borderBottom = `1px solid ${theme.border}`;
-            titleBar.style.borderBottom = `1px solid ${theme.border}`;
-            stylePickerDialogBox(box, theme);
-            fileArea.style.background = theme.panelBg;
-            btnBar.style.borderTop = `1px solid ${theme.border}`;
-            stylePickerButton(btnCancel, theme, false);
-            stylePickerButton(btnSave, theme, true);
-            nameInput.style.background = theme.inputBg;
-            nameInput.style.color = theme.inputText;
-            nameInput.style.border = `1px solid ${theme.border}`;
-            render();
-          });
           let theme = getPickerTheme();
-
-          const savePickerTree = JSON.parse(
-            JSON.stringify(window.protectedGlobals.treeData || {}),
-          );
-          let savePickerCurrentPath = ["root"];
-          let savePickerSelection = [];
 
           const overlay = document.createElement("div");
           document.body.appendChild(overlay);
@@ -721,11 +710,22 @@
             borderBottom: `1px solid ${theme.border}`,
           });
           box.appendChild(breadcrumb);
+
           const fileArea = document.createElement("div");
           fileArea.style.flex = "1";
           fileArea.style.overflowY = "auto";
           fileArea.style.background = theme.panelBg;
+          fileArea.style.display = "flex";
+          fileArea.style.flexDirection = "column";
+          fileArea.style.alignItems = "stretch";
+          fileArea.style.justifyContent = "flex-start";
           box.appendChild(fileArea);
+
+          const loadingIndicator = document.createElement("div");
+          loadingIndicator.textContent = "Loading...";
+          loadingIndicator.style.color = theme.muted;
+          loadingIndicator.style.fontWeight = "600";
+          fileArea.appendChild(loadingIndicator);
 
           const row = document.createElement("div");
           row.style.padding = "8px";
@@ -733,6 +733,7 @@
           row.style.gap = "8px";
           row.style.borderTop = `1px solid ${theme.border}`;
           box.appendChild(row);
+
           const nameInput = document.createElement("input");
           Object.assign(nameInput.style, {
             flex: "1",
@@ -753,14 +754,20 @@
           btnBar.style.justifyContent = "flex-end";
           btnBar.style.borderTop = `1px solid ${theme.border}`;
           box.appendChild(btnBar);
+
           const btnCancel = document.createElement("button");
           btnCancel.textContent = "Cancel";
           stylePickerButton(btnCancel, theme, false);
           btnBar.appendChild(btnCancel);
+
           const btnSave = document.createElement("button");
           btnSave.textContent = "Save";
           stylePickerButton(btnSave, theme, true);
           btnBar.appendChild(btnSave);
+
+          let savePickerTree = null;
+          let savePickerCurrentPath = ["root"];
+          let savePickerSelection = [];
 
           function render() {
             breadcrumb.innerHTML = "";
@@ -775,13 +782,29 @@
               };
               breadcrumb.appendChild(s);
             });
+
             fileArea.innerHTML = "";
+            if (!savePickerTree) {
+              const loading = document.createElement("div");
+              loading.textContent = "Loading...";
+              loading.style.color = theme.muted;
+              loading.style.fontWeight = "600";
+              loading.style.display = "flex";
+              loading.style.alignItems = "center";
+              loading.style.justifyContent = "center";
+              loading.style.width = "100%";
+              loading.style.height = "100%";
+              fileArea.appendChild(loading);
+              return;
+            }
+
             let node = savePickerTree;
             for (let i = 1; i < savePickerCurrentPath.length; i++) {
               if (!node || !node[1]) break;
               node = node[1].find((c) => c[0] === savePickerCurrentPath[i]);
             }
             if (!node || !node[1]) return;
+
             node[1].forEach((item) => {
               const isFolder = Array.isArray(item[1]);
               const div = document.createElement("div");
@@ -796,13 +819,12 @@
               label.textContent = truncateDisplayName(item[0]);
               label.title = item[0];
               div.appendChild(label);
+
               div.onclick = (e) => {
                 const isToggle = e.ctrlKey || e.metaKey;
                 if (!isToggle) {
                   savePickerSelection = [item];
-                  fileArea
-                    .querySelectorAll("div")
-                    .forEach((d) => (d.style.background = ""));
+                  fileArea.querySelectorAll("div").forEach((d) => (d.style.background = ""));
                   div.style.background = theme.selectedBg;
                 } else {
                   const idx = savePickerSelection.indexOf(item);
@@ -815,6 +837,7 @@
                   }
                 }
               };
+
               div.onmouseenter = () => {
                 if (savePickerSelection.includes(item)) return;
                 div.style.background = theme.hoverBg;
@@ -823,15 +846,40 @@
                 if (savePickerSelection.includes(item)) return;
                 div.style.background = "";
               };
-              if (Array.isArray(item[1]))
+
+              if (Array.isArray(item[1])) {
                 div.ondblclick = () => {
                   savePickerCurrentPath.push(item[0]);
                   render();
                 };
+              }
+
               fileArea.appendChild(div);
             });
           }
 
+          root.addEventListener("styleapplied", () => {
+            theme = getPickerTheme();
+            box.style.borderBottom = `1px solid ${theme.border}`;
+            breadcrumb.style.borderBottom = `1px solid ${theme.border}`;
+            titleBar.style.borderBottom = `1px solid ${theme.border}`;
+            stylePickerDialogBox(box, theme);
+            fileArea.style.background = theme.panelBg;
+            btnBar.style.borderTop = `1px solid ${theme.border}`;
+            stylePickerButton(btnCancel, theme, false);
+            stylePickerButton(btnSave, theme, true);
+            nameInput.style.background = theme.inputBg;
+            nameInput.style.color = theme.inputText;
+            nameInput.style.border = `1px solid ${theme.border}`;
+            render();
+          });
+
+          render();
+
+          await window.protectedGlobals.onlyloadTree();
+          savePickerTree = JSON.parse(JSON.stringify(window.protectedGlobals.treeData || {}));
+          savePickerCurrentPath = ["root"];
+          savePickerSelection = [];
           render();
 
           btnCancel.onclick = () => {
@@ -851,20 +899,17 @@
               alert("Enter a filename");
               return;
             }
+
             let chosen;
-            if (!selections.length)
+            if (!selections.length) {
               chosen = basePath ? basePath + "/" + fname : fname;
-            else {
+            } else {
               const sel = selections[0];
               const isFolder = Array.isArray(sel[1]);
               if (isFolder) chosen = (basePath ? basePath + "/" : "") + fname;
-              else
-                alert(
-                  "Select a folder to save into",
-                );
+              else alert("Select a folder to save into");
             }
 
-            // send response to requesting iframe
             deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
               __VFS__: true,
               kind: "saveTarget",
@@ -878,34 +923,10 @@
         // ----------------------------
         // 3c. Custom directory picker overlay
         // ----------------------------
-        function openCustomDirectoryPickerUI(frameWin) {
+        async function openCustomDirectoryPickerUI(frameWin) {
           sentreqframe = frameWin || sentreqframe;
-          if (!window.protectedGlobals.treeData) {
-            window.protectedGlobals.onlyloadTree();
-          }
 
           let theme = getPickerTheme();
-          console.log(root)
-          root.addEventListener('styleapplied', () => {
-            theme = getPickerTheme();
-            box.style.borderBottom = `1px solid ${theme.border}`;
-            breadcrumb.style.borderBottom = `1px solid ${theme.border}`;
-            titleBar.style.borderBottom = `1px solid ${theme.border}`;
-            stylePickerDialogBox(box, theme);
-            fileArea.style.background = theme.panelBg;
-            infoRow.style.borderBottom = `1px solid ${theme.border}`;
-            infoRow.style.color = theme.muted;
-            btnBar.style.borderTop = `1px solid ${theme.border}`;
-            stylePickerButton(btnCancel, theme, false);
-            stylePickerButton(btnOpen, theme, true);
-            render();
-          });
-          const dirPickerTree = JSON.parse(
-            JSON.stringify(window.protectedGlobals.treeData || {}),
-          );
-          let dirPickerCurrentPath = ["root"];
-          let dirPickerSelectionPaths = [];
-
           const overlay = document.createElement("div");
           document.body.appendChild(overlay);
 
@@ -929,11 +950,22 @@
             borderBottom: `1px solid ${theme.border}`,
           });
           box.appendChild(breadcrumb);
+
           const fileArea = document.createElement("div");
           fileArea.style.flex = "1";
           fileArea.style.overflowY = "auto";
           fileArea.style.background = theme.panelBg;
+          fileArea.style.display = "flex";
+          fileArea.style.flexDirection = "column";
+          fileArea.style.alignItems = "stretch";
+          fileArea.style.justifyContent = "flex-start";
           box.appendChild(fileArea);
+
+          const loadingIndicator = document.createElement("div");
+          loadingIndicator.textContent = "Loading...";
+          loadingIndicator.style.color = theme.muted;
+          loadingIndicator.style.fontWeight = "600";
+          fileArea.appendChild(loadingIndicator);
 
           const infoRow = document.createElement("div");
           infoRow.style.padding = "6px";
@@ -950,14 +982,20 @@
           btnBar.style.justifyContent = "flex-end";
           btnBar.style.borderTop = `1px solid ${theme.border}`;
           box.appendChild(btnBar);
+
           const btnCancel = document.createElement("button");
           btnCancel.textContent = "Cancel";
           stylePickerButton(btnCancel, theme, false);
           btnBar.appendChild(btnCancel);
+
           const btnOpen = document.createElement("button");
           btnOpen.textContent = "Select";
           stylePickerButton(btnOpen, theme, true);
           btnBar.appendChild(btnOpen);
+
+          let dirPickerTree = null;
+          let dirPickerCurrentPath = ["root"];
+          let dirPickerSelectionPaths = [];
 
           function render() {
             breadcrumb.innerHTML = "";
@@ -972,19 +1010,33 @@
               };
               breadcrumb.appendChild(s);
             });
+
             fileArea.innerHTML = "";
+            if (!dirPickerTree) {
+              const loading = document.createElement("div");
+              loading.textContent = "Loading...";
+              loading.style.color = theme.muted;
+              loading.style.fontWeight = "600";
+              loading.style.display = "flex";
+              loading.style.alignItems = "center";
+              loading.style.justifyContent = "center";
+              loading.style.width = "100%";
+              loading.style.height = "100%";
+              fileArea.appendChild(loading);
+              return;
+            }
+
             let node = dirPickerTree;
             for (let i = 1; i < dirPickerCurrentPath.length; i++) {
               if (!node || !node[1]) break;
               node = node[1].find((c) => c[0] === dirPickerCurrentPath[i]);
             }
             if (!node || !node[1]) return;
+
             node[1].forEach((item) => {
               const isFolder = Array.isArray(item[1]);
               const currentBasePath = dirPickerCurrentPath.slice(1).join("/");
-              const itemPath = currentBasePath
-                ? currentBasePath + "/" + item[0]
-                : item[0];
+              const itemPath = currentBasePath ? currentBasePath + "/" + item[0] : item[0];
               const div = document.createElement("div");
               div.style.padding = "6px";
               div.style.cursor = "pointer";
@@ -997,38 +1049,35 @@
               label.textContent = truncateDisplayName(item[0]);
               label.title = item[0];
               div.appendChild(label);
+
               div.onclick = (e) => {
-                // Only allow selecting folders
-                if (isFolder) {
-                  const isToggle = e.ctrlKey || e.metaKey;
-                  if (!isToggle) {
-                    dirPickerSelectionPaths = [itemPath];
-                    fileArea
-                      .querySelectorAll("div")
-                      .forEach((d) => (d.style.background = ""));
-                    div.style.background = theme.selectedBg;
+                if (!isFolder) return;
+                const isToggle = e.ctrlKey || e.metaKey;
+                if (!isToggle) {
+                  dirPickerSelectionPaths = [itemPath];
+                  fileArea.querySelectorAll("div").forEach((d) => (d.style.background = ""));
+                  div.style.background = theme.selectedBg;
+                } else {
+                  const idx = dirPickerSelectionPaths.indexOf(itemPath);
+                  if (idx >= 0) {
+                    dirPickerSelectionPaths.splice(idx, 1);
+                    div.style.background = "";
                   } else {
-                    const idx = dirPickerSelectionPaths.indexOf(itemPath);
-                    if (idx >= 0) {
-                      dirPickerSelectionPaths.splice(idx, 1);
-                      div.style.background = "";
-                    } else {
-                      dirPickerSelectionPaths.push(itemPath);
-                      div.style.background = theme.selectedBg;
-                    }
+                    dirPickerSelectionPaths.push(itemPath);
+                    div.style.background = theme.selectedBg;
                   }
                 }
               };
+
               div.onmouseenter = () => {
-                if (!isFolder || dirPickerSelectionPaths.includes(itemPath))
-                  return;
+                if (!isFolder || dirPickerSelectionPaths.includes(itemPath)) return;
                 div.style.background = theme.hoverBg;
               };
               div.onmouseleave = () => {
-                if (!isFolder || dirPickerSelectionPaths.includes(itemPath))
-                  return;
+                if (!isFolder || dirPickerSelectionPaths.includes(itemPath)) return;
                 div.style.background = "";
               };
+
               if (isFolder && dirPickerSelectionPaths.includes(itemPath)) {
                 div.style.background = theme.selectedBg;
               }
@@ -1038,10 +1087,32 @@
                   render();
                 };
               }
+
               fileArea.appendChild(div);
             });
           }
 
+          root.addEventListener("styleapplied", () => {
+            theme = getPickerTheme();
+            box.style.borderBottom = `1px solid ${theme.border}`;
+            breadcrumb.style.borderBottom = `1px solid ${theme.border}`;
+            titleBar.style.borderBottom = `1px solid ${theme.border}`;
+            stylePickerDialogBox(box, theme);
+            fileArea.style.background = theme.panelBg;
+            infoRow.style.borderBottom = `1px solid ${theme.border}`;
+            infoRow.style.color = theme.muted;
+            btnBar.style.borderTop = `1px solid ${theme.border}`;
+            stylePickerButton(btnCancel, theme, false);
+            stylePickerButton(btnOpen, theme, true);
+            render();
+          });
+
+          render();
+
+          await window.protectedGlobals.onlyloadTree();
+          dirPickerTree = JSON.parse(JSON.stringify(window.protectedGlobals.treeData || {}));
+          dirPickerCurrentPath = ["root"];
+          dirPickerSelectionPaths = [];
           render();
 
           btnCancel.onclick = () => {
@@ -1056,48 +1127,34 @@
 
           btnOpen.onclick = () => {
             const basePath = dirPickerCurrentPath.slice(1).join("/") || "root";
-            let chosen =
-              dirPickerSelectionPaths.length > 0
-                ? dirPickerSelectionPaths[0]
-                : basePath;
+            let chosen = dirPickerSelectionPaths.length > 0 ? dirPickerSelectionPaths[0] : basePath;
 
-            // Find the actual tree node for the selected path
             let selectedNode = dirPickerTree;
-            const pathParts = chosen
-              .split("/")
-              .filter((p) => p && p !== "root");
+            const pathParts = chosen.split("/").filter((p) => p && p !== "root");
             for (const part of pathParts) {
               if (!selectedNode || !selectedNode[1]) break;
               selectedNode = selectedNode[1].find((c) => c[0] === part);
             }
 
             if (!selectedNode) {
-              alert(
-                "Selected directory not found",
-              );
+              alert("Selected directory not found");
               return;
             }
 
-            // --- NEW: recursively gather files in the directory ---
             function collectFiles(node, currentPath) {
               const files = [];
               if (!node || !Array.isArray(node[1])) return files;
               for (const item of node[1]) {
                 const [name, child] = item;
                 const itemPath = currentPath ? currentPath + "/" + name : name;
-                if (Array.isArray(child)) {
-                  // folder → recurse
-                  files.push(...collectFiles(item, itemPath));
-                } else {
-                  files.push({ path: itemPath, contents: child || "" });
-                }
+                if (Array.isArray(child)) files.push(...collectFiles(item, itemPath));
+                else files.push({ path: itemPath, contents: child || "" });
               }
               return files;
             }
 
             const filesToSend = collectFiles(selectedNode, chosen);
 
-            // send directory info
             if (sentreqframe && sentreqframe.contentWindow) {
               deliverVfsPayload(sentreqframe.contentWindow, {
                 __VFS__: true,
@@ -1106,12 +1163,10 @@
                 treeNode: selectedNode,
               });
 
-              // send each file as fileData
               for (const f of filesToSend) {
-                const buffer =
-                  f.contents instanceof ArrayBuffer
-                    ? f.contents
-                    : new TextEncoder().encode(f.contents).buffer; // convert string to ArrayBuffer
+                const buffer = f.contents instanceof ArrayBuffer
+                  ? f.contents
+                  : new TextEncoder().encode(f.contents).buffer;
 
                 deliverVfsPayload(sentreqframe.contentWindow, {
                   __VFS__: true,

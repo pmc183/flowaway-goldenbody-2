@@ -293,7 +293,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 cancelable: true,
                 view: window,
             });
-            window.dispatchEvent(clickEvent);
+            document.dispatchEvent(clickEvent);
         } else if (event.data.keydownOnApp || event.data.keyupOnApp) {
             const type = event.data.keydownOnApp ? "keydown" : "keyup";
             const keyEvent = new KeyboardEvent(type, {

@@ -227,3 +227,11 @@
 - Open in browser when clicking on screenshot thumbnail.
 - Fixed startup notifications from app package errors not shown in notification logs.
 - Added status feedback for cmd that does stuff to the cloud drive, if a cmd is taking longer than expected output xxxing...
+
+# V 2.7.2
+- Fixed this system doesn't hide startmenu when app contextmenu is clicked.
+- Added loading indicator for browser file pickers.
+- Fixed clicking on apps dont hide startmenu, statusmenu.
+- Fixed browser download status notification arrives too late.
+- update landing page so its more appropriate.
+- Note: apps such as browser are "government owned businesses" meaning they are still an normal app just developed by me, FlowAway GoldenBody, it's a great example if you want to learn how to build an admin (system) app.

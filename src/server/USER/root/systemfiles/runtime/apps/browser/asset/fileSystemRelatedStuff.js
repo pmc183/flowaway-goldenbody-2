@@ -622,7 +622,6 @@ function makeFileHandle(file) {
   // 📂 showOpenFilePicker
   frameWin.showOpenFilePicker = async () => {
     try { frameWin.gbextern.exitFullscreen(); } catch(e) {}
-    await window.protectedGlobals.onlyloadTree();
     pickerMode = 'picker';
     allFilesReceived = false;
     pickerCancelled = false;
@@ -666,7 +665,6 @@ frameWin.addEventListener('message', e => {
 });
 
 frameWin.showSaveFilePicker = async (options = {}) => {
-  await window.protectedGlobals.onlyloadTree();
   try {
   frameWin.gbextern.exitFullscreen();
   } catch(e) {}
@@ -712,7 +710,6 @@ frameWin.showSaveFilePicker = async (options = {}) => {
   });
 
   frameWin.showDirectoryPicker = async (options) => {
-    await window.protectedGlobals.onlyloadTree();
     try { frameWin.gbextern.exitFullscreen(); } catch(e) {}
     return new Promise((resolve, reject) => {
       pendingDirectoryRejectors.push(reject);

@@ -319,6 +319,7 @@ async function iframePatches() {
           await navigator.clipboard.writeText(linkUrl);
         });
         addContextMenuItem("Download linkㅤㅤㅤㅤㅤ", () => {
+          alert("Download request sent");
           window.protectedGlobals.downloadPost({
             href: linkUrl,
             filename: contextMenuFilename(linkElement.href, "download"),
@@ -338,6 +339,7 @@ async function iframePatches() {
           await navigator.clipboard.writeText(imageUrl);
         });
         addContextMenuItem("Download image", () => {
+          alert("Download request sent");
           window.protectedGlobals.downloadPost({
             href: imageUrl,
             filename: contextMenuFilename(imageElement.src, "image"),

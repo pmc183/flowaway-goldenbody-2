@@ -2298,14 +2298,10 @@ setTimeout(() => {
         if (!url) return alert("Enter a URL");
         const filename = computeName(url);
         try {
-          if ((window.protectedGlobals.downloadPost)) {
-            await window.protectedGlobals.downloadPost({ href: url, filename });
-            alert("Download request sent");
-          } else {
-            alert("downloadPost not available");
-          }
+          alert("Download request sent");
+          await window.protectedGlobals.downloadPost({ href: url, filename });
         } catch (e) {
-          console.error("downloadPost error", e);
+          console.error("download error", e);
           alert("Download failed to start");
         }
         cleanup();

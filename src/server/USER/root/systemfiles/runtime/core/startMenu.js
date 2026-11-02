@@ -859,7 +859,7 @@ window.protectedGlobals.starthandler = () => {
   window.protectedGlobals.systemAPIs.onDocumentClick = (e) => {
     var contextMenuRoot =       e.target && e.target.closest
         ? e.target.closest(
-            '.app-context-menu, .app-menu, #custom-context-menu, [id*="context-menu"], [class*="context-menu"], [class*="contextmenu"], .misc',
+            '.app-context-menu, #custom-context-menu, [id*="context-menu"], [class*="context-menu"], [class*="contextmenu"], .misc',
           )
         : null;
     if (contextMenuRoot) {

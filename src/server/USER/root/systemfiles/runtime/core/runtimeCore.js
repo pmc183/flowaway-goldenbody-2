@@ -848,10 +848,13 @@ window.protectedGlobals.downloadPost = async function downloadPost(data) {
   if (res.status === 200) {
     alert("Download successful! Filename: " + data.filename + ". Check your downloads folder.");
   }
-  if (res.status === 401) {
+  else if (res.status === 401) {
     const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
     if (refilled) return await window.protectedGlobals.downloadPost(data);
     return { error: "unauthorized" };
+  }
+  else {
+    alert("Download failed: " + body?.error || "Unknown error");
   }
   return body;
 };
