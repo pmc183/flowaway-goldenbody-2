@@ -1207,7 +1207,7 @@ function makeIcon(type, size = 16) {
     // `currentPath` accordingly. If the path points to a file, use its
     // parent folder. If nothing is found, fall back to root.
     try {
-      if (path !== "/") {
+      if (path !== "/" && path) {
         // normalize and split, strip leading/trailing slashes
         let parts = path.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
         // if someone passed a path starting with 'root', remove it
@@ -1290,6 +1290,19 @@ function makeIcon(type, size = 16) {
     return node[1].reduce((sum, child) => sum + getNodeSize(child), 0);
   }
 
+  function getEntryOnDiskSize(bytes) {
+    const size = Number(bytes) || 0;
+    return Math.max(0, size) + 4096;
+  }
+
+  function getNodeStorageUsed(node) {
+    if (!node) return 0;
+    if (node[1] === null) return getEntryOnDiskSize(node[2]?.sizeOnDisk || 0);
+    if (!Array.isArray(node[1])) return 4096;
+
+    return 4096 + node[1].reduce((sum, child) => sum + getNodeStorageUsed(child), 0);
+  }
+
   // Update the storage display element in the sidebar.
   function updateStorageDisplay() {
     try {
@@ -1298,7 +1311,7 @@ function makeIcon(type, size = 16) {
         storageDiv.textContent = "Storage used: —";
         return;
       }
-      const total = getNodeSize(treeData);
+      const total = getNodeStorageUsed(treeData);
       storageDiv.textContent = `Storage used: ${formatSize(total)}/${window.protectedGlobals.data.maxSpace} GB`;
     } catch (e) {
       console.error("updateStorageDisplay error:", e);
@@ -1653,19 +1666,6 @@ function makeIcon(type, size = 16) {
     return current;
   }
 
-  // Helper to find the parent path of an item in treeData
-  function findParentPath(targetItem, node = treeData, path = ["root"]) {
-    if (!node[1]) return null;
-    for (const item of node[1]) {
-      if (item === targetItem) return path;
-      if (Array.isArray(item[1])) {
-        const res = findParentPath(targetItem, item, [...path, item[0]]);
-        if (res) return res;
-      }
-    }
-    return null;
-  }
-
   // --- SORT HELPERS ---
   function sortChildren(node) {
     if (!node || !Array.isArray(node[1])) return;
@@ -1855,6 +1855,7 @@ function makeIcon(type, size = 16) {
     addRow("Name", item[0]);
     addRow("Type", isFolder ? "Folder" : "File");
     addRow("Size", isFolder ? formatSize(getNodeSize(item)) : formatSize(meta.size));
+    addRow("Size on disk", formatSize(meta.sizeOnDisk ?? getEntryOnDiskSize(meta.size || 0)));
     addRow("Modified", formatDate(meta.mtime));
     addRow("Path", getItemPath(item) || getFullPathFromNode(item));
 
@@ -1945,14 +1946,18 @@ function makeIcon(type, size = 16) {
     return `(${maxNum + 1}) ${base}${extension}`;
   }
   async function createFolder() {
+    const sizeOnDisk = 4096;
+    if (getNodeStorageUsed(treeData) + sizeOnDisk > STORAGE_QUOTA_BYTES) {
+      alert("Cannot create folder — storage quota would be exceeded.");
+      return;
+    }
     const folderName = getUniqueName("New Folder");
     const node = findNode(treeData, currentPath);
     if (!node || !node[1]) return;
 
-    // Add new folder with empty children and metadata (mtime)
-    node[1].push([folderName, [], { mtime: Date.now() }]);
+    node[1].push([folderName, [], { size: 0, sizeOnDisk, mtime: Date.now() }]);
     render();
-    const targetPath = [...currentPath]; // current folder path array
+    const targetPath = [...currentPath];
     directions.push({
       addFolder: true,
       path: targetPath.join("/"),
@@ -1962,14 +1967,18 @@ function makeIcon(type, size = 16) {
   }
 
   async function createFile() {
+    const sizeOnDisk = 4096;
+    if (getNodeStorageUsed(treeData) + sizeOnDisk > STORAGE_QUOTA_BYTES) {
+      alert("Cannot create file — storage quota would be exceeded.");
+      return;
+    }
     const fileName = getUniqueName("New File.txt");
     const node = findNode(treeData, currentPath);
     if (!node || !node[1]) return;
 
-    // Add new file with empty content object and metadata (mtime)
-    node[1].push([fileName, null, { size: 0, mtime: Date.now() }]);
+    node[1].push([fileName, null, { size: 0, sizeOnDisk, mtime: Date.now() }]);
     render();
-    const targetPath = [...currentPath]; // current folder path array
+    const targetPath = [...currentPath];
     directions.push({
       addFile: true,
       path: targetPath.join("/") + "/" + fileName,
@@ -2022,7 +2031,11 @@ function makeIcon(type, size = 16) {
     if (!isClickInsideFile && selectedItems.length > 0) {
       selectedItems = [];
       selectedItem = null;
-      render();
+
+      const node = findNode(treeData, currentPath);
+      if (node && node[1]) {
+        refreshSelectionUI(node[1]);
+      }
     }
 
     const tag = String((e.target && e.target.tagName) || "").toUpperCase();
@@ -2052,10 +2065,10 @@ function makeIcon(type, size = 16) {
       if (e && (e.stopPropagation)) e.stopPropagation();
       const targetPath = [...currentPath]; // current folder path array
       // Quota check: sum total size of clipboard items
-      let currentUsed = getNodeSize(treeData);
+      let currentUsed = getNodeStorageUsed(treeData);
       let clipboardTotal = 0;
       for (const item of window.explorerGlobals.clipboard) {
-        clipboardTotal += getNodeSize(item.node);
+        clipboardTotal += getNodeStorageUsed(item.node);
       }
       if (currentUsed + clipboardTotal > STORAGE_QUOTA_BYTES) {
         alert("Cannot paste — storage quota would be exceeded.");
@@ -2726,7 +2739,6 @@ function makeIcon(type, size = 16) {
     refreshBtn.appendChild(document.createTextNode('Refreshing...'));
     statusDiv.textContent = "Fetching Newest Files...";
     await onlyloadTree();
-    render();
     refreshBtn.innerHTML = '';
     refreshBtn.appendChild(makeIcon('refresh',16));
     refreshBtn.appendChild(document.createTextNode('Refresh'));
@@ -2814,16 +2826,17 @@ function makeIcon(type, size = 16) {
     const node = findNode(treeData, currentPath);
     if (!node || !node[1]) return;
 
-    let currentUsed = getNodeSize(treeData);
+    let currentUsed = getNodeStorageUsed(treeData);
     const allowed = [];
     for (const f of files) {
-      if (currentUsed + f.size > STORAGE_QUOTA_BYTES) {
+      const effectiveSize = getEntryOnDiskSize(f.size);
+      if (currentUsed + effectiveSize > STORAGE_QUOTA_BYTES) {
         alert(
           `Cannot upload "${f.name}" — storage quota would be exceeded.`,
         );
         continue;
       }
-      currentUsed += f.size;
+      currentUsed += effectiveSize;
       allowed.push(f);
     }
 
@@ -2845,7 +2858,7 @@ function makeIcon(type, size = 16) {
       for (let fileIndex = 0; fileIndex < allowed.length; fileIndex++) {
         const f = allowed[fileIndex];
         const newName = getUniqueName(f.name);
-        node[1].push([newName, null, { size: f.size, mtime: Date.now() }]);
+        node[1].push([newName, null, { size: f.size, sizeOnDisk: getEntryOnDiskSize(f.size), mtime: Date.now() }]);
         const targetPath = [...currentPath];
         const cp = targetPath.join("/");
         const fileLabel = `${fileIndex + 1}/${allowed.length}: ${newName}`;

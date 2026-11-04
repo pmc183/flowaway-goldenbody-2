@@ -9,6 +9,15 @@ const {
 } = require('./storageQuota');
 
 const userLocks = new Map();
+const MIN_ENTRY_SIZE_BYTES = 4 * 1024;
+
+function getEntryDiskSizeBytes(size) {
+  const numeric = Number(size);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return MIN_ENTRY_SIZE_BYTES;
+  }
+  return numeric + MIN_ENTRY_SIZE_BYTES;
+}
 
 function withUserLock(username, fn) {
   const prev = userLocks.get(username) || Promise.resolve();
@@ -44,11 +53,11 @@ async function getPathSizeBytes(target) {
   }
 
   if (stat.isFile()) {
-    return stat.size;
+    return getEntryDiskSizeBytes(stat.size);
   }
 
   if (stat.isDirectory()) {
-    let total = 0;
+    let total = MIN_ENTRY_SIZE_BYTES;
 
     const entries = await fsp.readdir(target, {
       withFileTypes: true,
@@ -79,15 +88,18 @@ async function writeFileWithQuota(
   replace
 ) {
   let oldSize = 0;
+  let existed = false;
 
   try {
     const st = await fsp.stat(filePath);
 
     if (st.isFile()) {
       oldSize = st.size;
+      existed = true;
     }
   } catch {
     oldSize = 0;
+    existed = false;
   }
 
   // This uses the cached usage.
@@ -95,13 +107,15 @@ async function writeFileWithQuota(
   const used = await getUserUsage(username, userRoot);
   const quota = await getUserQuotaBytes(userRoot);
 
-  const delta = replace
-    ? getByteLength(rawBody) - oldSize
-    : getByteLength(rawBody);
+  const currentSize = getEntryDiskSizeBytes(getByteLength(rawBody));
+  const previousSize = getEntryDiskSizeBytes(oldSize);
+  const delta = existed
+    ? (replace ? currentSize - previousSize : currentSize)
+    : currentSize;
 
   if (delta > 0 && used + delta > quota) {
     throw createQuotaError(
-      'Storage quota exceeded: cannot write file'
+      'Out of storage: cannot write file'
     );
   }
 
@@ -138,13 +152,13 @@ async function finalizeDownloadWithQuota(
     return stat.isFile() ? stat.size : 0;
   }).catch(() => 0);
 
-  const delta = pendingSize - existingSize;
+  const delta = getEntryDiskSizeBytes(pendingSize) - getEntryDiskSizeBytes(existingSize);
 
   if (delta > 0 && currentUsage + delta > quota) {
     await fsp.unlink(tmpPath).catch(() => {});
 
     throw createQuotaError(
-      'Storage quota exceeded: cannot download this file'
+      'Out of storage: cannot download this file'
     );
   }
 
@@ -163,6 +177,33 @@ async function finalizeDownloadWithQuota(
   adjustUserUsage(username, delta, userRoot);
 
   return pendingSize;
+}
+
+async function createDirectoryWithQuota(
+  username,
+  userRoot,
+  dirPath
+) {
+  const quota = await getUserQuotaBytes(userRoot);
+  const currentUsage = await getUserUsage(username, userRoot);
+  const dirSize = getEntryDiskSizeBytes(0);
+
+  if (currentUsage + dirSize > quota) {
+    throw createQuotaError(
+      'Out of storage: cannot create folder'
+    );
+  }
+
+  if (await exists(dirPath)) {
+    return false;
+  }
+
+  await fsp.mkdir(dirPath, {
+    recursive: true,
+  });
+
+  adjustUserUsage(username, dirSize, userRoot);
+  return true;
 }
 
 async function deletePathWithQuota(
@@ -196,7 +237,7 @@ async function copyPathWithQuota(
 
   if (currentUsed + srcSize > quota) {
     throw createQuotaError(
-      `Storage quota exceeded: cannot paste "${path.basename(src)}"`
+      `Out of storage: cannot paste "${path.basename(src)}"`
     );
   }
 
@@ -215,6 +256,7 @@ module.exports = {
   withUserLock,
   writeFileWithQuota,
   finalizeDownloadWithQuota,
+  createDirectoryWithQuota,
   deletePathWithQuota,
   copyPathWithQuota,
 };

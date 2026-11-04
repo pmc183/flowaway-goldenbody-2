@@ -1,6 +1,6 @@
 "use strict";
 let __dragstripHeight = 28;
-// disable all apis that can be used to exit fullscreen
+const exitPointerLock = document.exitPointerLock.bind(document);
 (() => {
 // 1. Keep a state variable and store original network APIs
 let networkAllowed = window.networkAllowed || false; 
@@ -532,11 +532,6 @@ window.lockAPI = (api, parent) => {
 window.lockAPI("showOpenFilePicker", window);
 window.lockAPI("showSaveFilePicker", window);
 window.lockAPI("showDirectoryPicker", window);
-window.lockAPI("exitFullscreen", window);
-window.lockAPI("webkitExitFullscreen", window);
-window.lockAPI("mozCancelFullScreen", window);
-window.lockAPI("msExitFullscreen", window);
-window.lockAPI("exitFullscreen", document);
 window.lockAPI("indexedDB", window);
 window.lockAPI("localStorage", window);
 window.lockAPI("sessionStorage", window);
@@ -973,6 +968,9 @@ window.addEventListener("click", (e) => {
 });
 window.addEventListener("keydown", (e) => {
     e.stopPropagation();
+    if (e.key === "escape") {
+        exitPointerLock();
+    }
     const parts = [];
     if (e.ctrlKey) parts.push("Ctrl");
     if (e.altKey) parts.push("Alt");

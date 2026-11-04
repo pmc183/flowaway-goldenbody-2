@@ -172,27 +172,6 @@
     }
   }
 
-  function isPathUnderRoot(path, root) {
-    if (typeof path !== "string" || typeof root !== "string") return false;
-    const normalizedPath = normalizeVfsPath(path);
-    const normalizedRoot = normalizeVfsPath(root);
-    return normalizedPath === normalizedRoot || normalizedPath.startsWith(normalizedRoot + "/");
-  }
-
-  function isExternalKeyAllowed(path, key, appName) {
-    if (!key || typeof path !== "string") return false;
-    const mapping = window.protectedGlobals.__externalPickerKeys.get(key);
-    if (!mapping) return false;
-    if (mapping.appName !== appName) return false;
-    if (mapping.kind === "file") {
-      return normalizeVfsPath(path) === normalizeVfsPath(mapping.path);
-    }
-    if (mapping.kind === "directory") {
-      return isPathUnderRoot(path, mapping.path);
-    }
-    return false;
-  }
-
   function createPickerTheme(isDark) {
     return {
       panelBg: isDark ? "#1f1f1f" : "#ffffff",

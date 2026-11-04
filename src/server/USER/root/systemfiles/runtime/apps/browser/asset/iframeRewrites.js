@@ -1083,26 +1083,6 @@ function getAbsoluteMousePosition(e) {
           win.removeEventListener("keydown", handleReload);
           win.addEventListener("keydown", handleReload);
           frameDoc.addEventListener("click", hideMenu);
-          if (!frame.contentWindow.onpointerup) {
-            frame.contentWindow.onpointerup = function (ev) {
-              window.postMessage(
-                {
-                  type: "iframe-pointerup",
-                  x: ev.clientX,
-                  y: ev.clientY,
-                  pageX: ev.pageX,
-                  pageY: ev.pageY,
-                  button: ev.button,
-                  buttons: ev.buttons,
-                  altKey: ev.altKey,
-                  ctrlKey: ev.ctrlKey,
-                  shiftKey: ev.shiftKey,
-                  metaKey: ev.metaKey,
-                },
-                "*",
-              );
-            };
-          }
           if (!win.contextMenuHandler) {
             win.contextMenuHandler = function (e) {
               e.preventDefault();
@@ -1180,14 +1160,6 @@ function getAbsoluteMousePosition(e) {
             }
           };
           function attatch() {
-            frame.contentWindow.removeEventListener(
-              "pointerup",
-              frame.contentWindow.onpointerup,
-            );
-            frame.contentWindow.addEventListener(
-              "pointerup",
-              frame.contentWindow.onpointerup,
-            );
             win.removeEventListener(
               "keydown",
               win.__gbWindowSwitchForwardKeydown,

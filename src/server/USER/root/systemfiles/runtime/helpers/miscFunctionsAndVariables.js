@@ -80,16 +80,38 @@ window.protectedGlobals.loadTree = async function () {
 
 window.protectedGlobals.annotateTreeWithPaths = function (tree, basePath = "") {
   var [name, children, meta = {}] = tree;
-
   var path = basePath === "" && name === "root" ? "" : basePath ? `${basePath}/${name}` : name;
 
-  tree[2] = { ...meta, path };
-
   if (Array.isArray(children)) {
+    var totalChildSizeOnDisk = 0;
     for (const child of children) {
-      window.protectedGlobals.annotateTreeWithPaths(child, path);
+      totalChildSizeOnDisk += window.protectedGlobals.annotateTreeWithPaths(child, path) || 0;
     }
+
+    var folderSize = Number(meta.size) || totalChildSizeOnDisk || 0;
+    var folderSizeOnDisk = totalChildSizeOnDisk + 4096;
+
+    tree[2] = {
+      ...meta,
+      path,
+      size: folderSize,
+      sizeOnDisk: folderSizeOnDisk,
+    };
+
+    return folderSizeOnDisk;
   }
+
+  var fileSize = Number(meta.size) || 0;
+  var fileSizeOnDisk = fileSize + 4096;
+
+  tree[2] = {
+    ...meta,
+    path,
+    size: fileSize,
+    sizeOnDisk: fileSizeOnDisk,
+  };
+
+  return fileSizeOnDisk;
 };
 
 // helper functions for apps to use, not critical but can be used for various things, feel free to edit or remove as you see fit, these are just examples of things you can do with the apis provided to you in entry.json

@@ -479,7 +479,7 @@ function makeFileHandle(file) {
         if (pickerCancelled) {
           clearInterval(i);
           pickerCancelled = false;
-          reject(new DOMException('The user aborted a request.', 'AbortError'));
+          resolve('aborted');
           return;
         }
         if (allFilesReceived) {
@@ -628,15 +628,18 @@ function makeFileHandle(file) {
     injectedFiles = [];
 
     await window.browserGlobals.showOpenFilePicker(frameWin);
-
+    let result;
     try {
-      await waitUntilFiles();
+      result = await waitUntilFiles();
       const files = injectedFiles.slice();
       return files.map(file => makeFileHandle(file));
     } finally {
       injectedFiles = [];
       allFilesReceived = false;
       pickerMode = null;
+      if (result === 'aborted') {
+        throw new DOMException('The user aborted a request.', 'AbortError');
+      }
     }
   };
 

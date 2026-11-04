@@ -227,7 +227,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
                 if (maybe && typeof maybe.then === 'function') maybe.catch((e) => {
                     logger.error('fetchfiles handler error: ' + e.message);
                     try { 
-                        if (e.message == 'Storage quota exceeded: cannot write file') { res.writeHead(413); res.end(e.message); }
+                        if (e.message == 'Out of storage: cannot write file') { res.writeHead(413); res.end(e.message); }
                         else { res.writeHead(500); res.end('Server Error'); }
                     } catch (er) {
                         logger.debug('Failed to write fetchfiles error response: ' + er.message);

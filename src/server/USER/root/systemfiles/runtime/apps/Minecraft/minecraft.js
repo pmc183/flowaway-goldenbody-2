@@ -27,8 +27,8 @@ window.minecraft = async () => {
     iframe.style.height = "calc(100% - 28px)";
     iframe.style.border = "none";
     appwindow.appendChild(iframe);
-    let html = await window.protectedGlobals.ReadFile('/systemfiles/runtime/apps/Minecraft/Minecraft.html', { text: true, direct: true });
-    const chunk2 = await window.protectedGlobals.ReadFile('/systemfiles/runtime/apps/Minecraft/Minecraft_chunk_2.html', { text: true, direct: true });
+    let html = await window.protectedGlobals.ReadFile('/systemfiles/runtime/apps/Minecraft/Minecraft.chunk', { text: true, direct: true });
+    const chunk2 = await window.protectedGlobals.ReadFile('/systemfiles/runtime/apps/Minecraft/Minecraft_chunk_2.chunk', { text: true, direct: true });
     html += chunk2;
     iframe.contentDocument.open();
     iframe.contentDocument.write(html);

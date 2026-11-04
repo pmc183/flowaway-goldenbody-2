@@ -302,7 +302,7 @@ await (async function () {
       border-radius: 12px;
       padding: 16px;
       min-width: 280px;
-      z-index: 100000;
+      z-index: 100003;
       display: none;
       gap: 12px;
       color: #000;

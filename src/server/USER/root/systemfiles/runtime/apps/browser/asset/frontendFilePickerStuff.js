@@ -435,11 +435,18 @@
           pickerCurrentPath = ["root"];
           pickerSelection = [];
 
+          let pickerDone = null;
+
           // Create overlay immediately so the user sees feedback while the legacy tree is loading.
           if (!pickerOverlay) {
             let theme = getPickerTheme();
             pickerOverlay = document.createElement("div");
             document.body.appendChild(pickerOverlay);
+            pickerOverlay.resolvePicker = null;
+
+            pickerDone = new Promise((resolve) => {
+              pickerOverlay.resolvePicker = resolve;
+            });
 
             const pickerBox = document.createElement("div");
             pickerBox.className = "pickerBox";
@@ -499,6 +506,71 @@
             btnOpen.textContent = "Open";
             stylePickerButton(btnOpen, theme, true);
             btnBar.appendChild(btnOpen);
+
+            btnCancel.onclick = () => {
+              if (pickerOverlay && typeof pickerOverlay.resolvePicker === "function") {
+                pickerOverlay.resolvePicker([]);
+                pickerOverlay.resolvePicker = null;
+              }
+              deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
+                __VFS__: true,
+                kind: "pickerCancelled",
+              });
+              if (pickerOverlay) {
+                pickerOverlay.remove();
+                pickerOverlay = null;
+              }
+              pickerSelection = null;
+            };
+
+            btnOpen.onclick = async () => {
+              const selections = [...pickerSelection];
+              const targetFrame = sentreqframe;
+
+              if (!selections.length) return alert("Select a file or folder");
+              if (!targetFrame) {
+                console.warn("No iframe found");
+                return;
+              }
+
+              if (pickerOverlay && typeof pickerOverlay.resolvePicker === "function") {
+                pickerOverlay.resolvePicker(selections);
+                pickerOverlay.resolvePicker = null;
+              }
+              if (pickerOverlay) {
+                pickerOverlay.remove();
+                pickerOverlay = null;
+              }
+              pickerSelection = [];
+
+              let i = 0;
+              for (const sel of selections) {
+                i++;
+                if (Array.isArray(sel[1])) {
+                  if (i == selections.length) {
+                    await sendFolderNodeToIframe(
+                      username,
+                      sel,
+                      targetFrame,
+                      true,
+                    );
+                    continue;
+                  }
+                  await sendFolderNodeToIframe(username, sel, targetFrame);
+                } else {
+                  if (i == selections.length) {
+                    await sendFileNodeToIframe(
+                      username,
+                      sel,
+                      targetFrame,
+                      true,
+                    );
+                    continue;
+                  }
+                  await sendFileNodeToIframe(username, sel, targetFrame);
+                }
+              }
+            };
 
             function renderPicker() {
               breadcrumbDiv.innerHTML = "";
@@ -598,85 +670,14 @@
             pickerSelection = [];
             renderPicker();
 
-            // Cancel / Open buttons
-            let resolvePicker;
-            pickerOverlay.resolvePicker = null;
-
-            pickerOverlay.resolvePicker = null; // define it at the start
-
-            btnCancel.onclick = () => {
-              if (pickerOverlay.resolvePicker) {
-                pickerOverlay.resolvePicker([]); // resolve promise with empty selection
-                pickerOverlay.resolvePicker = null;
-              }
-              if (sentreqframe && sentreqframe.__gbReceiveVfsPayload) {
-                sentreqframe.__gbReceiveVfsPayload({
-                  __VFS__: true,
-                  kind: "pickerCancelled",
-                });
-              }
-              pickerOverlay.remove();
-              pickerOverlay = null;
-              pickerSelection = null;
-            };
-            btnOpen.onclick = async () => {
-              const selections = [...pickerSelection]; // snapshot immediately
-              const targetFrame = sentreqframe; // snapshot iframe
-
-              if (!selections.length)
-                return alert(
-                  "Select a file or folder",
-                );
-              if (!targetFrame) {
-                console.warn("No iframe found");
-                return;
-              }
-
-              // remove picker
-              if (pickerOverlay.resolvePicker) {
-                pickerOverlay.resolvePicker(selections);
-                pickerOverlay.resolvePicker = null;
-              }
-              pickerOverlay.remove();
-              pickerOverlay = null;
-              pickerSelection = [];
-
-              // send all selections
-              let i = 0;
-              for (const sel of selections) {
-                i++;
-                if (Array.isArray(sel[1])) {
-                  if (i == selections.length) {
-                    await sendFolderNodeToIframe(
-                      username,
-                      sel,
-                      targetFrame,
-                      true,
-                    );
-                    continue;
-                  }
-                  await sendFolderNodeToIframe(username, sel, targetFrame);
-                } else {
-                  if (i == selections.length) {
-                    await sendFileNodeToIframe(
-                      username,
-                      sel,
-                      targetFrame,
-                      true,
-                    );
-                    continue;
-                  }
-                  await sendFileNodeToIframe(username, sel, targetFrame);
-                }
-              }
-            };
+            // Cancel / Open buttons are wired immediately so they remain usable while the tree is still loading.
           } else {
             pickerOverlay.remove();
             pickerOverlay = null;
             return window.browserGlobals.showOpenFilePicker(frameWin);
           }
 
-          return new Promise((res) => (pickerOverlay.resolvePicker = res));
+          return pickerDone;
         }
 
         // ----------------------------
@@ -764,6 +765,45 @@
           btnSave.textContent = "Save";
           stylePickerButton(btnSave, theme, true);
           btnBar.appendChild(btnSave);
+
+          btnCancel.onclick = () => {
+            deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
+              __VFS__: true,
+              kind: "saveTarget",
+              path: null,
+            });
+            overlay.remove();
+          };
+
+          btnSave.onclick = () => {
+            if (!savePickerTree) return;
+            const selections = [...savePickerSelection];
+            const basePath = savePickerCurrentPath.slice(1).join("/");
+            const fname = (nameInput.value || "").trim();
+            if (!fname) {
+              alert("Enter a filename");
+              return;
+            }
+
+            let chosen;
+            if (!selections.length) {
+              chosen = basePath ? basePath + "/" + fname : fname;
+            } else {
+              const sel = selections[0];
+              const isFolder = Array.isArray(sel[1]);
+              if (isFolder) chosen = (basePath ? basePath + "/" : "") + fname;
+              else alert("Select a folder to save into");
+            }
+
+            if (!chosen) return;
+            deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
+              __VFS__: true,
+              kind: "saveTarget",
+              path: chosen,
+            });
+
+            overlay.remove();
+          };
 
           let savePickerTree = null;
           let savePickerCurrentPath = ["root"];
@@ -882,42 +922,6 @@
           savePickerSelection = [];
           render();
 
-          btnCancel.onclick = () => {
-            deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
-              __VFS__: true,
-              kind: "saveTarget",
-              path: null,
-            });
-            overlay.remove();
-          };
-
-          btnSave.onclick = () => {
-            const selections = [...savePickerSelection];
-            const basePath = savePickerCurrentPath.slice(1).join("/");
-            const fname = (nameInput.value || "").trim();
-            if (!fname) {
-              alert("Enter a filename");
-              return;
-            }
-
-            let chosen;
-            if (!selections.length) {
-              chosen = basePath ? basePath + "/" + fname : fname;
-            } else {
-              const sel = selections[0];
-              const isFolder = Array.isArray(sel[1]);
-              if (isFolder) chosen = (basePath ? basePath + "/" : "") + fname;
-              else alert("Select a folder to save into");
-            }
-
-            deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
-              __VFS__: true,
-              kind: "saveTarget",
-              path: chosen,
-            });
-
-            overlay.remove();
-          };
         }
 
         // ----------------------------
@@ -992,6 +996,74 @@
           btnOpen.textContent = "Select";
           stylePickerButton(btnOpen, theme, true);
           btnBar.appendChild(btnOpen);
+
+          btnCancel.onclick = () => {
+            deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
+              __VFS__: true,
+              kind: "directoryTarget",
+              path: null,
+              treeNode: null,
+            });
+            overlay.remove();
+          };
+
+          btnOpen.onclick = () => {
+            if (!dirPickerTree) return;
+            const basePath = dirPickerCurrentPath.slice(1).join("/") || "root";
+            let chosen = dirPickerSelectionPaths.length > 0 ? dirPickerSelectionPaths[0] : basePath;
+
+            let selectedNode = dirPickerTree;
+            const pathParts = chosen.split("/").filter((p) => p && p !== "root");
+            for (const part of pathParts) {
+              if (!selectedNode || !selectedNode[1]) break;
+              selectedNode = selectedNode[1].find((c) => c[0] === part);
+            }
+
+            if (!selectedNode) {
+              alert("Selected directory not found");
+              return;
+            }
+
+            function collectFiles(node, currentPath) {
+              const files = [];
+              if (!node || !Array.isArray(node[1])) return files;
+              for (const item of node[1]) {
+                const [name, child] = item;
+                const itemPath = currentPath ? currentPath + "/" + name : name;
+                if (Array.isArray(child)) files.push(...collectFiles(item, itemPath));
+                else files.push({ path: itemPath, contents: child || "" });
+              }
+              return files;
+            }
+
+            const filesToSend = collectFiles(selectedNode, chosen);
+
+            if (sentreqframe && sentreqframe.contentWindow) {
+              deliverVfsPayload(sentreqframe.contentWindow, {
+                __VFS__: true,
+                kind: "directoryTarget",
+                path: chosen,
+                treeNode: selectedNode,
+              });
+
+              for (const f of filesToSend) {
+                const buffer = f.contents instanceof ArrayBuffer
+                  ? f.contents
+                  : new TextEncoder().encode(f.contents).buffer;
+
+                deliverVfsPayload(sentreqframe.contentWindow, {
+                  __VFS__: true,
+                  kind: "fileData",
+                  path: f.path,
+                  name: f.path.split("/").pop(),
+                  type: "text/plain",
+                  buffer,
+                });
+              }
+            }
+
+            overlay.remove();
+          };
 
           let dirPickerTree = null;
           let dirPickerCurrentPath = ["root"];
@@ -1115,72 +1187,6 @@
           dirPickerSelectionPaths = [];
           render();
 
-          btnCancel.onclick = () => {
-            deliverVfsPayload(sentreqframe && sentreqframe.contentWindow, {
-              __VFS__: true,
-              kind: "directoryTarget",
-              path: null,
-              treeNode: null,
-            });
-            overlay.remove();
-          };
-
-          btnOpen.onclick = () => {
-            const basePath = dirPickerCurrentPath.slice(1).join("/") || "root";
-            let chosen = dirPickerSelectionPaths.length > 0 ? dirPickerSelectionPaths[0] : basePath;
-
-            let selectedNode = dirPickerTree;
-            const pathParts = chosen.split("/").filter((p) => p && p !== "root");
-            for (const part of pathParts) {
-              if (!selectedNode || !selectedNode[1]) break;
-              selectedNode = selectedNode[1].find((c) => c[0] === part);
-            }
-
-            if (!selectedNode) {
-              alert("Selected directory not found");
-              return;
-            }
-
-            function collectFiles(node, currentPath) {
-              const files = [];
-              if (!node || !Array.isArray(node[1])) return files;
-              for (const item of node[1]) {
-                const [name, child] = item;
-                const itemPath = currentPath ? currentPath + "/" + name : name;
-                if (Array.isArray(child)) files.push(...collectFiles(item, itemPath));
-                else files.push({ path: itemPath, contents: child || "" });
-              }
-              return files;
-            }
-
-            const filesToSend = collectFiles(selectedNode, chosen);
-
-            if (sentreqframe && sentreqframe.contentWindow) {
-              deliverVfsPayload(sentreqframe.contentWindow, {
-                __VFS__: true,
-                kind: "directoryTarget",
-                path: chosen,
-                treeNode: selectedNode,
-              });
-
-              for (const f of filesToSend) {
-                const buffer = f.contents instanceof ArrayBuffer
-                  ? f.contents
-                  : new TextEncoder().encode(f.contents).buffer;
-
-                deliverVfsPayload(sentreqframe.contentWindow, {
-                  __VFS__: true,
-                  kind: "fileData",
-                  path: f.path,
-                  name: f.path.split("/").pop(),
-                  type: "text/plain",
-                  buffer,
-                });
-              }
-            }
-
-            overlay.remove();
-          };
         }
 
         function resolveRequestFrame(frameWinArg) {

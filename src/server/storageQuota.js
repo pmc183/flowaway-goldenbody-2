@@ -3,7 +3,16 @@ const fsp = require('fs/promises');
 const path = require('path');
 
 const DEFAULT_QUOTA_BYTES = Number(process.env.STORAGE_QUOTA_BYTES) || 1 * 1024 * 1024 * 1024;
+const MIN_ENTRY_SIZE_BYTES = 4 * 1024;
 const userUsageCache = new Map();
+
+function getEntryDiskSizeBytes(size) {
+  const numeric = Number(size);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return MIN_ENTRY_SIZE_BYTES;
+  }
+  return numeric + MIN_ENTRY_SIZE_BYTES;
+}
 
 function getUsernameFromUserRoot(userRoot) {
   if (!userRoot) return '';
@@ -14,7 +23,7 @@ function getUsernameFromUserRoot(userRoot) {
 async function getDirectorySizeBytes(dirPath) {
   if (!dirPath || !fs.existsSync(dirPath)) return 0;
 
-  let total = 0;
+  let total = MIN_ENTRY_SIZE_BYTES;
   const entries = await fsp.readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
@@ -23,7 +32,7 @@ async function getDirectorySizeBytes(dirPath) {
       if (stat.isDirectory()) {
         total += await getDirectorySizeBytes(fullPath);
       } else {
-        total += stat.size;
+        total += getEntryDiskSizeBytes(stat.size);
       }
     } catch (e) {
       // ignore files that disappear mid-scan

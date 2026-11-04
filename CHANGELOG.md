@@ -235,3 +235,11 @@
 - Fixed browser download status notification arrives too late.
 - update landing page so its more appropriate.
 - Note: apps such as browser are "government owned businesses" meaning they are still an normal app just developed by me, FlowAway GoldenBody, it's a great example if you want to learn how to build an admin (system) app.
+
+# V 2.7.3
+- Make cancel btn work for file pickers even before items loaded, especially browser.
+- Imporved security for iframe apps such as their ability to fake message itself.
+- Pointer lock will exit when the iframe requests it and the user hit esc.
+- Fixed how some rendering stuff to remove redundant rendering such as rerender all entries when the user selects one.
+- Patched the possible exploit to create millions of empty files and folders which isnt registered in the quota.
+- Fixed some server error handling

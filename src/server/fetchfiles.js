@@ -2,9 +2,19 @@ const fs = require("fs");
 const path = require("path");
 const fsp = require("fs/promises");
 const { getUserUsage, getUserQuotaBytes } = require("./storageQuota");
-const { withUserLock, writeFileWithQuota, deletePathWithQuota, copyPathWithQuota } = require("./quotaFs");
+const { withUserLock, writeFileWithQuota, createDirectoryWithQuota, deletePathWithQuota, copyPathWithQuota } = require("./quotaFs");
 
-const MAX_BODY = 100 * 1024 * 1024;
+const MAX_BODY = 50 * 1024 * 1024;
+const MIN_ENTRY_SIZE_BYTES = 4 * 1024;
+
+function getEntryDiskSizeBytes(size) {
+  const numeric = Number(size);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return MIN_ENTRY_SIZE_BYTES;
+  }
+  return numeric + MIN_ENTRY_SIZE_BYTES;
+}
+
 async function exists(fullPath) {
   try {
     await fsp.access(fullPath);
@@ -48,7 +58,7 @@ function sendSafeError(res, err, fallbackStatus = 500) {
     message = "Invalid operation";
   } else if (err?.code === "QUOTA_EXCEEDED") {
     status = 413;
-    message = "Storage quota exceeded";
+    message = "Out of storage";
   }
 
   console.error("Filesystem operation failed:", err);
@@ -98,67 +108,113 @@ function createLimiter(maxConcurrent = 64, maxQueue = 500) {
 async function buildUserFileTree(rootPath) {
   const root = ["root", []];
 
-  const stack = [
-    {
-      path: rootPath,
-      children: root[1],
-    },
-  ];
+  const queue = [{
+    path: rootPath,
+    children: root[1],
+  }];
 
-  while (stack.length) {
-    const { path: dir, children } = stack.pop();
+  let index = 0;
 
+  const MAX_CONCURRENT_DIRS = 4;
+  const MAX_ENTRIES_PER_BATCH = 32;
+
+  async function processDirectory({ path: dir, children }) {
     let entries;
+
     try {
       entries = await limit(() =>
-        fsp.readdir(dir, { withFileTypes: true }),
+        fsp.readdir(dir, { withFileTypes: true })
       );
-    } catch {
-      continue;
+    } catch (err) {
+      console.error("Failed to read directory:", dir, err);
+      return [];
     }
 
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
+    const directories = [];
 
-      let stat;
-      try {
-        stat = await limit(() => fsp.stat(fullPath));
-      } catch {
-        continue;
+    // Process entries in bounded batches.
+    for (let i = 0; i < entries.length; i += MAX_ENTRIES_PER_BATCH) {
+      const batch = entries.slice(i, i + MAX_ENTRIES_PER_BATCH);
+
+      const results = await Promise.all(
+        batch.map(async (entry) => {
+          const fullPath = path.join(dir, entry.name);
+
+          let stat;
+
+          try {
+            stat = await limit(() => fsp.stat(fullPath));
+          } catch (err) {
+            console.error("Failed to stat entry:", fullPath, err);
+            return null;
+          }
+
+          if (entry.isDirectory()) {
+            const dirChildren = [];
+
+            return {
+              node: [
+                entry.name,
+                dirChildren,
+                { mtime: stat.mtimeMs },
+              ],
+              directory: {
+                path: fullPath,
+                children: dirChildren,
+              },
+            };
+          }
+
+          return {
+            node: [
+              entry.name,
+              null,
+              {
+                size: stat.size,
+                sizeOnDisk: getEntryDiskSizeBytes(stat.size),
+                mtime: stat.mtimeMs,
+              },
+            ],
+            directory: null,
+          };
+        })
+      );
+
+      for (const result of results) {
+        if (!result) continue;
+
+        children.push(result.node);
+
+        if (result.directory) {
+          directories.push(result.directory);
+        }
       }
+    }
 
-      if (entry.isDirectory()) {
-        const dirChildren = [];
-        children.push([
-          entry.name,
-          dirChildren,
-          {
-            mtime: stat.mtimeMs,
-          },
-        ]);
+    return directories;
+  }
 
-        stack.push({
-          path: fullPath,
-          children: dirChildren,
-        });
-      } else {
-        children.push([
-          entry.name,
-          null,
-          {
-            size: stat.size,
-            mtime: stat.mtimeMs,
-          },
-        ]);
-      }
+  while (index < queue.length) {
+    const batch = queue.slice(
+      index,
+      index + MAX_CONCURRENT_DIRS
+    );
+
+    index += batch.length;
+
+    const results = await Promise.all(
+      batch.map(processDirectory)
+    );
+
+    for (const directories of results) {
+      queue.push(...directories);
     }
   }
 
   return root;
 }
 
-
-async function getDirSizeBytes(root) {
+async function getDirRealSizeBytes(root) {
   async function walk(dir) {
     let entries;
 
@@ -189,10 +245,14 @@ async function getDirSizeBytes(root) {
       })
     );
 
-      return sizes.reduce((a, b) => a + b, 0);
+    return sizes.reduce((a, b) => a + b, 0);
   }
 
   return walk(root);
+}
+
+async function getDirSizeBytes(root) {
+  return getEntryDiskSizeBytes(await getDirRealSizeBytes(root));
 }
 
 async function authenticateUser(username, providedPassword, authHeader) {
@@ -365,10 +425,6 @@ async function getRawBody(req) {
 }
 
 async function handleRawFileUpload(req, res) {
-  // 1. START CONSUMING THE STREAM IMMEDIATELY
-  // This prevents TCP window stalling and backpressure issues
-  const bodyPromise = getRawBody(req);
-  
   function base64ToUtf8(base64Str) {
     return Buffer.from(base64Str, "base64").toString("utf8");
   }
@@ -383,7 +439,6 @@ async function handleRawFileUpload(req, res) {
     return res.end(JSON.stringify({ error: "Missing username or file path" }));
   }
 
-  // 2. Perform async authentication and permission checks safely
   if (!(await authenticateUser(username, password, authHeader))) {
     res.writeHead(401);
     return res.end(JSON.stringify({ error: "unauthorized" }));
@@ -418,9 +473,7 @@ async function handleRawFileUpload(req, res) {
   const replace = String(headers["x-file-replace"] || "true") !== "false";
   const filePath = safeResolve(userRoot, normalizedPath);
   
-  // 3. AWAIT THE BODY HERE 
-  // The network chunks have already been safely buffered into memory
-  const rawBody = await bodyPromise;
+  const rawBody = await getRawBody(req);
 
   let oldSize = 0;
 
@@ -638,11 +691,16 @@ async function handleFetchfiles(req, res) {
 
               if (type === "file") {
                 result.size = entryStat.size;
+                result.sizeOnDisk = getEntryDiskSizeBytes(entryStat.size);
               }
 
-              if (type === "folder" && data.directoryDetail) {
-                // only if you really want folder sizes
-                result.size = await getDirSizeBytes(safeResolve(fullPath, d.name));
+              if (type === "folder") {
+                const folderPath = safeResolve(fullPath, d.name);
+                if (data.directoryDetail) {
+                  const folderRealSize = await getDirRealSizeBytes(folderPath);
+                  result.size = folderRealSize;
+                  result.sizeOnDisk = getEntryDiskSizeBytes(folderRealSize);
+                }
               }
             } catch {}
 
@@ -749,7 +807,7 @@ async function handleFetchfiles(req, res) {
                   throw new Error(`Cannot create folder, file exists: ${folderPath}`);
                 }
               } else {
-                await fsp.mkdir(folderPath, { recursive: true });
+                await createDirectoryWithQuota(username, userRoot, folderPath);
               }
 
               continue;
@@ -995,11 +1053,6 @@ async function handleFetchfiles(req, res) {
 
               const itemKind = item && (item.kind || item.type || "file");
               const originalDestPath = String(dir.path || "root");
-              const looksLikeExplicitFileTarget =
-                itemKind !== "directory" &&
-                itemKind !== "folder" &&
-                (/(?:^|\/)[^\/]+\.[^\/]+$/.test(originalDestPath.replace(/\\/g, "/")) ||
-                  originalDestPath.replace(/\\/g, "/").endsWith("/"));
 
               // New behavior: paste/move should place source at the destination path directly
               // and must fail if the destination already exists.
@@ -1034,6 +1087,7 @@ async function handleFetchfiles(req, res) {
               } catch (err) {
                 if (err?.code === "QUOTA_EXCEEDED") {
                   success = false;
+                  error = "Out of storage";
                 } else {
                   throw err;
                 }
@@ -1069,6 +1123,7 @@ async function handleFetchfiles(req, res) {
           result.clipboard = clipboard;
         }
         result.success = success;
+        result.error = error || (success ? undefined : "Operation failed");
         return result;
       }
 
@@ -1100,6 +1155,7 @@ async function handleFetchfiles(req, res) {
 
         const safePayload = {
           success: result.success,
+          error: result.error || (result.success === false ? "Operation failed" : undefined),
           result: {
             ...(result.checkFolder ? { checkFolder: result.checkFolder } : {}),
             ...(result.checkFile ? { checkFile: result.checkFile } : {}),

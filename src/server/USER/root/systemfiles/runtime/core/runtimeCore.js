@@ -393,6 +393,16 @@ window.protectedGlobals.WriteFile = async function (
       body = await response.json();
     } catch {}
 
+    if (body && typeof body === "object" && !body.error && body.success === false) {
+      body.error = body.message || body.result?.error || "Operation failed";
+    }
+    if (!body || typeof body !== "object") {
+      body = {};
+    }
+    if (!body.error && !response.ok) {
+      body.error = `Request failed with status ${response.status}`;
+    }
+
     if (
       response.status === 401 &&
       !window.protectedGlobals.firstlogin
@@ -401,7 +411,7 @@ window.protectedGlobals.WriteFile = async function (
       if (refilled) return await sendChunk(chunk, chunkReplace);
       return { error: "unauthorized" };
     }
-    else if (response.status === 403) {
+    else if (response.status === 403 || body.error) {
       alert(body.error || "Access denied.");
     }
     return {
@@ -431,13 +441,13 @@ window.protectedGlobals.WriteFile = async function (
 
     lastResult = await sendChunk(chunk, chunkReplace);
 
-    // If the server returned an error status, stop immediately.
-    if (!lastResult.response.ok) {
-      return lastResult.body;
+    // If the server returned an error status or a success=false payload, stop immediately.
+    if (!lastResult.response || !lastResult.response.ok || lastResult.body?.success === false) {
+      return lastResult.body || { error: "Request failed" };
     }
   }
 
-  return lastResult.body;
+  return lastResult.body || { success: true };
 };
 window.protectedGlobals.DeleteFile = async function (relPath) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
@@ -803,10 +813,24 @@ window.protectedGlobals.filePost = async function filePost(data) {
       ...data,
     }),
   });
-  let body = await res.json();
+  let body = {};
+  try {
+    body = await res.json();
+  } catch (err) {
+    body = {};
+  }
   extractAuthTokenFromResponse(body);
+  if (body && typeof body === "object" && !body.error && body.success === false) {
+    body.error = body.message || body.result?.error || "Operation failed";
+  }
+  if (!body || typeof body !== "object") {
+    body = {};
+  }
+  if (!body.error && !res.ok) {
+    body.error = `Request failed with status ${res.status}`;
+  }
   var fileErrorMessage = body && body.error ? String(body.error) : "";
-  if (res.status === 403 || /denied/i.test(fileErrorMessage)) {
+  if ((res.status === 403 || res.status === 413) || /denied/i.test(fileErrorMessage) || /quota/i.test(fileErrorMessage)) {
     alert(fileErrorMessage || "Access denied.");
   }
   if (res.status === 401 && !window.protectedGlobals.firstlogin) {
