@@ -1058,7 +1058,7 @@ function makeIcon(type, size = 16) {
         return;
       }
       
-      sortedResults.slice(0, 15).forEach((result, index) => {
+      sortedResults.forEach((result, index) => {
         const hint = document.createElement("div");
         hint.style.padding = "8px 10px";
         hint.style.cursor = "pointer";

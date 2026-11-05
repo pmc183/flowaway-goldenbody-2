@@ -1210,7 +1210,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
         const targetArg = parts[1];
         if (targetArg && Number.isFinite(Number(targetArg))) {
           const ok = killThreadByPid(Number(targetArg));
-          printLine(ok ? `Thread ${targetArg} terminated` : `No active thread with id ${targetArg}`);
+          printLine(ok ? `Process ${targetArg} terminated` : `No active process with id ${targetArg}`);
           return;
         }
         if (terminalWorker) {

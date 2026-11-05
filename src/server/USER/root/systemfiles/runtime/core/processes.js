@@ -930,7 +930,7 @@
 
     if (proc) {
       runProcessCleanup(proc, reason || "kill");
-    }
+    } else return false;
 
     removeTrackedBindingsForPid(pidValue);
     delete runtime.processObjectsByPid[String(pidValue)];

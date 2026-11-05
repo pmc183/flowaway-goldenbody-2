@@ -460,8 +460,16 @@ window.protectedGlobals.showUnifiedAppContextMenu = function (e, appOverride = n
   createShortcut.style.padding = "6px 10px";
   createShortcut.style.cursor = "pointer";
   createShortcut.addEventListener("click", async () => {
-    await window.protectedGlobals.createDesktopShortcutForApp(app);
     menu.remove();
+    const shortcutPromise = window.protectedGlobals.createDesktopShortcutForApp(app);
+    let timeoutNeeded = false;
+    const alertTimeout = setTimeout(() => {
+      timeoutNeeded = true;
+      alert("Creating shortcut, please wait...");
+    }, 1000);
+    await shortcutPromise;
+    clearTimeout(alertTimeout);
+    if (timeoutNeeded) alert("Shortcut created successfully.");
   });
   menu.appendChild(createShortcut);
 

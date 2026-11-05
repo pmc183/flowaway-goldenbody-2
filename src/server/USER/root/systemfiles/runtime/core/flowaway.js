@@ -1,5 +1,6 @@
 "use strict";
 (function () {
+  window.protectedGlobals.origAlert = window.alert;
   if (window.protectedGlobals.__booted__) return;
   window.protectedGlobals.__booted__ = true;
   const loadOverlay = document.createElement("div");

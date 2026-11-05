@@ -650,7 +650,7 @@ async function zipFile() {
          * This function ONLY calls showOpenFilePicker().
          * It never attempts the directory picker.
          */
-        setStatus("Choose a file to ZIP...");
+        setStatus("processing...");
 
         const fileHandle =
             await api.showOpenFilePicker();
@@ -705,7 +705,7 @@ async function zipFolder() {
          * This function ONLY calls showDirectoryPicker().
          * It never attempts the file picker.
          */
-        setStatus("Choose a folder to ZIP...");
+        setStatus("processing...");
 
         const folderHandle =
             await api.showDirectoryPicker();
@@ -1185,7 +1185,7 @@ async function unzipFile() {
 
     try {
         setStatus(
-            "Choose a ZIP file..."
+            "unzipping..."
         );
 
         let zipHandle =
@@ -1218,7 +1218,7 @@ async function unzipFile() {
         }
 
         setStatus(
-            "Choose where to extract the ZIP..."
+            "extracting..."
         );
 
         const destination =

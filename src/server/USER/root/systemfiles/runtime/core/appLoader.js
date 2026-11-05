@@ -1098,7 +1098,20 @@
         iframe.src = URL.createObjectURL(blob);
         appObj.allIframe.push(iframe);
         root.appendChild(iframe);
-
+        const iframeObserver = new MutationObserver((mutationsList) => {
+          for (const mutation of mutationsList) {
+            if (mutation.type === "childList") {
+              for (const node of mutation.removedNodes) {
+                if (node === iframe) {
+                  iframeObserver.disconnect();
+                  instance.closeWindow();
+                  break;
+                }
+              }
+            }
+          }
+        });
+        iframeObserver.observe(root, { childList: true });
         window.addEventListener(appObj.id + root.goldenbodyId, "message", async (e) => {
           if (e.source !== iframe.contentWindow) {
             return;

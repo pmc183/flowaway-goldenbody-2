@@ -323,7 +323,7 @@ window.alert = function (message) {
   else {
     const interval = setInterval(() => {
       if (window.protectedGlobals.goldenbodyInitialized) {
-        window.protectedGlobals.showModal("System Notification", String(message || ""), "info", true);
+        alert(String(message || ""));
         clearInterval(interval);
       }
     }, 100);
@@ -334,7 +334,7 @@ window.softAlert = function (message) {
   else {
     const interval = setInterval(() => {
       if (window.protectedGlobals.goldenbodyInitialized) {
-        window.protectedGlobals.showModal("Notification", String(message || ""), "info", true);
+        softAlert(String(message || ""));
         clearInterval(interval);
       }
     }, 100);
@@ -436,6 +436,8 @@ window.protectedGlobals.showConfirmDialog = (title, message, okText, cancelText)
 // cleanup
 // required functions for the system cleanup
 window.protectedGlobals.rebuildhandler = function () {
+  window.alert = window.protectedGlobals.origAlert;
+  delete window.softAlert;
   if (window.protectedGlobals.activeWebSockets) {
     for (const ws of Array.from(window.protectedGlobals.activeWebSockets)) {
       try {
