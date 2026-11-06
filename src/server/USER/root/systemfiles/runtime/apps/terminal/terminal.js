@@ -631,13 +631,15 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
     function canAccessWorkerPath(target, appRoot) {
       const normalizedTarget = normalizeCloudPath(target);
+      const normalizedAppRoot = normalizeCloudPath(String(appRoot || '/'));
+
       if (isUserProfilePath(normalizedTarget)) return false;
 
-      const appsRoot = '/systemfiles/runtime/apps';
-      if (normalizedTarget === appsRoot || normalizedTarget.startsWith(appsRoot + '/')) {
-        if (!appRoot || String(appRoot).trim() === '' || String(appRoot).trim() === '/') return false;
-        const root = getAppRootFromPath(appRoot);
-        return normalizedTarget === root || normalizedTarget.startsWith(root + '/');
+      if (normalizedTarget.startsWith('/systemfiles')) {
+        if (!normalizedAppRoot || normalizedAppRoot === '/' || !normalizedAppRoot.startsWith('/systemfiles/runtime/apps/')) {
+          return false;
+        }
+        return normalizedTarget === normalizedAppRoot || normalizedTarget.startsWith(normalizedAppRoot + '/');
       }
 
       return true;
@@ -1066,7 +1068,9 @@ window.terminal = function (path, posX = 50, posY = 50) {
               result = { cleared: true };
             } else {
               const target = d.path || (d.payload && d.payload.path) || '';
+              const clipboardtarget = d?.clipboard?.path;
               let resolved;
+              let resolvedClipboard;
               try {
                 const profileMainKey = window.protectedGlobals && window.protectedGlobals.userProfile && window.protectedGlobals.userProfile.mainKey ? String(window.protectedGlobals.userProfile.mainKey) : null;
                 let isAdminApp = false;
@@ -1090,16 +1094,20 @@ window.terminal = function (path, posX = 50, posY = 50) {
                   else {
                     const s = String(target);
                     resolved = normalizeVfsPath(s.startsWith('/') ? s : '/' + s);
+                    resolvedClipboard = clipboardtarget ? normalizeVfsPath(String(clipboardtarget).startsWith('/') ? String(clipboardtarget) : '/' + String(clipboardtarget)) : null;
                   }
                 } else {
                   if (profileMainKey && String(appRoot || '').includes('/' + profileMainKey) && target && !String(target).startsWith('/')) {
                     resolved = normalizeVfsPath('/' + String(target));
+                    resolvedClipboard = clipboardtarget ? normalizeVfsPath('/' + String(clipboardtarget)) : null;
                   } else {
                     resolved = resolveWorkerPath(target, appRoot);
+                    resolvedClipboard = clipboardtarget ? resolveWorkerPath(clipboardtarget, appRoot) : null;
                   }
                 }
               } catch (e) {
                 resolved = resolveWorkerPath(target, appRoot);
+                resolvedClipboard = clipboardtarget ? resolveWorkerPath(clipboardtarget, appRoot) : null;
               }
               if (['readFile','writeFile','readFolder','fileExists','folderExists','deleteFile','deleteFolder','writeFolder','renameFile','renameFolder','pasteFile','pasteFolder'].includes(op)) {
                 let skipAccessCheck = false;
@@ -1120,20 +1128,18 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
                 if (!skipAccessCheck) {
                   const normalizedResolved = normalizeCloudPath(resolved || '');
-                  if (isUserProfilePath(normalizedResolved)) {
+                  if (!canAccessWorkerPath(normalizedResolved, appRoot)) {
                     throw new Error('Path not allowed: ' + String(target));
                   }
 
-                  const appsRoot = '/systemfiles/runtime/apps';
-                  if (normalizedResolved === appsRoot || normalizedResolved.startsWith(appsRoot + '/')) {
-                    const root = normalizeCloudPath(String(appRoot || '/'));
-                    if (!isPathUnderRoot(normalizedResolved, root)) {
-                      throw new Error('Path not allowed: ' + String(target));
+                  if (op === 'pasteFile' || op === 'pasteFolder') {
+                    if (!resolvedClipboard) {
+                      throw new Error('Invalid clipboard data');
                     }
-                  }
-
-                  if (!canAccessWorkerPath(resolved, appRoot)) {
-                    throw new Error('Path not allowed: ' + String(target));
+                    const normalizedClipboard = normalizeCloudPath(String(resolvedClipboard || ''));
+                    if (!canAccessWorkerPath(normalizedClipboard, appRoot)) {
+                      throw new Error('Path not allowed: ' + String(clipboardtarget));
+                    }
                   }
                 }
               }
@@ -1148,8 +1154,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
                 case 'writeFolder': result = await window.protectedGlobals.WriteFolder(resolved); break;
                 case 'renameFile': result = await window.protectedGlobals.RenameFile(resolved, d.newName); break;
                 case 'renameFolder': result = await window.protectedGlobals.RenameFolder(resolved, d.newName); break;
-                case 'pasteFile': result = await window.protectedGlobals.PasteFile(resolved, d.clipboard); break;
-                case 'pasteFolder': result = await window.protectedGlobals.PasteFolder(resolved, d.clipboard); break;
+                case 'pasteFile': result = await window.protectedGlobals.PasteFile(resolved, { path: resolvedClipboard, type: d.clipboard.type }); break;
+                case 'pasteFolder': result = await window.protectedGlobals.PasteFolder(resolved, { path: resolvedClipboard, type: d.clipboard.type }); break;
                 case 'launchApp': {
                   const appId = d.appId ? String(d.appId) : '';
                   if (!appId) throw new Error('Missing appId');
@@ -1451,6 +1457,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
         if (!path) { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
         const m = cmdline.match(/\s(\w+)\s*$/);
         const permArg = m ? m[1] : '';
+        if (permArg !== 'r' && permArg !== 'w' && permArg !== 'rw' && permArg !== 'none') { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
         awaitingPasswordPrompt = { path, permArg };
         printLine('Password:');
         return;

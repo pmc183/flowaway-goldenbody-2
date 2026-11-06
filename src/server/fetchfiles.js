@@ -896,6 +896,7 @@ async function handleFetchfiles(req, res) {
             if (dir.delete) {
               if (isRootContainerPath(dir.path)) {
                 success = false;
+                error = "Cannot delete the root directory";
                 continue;
               }
 
@@ -909,6 +910,7 @@ async function handleFetchfiles(req, res) {
               const targetExists = await exists(targetPath);
               if (!targetExists) {
                 success = false;
+                error = "Target path does not exist";
                 continue;
               }
               // Move to hidden .trash folder instead of permanently deleting
@@ -925,6 +927,7 @@ async function handleFetchfiles(req, res) {
               } catch (e) {
                 if (e && (e.code === "ENOENT" || e.code === "ENOTDIR")) {
                   success = false;
+                  error = "Target path does not exist or is not a directory";
                   continue;
                 }
                 try {
@@ -936,6 +939,7 @@ async function handleFetchfiles(req, res) {
                     error: moveErr && (moveErr.stack || moveErr.message || String(moveErr)),
                   });
                   success = false;
+                  error = "Failed to move item to trash";
                   continue;
                 }
               }
@@ -966,6 +970,7 @@ async function handleFetchfiles(req, res) {
               if (!normalizedTarget.startsWith(normalizedTrash + path.sep) && normalizedTarget !== normalizedTrash) {
                 // Not inside .trash — refuse
                 success = false;
+                error = "Cannot permanently delete items outside the trash directory";
                 continue;
               }
               await deletePathWithQuota(username, userRoot, targetPath);
@@ -982,6 +987,7 @@ async function handleFetchfiles(req, res) {
               const normalizedTrash = path.resolve(trashDir);
               if (!normalizedTarget.startsWith(normalizedTrash + path.sep)) {
                 success = false;
+                error = "Cannot restore items outside the trash directory";
                 continue; // refuse to restore items not in .trash
               }
               const itemName = path.basename(targetPath);
@@ -1022,6 +1028,7 @@ async function handleFetchfiles(req, res) {
             if (dir.paste && clipboard) {
               if (isRootContainerPath(dir.path) || isRootContainerPath(clipboard.path)) {
                 success = false;
+                error = "Cannot replace \"/\" or use \"/\" as clipboard source";
                 continue;
               }
 
@@ -1039,6 +1046,7 @@ async function handleFetchfiles(req, res) {
               const item = clipboard;
               if (!item || typeof item.path !== "string") {
                 success = false;
+                error = "Invalid clipboard item";
                 continue;
               }
 
@@ -1048,6 +1056,7 @@ async function handleFetchfiles(req, res) {
               const src = safeResolve(userRoot, item.path);
               if (!(await exists(src))) {
                 success = false;
+                error = "Source path does not exist";
                 continue;
               }
 
@@ -1082,6 +1091,26 @@ async function handleFetchfiles(req, res) {
               const destRelPath = removeUnwantedStuffInPath(path.relative(userRoot, dest).replace(/\\/g, "/"));
               assertWriteAllowed(destRelPath);
 
+              const moveFlag = Boolean(dir.move ?? moveMode);
+              if (moveFlag) {
+                try {
+                  const normalizedSrcAfter = path.resolve(src);
+                  const normalizedDestAfter = path.resolve(dest);
+                  if (normalizedDestAfter.startsWith(normalizedSrcAfter + path.sep) || normalizedDestAfter === normalizedSrcAfter) {
+                    success = false;
+                    error = "Cannot move an item into itself";
+                    continue;
+                  }
+
+                  await move(src, dest);
+                  continue;
+                } catch (e) {
+                  success = false;
+                  error = e && e.message ? e.message : "Move failed";
+                  continue;
+                }
+              }
+
               try {
                 currentUsed = await copyPathWithQuota(username, userRoot, src, dest, currentUsed);
               } catch (err) {
@@ -1090,22 +1119,6 @@ async function handleFetchfiles(req, res) {
                   error = "Out of storage";
                 } else {
                   throw err;
-                }
-              }
-
-              // If the caller requested a move instead of a copy, remove the source now.
-              const moveFlag = Boolean(dir.move ?? moveMode);
-              if (moveFlag) {
-                try {
-                  const normalizedSrcAfter = path.resolve(src);
-                  const normalizedDestAfter = path.resolve(dest);
-                  if (normalizedDestAfter.startsWith(normalizedSrcAfter + path.sep) || normalizedDestAfter === normalizedSrcAfter) {
-                    success = false;
-                  } else {
-                    await deletePathWithQuota(username, userRoot, src);
-                  }
-                } catch (e) {
-                  success = false;
                 }
               }
 
@@ -1123,7 +1136,7 @@ async function handleFetchfiles(req, res) {
           result.clipboard = clipboard;
         }
         result.success = success;
-        result.error = error || (success ? undefined : "Operation failed");
+        result.error = error;
         return result;
       }
 

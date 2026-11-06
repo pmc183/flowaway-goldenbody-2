@@ -102,16 +102,23 @@ async function writeFileWithQuota(
     existed = false;
   }
 
-  // This uses the cached usage.
-  // Only the first call for a user requires a full scan.
+  const byteLength = getByteLength(rawBody);
+  const nextSize = existed
+    ? (replace ? byteLength : oldSize + byteLength)
+    : byteLength;
+
+  const previousSize = getEntryDiskSizeBytes(oldSize);
+  const nextDiskSize = getEntryDiskSizeBytes(nextSize);
+
+  // Existing-file writes consume quota only by the net growth from the previous
+  // stored size. Replacing a file with the same or smaller payload must not add
+  // usage, and an append only counts the new bytes.
+  const delta = existed
+    ? nextDiskSize - previousSize
+    : nextDiskSize;
+
   const used = await getUserUsage(username, userRoot);
   const quota = await getUserQuotaBytes(userRoot);
-
-  const currentSize = getEntryDiskSizeBytes(getByteLength(rawBody));
-  const previousSize = getEntryDiskSizeBytes(oldSize);
-  const delta = existed
-    ? (replace ? currentSize - previousSize : currentSize)
-    : currentSize;
 
   if (delta > 0 && used + delta > quota) {
     throw createQuotaError(
@@ -129,7 +136,6 @@ async function writeFileWithQuota(
     flag: replace ? 'w' : 'a',
   });
 
-  // Update the cache instead of rescanning the entire user directory.
   adjustUserUsage(username, delta, userRoot);
 
   return { loadTreeRequired };

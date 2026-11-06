@@ -619,22 +619,40 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.RenameFolder(internalPath, e.detail.data.newName);
                 source.postMessage({ renameFolderResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.pasteFile) {
+                let clipboardData = e.detail.data.clipboard?.path;
+                try {
+                    if (!(clipboardData.startsWith("___public") || clipboardData.startsWith("/__public"))) {
+                        clipboardData = "systemfiles/runtime/apps/" + e.detail.from + "/" + clipboardData;
+                    }
+                } catch {
+                    source.postMessage({ error: "Invalid clipboard data", requestId: requestId }, "*");
+                    return;
+                }
                 if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
-                    result = await window.protectedGlobals.PasteFile(path, e.detail.data.clipboard);
+                    result = await window.protectedGlobals.PasteFile(path, { path: clipboardData, type: e.detail.data.clipboard?.type });
                     source.postMessage({ pasteFileResult: true, result: result, requestId: requestId }, "*");
                     return;
                 }
                 const internalPath = "systemfiles/runtime/apps/" + e.detail.from + "/" + path;
-                result = await window.protectedGlobals.PasteFile(internalPath, e.detail.data.clipboard);
+                result = await window.protectedGlobals.PasteFile(internalPath, { path: clipboardData, type: e.detail.data.clipboard?.type });
                 source.postMessage({ pasteFileResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.pasteFolder) {
+                let clipboardData = e.detail.data.clipboard?.path;
+                try {
+                    if (!(clipboardData.startsWith("___public") || clipboardData.startsWith("/__public"))) {
+                        clipboardData = "systemfiles/runtime/apps/" + e.detail.from + "/" + clipboardData;
+                    }
+                } catch {
+                    source.postMessage({ error: "Invalid clipboard data", requestId: requestId }, "*");
+                    return;
+                }
                 if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
-                    result = await window.protectedGlobals.PasteFolder(path, e.detail.data.clipboard);
+                    result = await window.protectedGlobals.PasteFolder(path, { path: clipboardData, type: e.detail.data.clipboard?.type });
                     source.postMessage({ pasteFolderResult: true, result: result, requestId: requestId }, "*");
                     return;
                 }
                 const internalPath = "systemfiles/runtime/apps/" + e.detail.from + "/" + path;
-                result = await window.protectedGlobals.PasteFolder(internalPath, e.detail.data.clipboard);
+                result = await window.protectedGlobals.PasteFolder(internalPath, { path: clipboardData, type: e.detail.data.clipboard?.type });
                 source.postMessage({ pasteFolderResult: true, result: result, requestId: requestId }, "*");
             }
         };

@@ -657,62 +657,89 @@ function makeIcon(type, size = 16) {
     title: "",
     status: "",
     hideTimer: null,
+    error: false,
+    sessionId: 0,
+    activeSessions: new Map(),
   };
 
   function renderUploadProgress() {
-    if (!uploadState.visible) {
+    const sessions = [...uploadState.activeSessions.values()];
+    if (!sessions.length) {
       uploadProgress.style.display = "none";
+      uploadState.visible = false;
+      uploadState.error = false;
       return;
     }
+
+    const totalBytes = sessions.reduce((sum, session) => sum + (session.totalBytes || 0), 0);
+    const doneBytes = sessions.reduce((sum, session) => sum + (session.doneBytes || 0), 0);
+    const hasError = sessions.some((session) => session.error);
+
+    uploadState.visible = true;
+    uploadState.totalBytes = totalBytes;
+    uploadState.doneBytes = doneBytes;
+    uploadState.error = hasError;
     uploadProgress.style.display = "flex";
-    uploadProgressTitle.textContent = uploadState.title || "Uploading files";
-    uploadProgressStatus.textContent = uploadState.status || "";
-    const pct =
-      uploadState.totalBytes > 0
-        ? Math.max(0, Math.min(100, (uploadState.doneBytes / uploadState.totalBytes) * 100))
-        : 0;
+    uploadProgressTitle.textContent = sessions.length > 1 ? `Uploading ${sessions.length} files` : (sessions[0].title || "Uploading files");
+    uploadProgressStatus.textContent = sessions.length > 1
+      ? `${sessions.length} uploads in progress`
+      : (sessions[0].status || "");
+    const pct = totalBytes > 0 ? Math.max(0, Math.min(100, (doneBytes / totalBytes) * 100)) : 0;
     uploadProgressBarInner.style.width = `${pct}%`;
-    uploadProgressBarInner.style.background = uploadState.error
+    uploadProgressBarInner.style.background = hasError
       ? "linear-gradient(90deg, #ef4444, #f97316)"
       : "linear-gradient(90deg, #22c55e, #38bdf8)";
   }
 
   function showUploadProgress(title, status, totalBytes) {
+    uploadState.sessionId += 1;
+    const sessionId = uploadState.sessionId;
+    uploadState.activeSessions.set(sessionId, {
+      id: sessionId,
+      title: title || "Uploading files",
+      status: status || "",
+      totalBytes: Math.max(0, Number(totalBytes) || 0),
+      doneBytes: 0,
+      error: false,
+    });
+
     if (uploadState.hideTimer) {
       clearTimeout(uploadState.hideTimer);
       uploadState.hideTimer = null;
     }
-    uploadState.visible = true;
-    uploadState.error = false;
-    uploadState.title = title || "Uploading files";
-    uploadState.status = status || "";
-    uploadState.totalBytes = Math.max(0, Number(totalBytes) || 0);
-    uploadState.doneBytes = 0;
+    renderUploadProgress();
+    return sessionId;
+  }
+
+  function updateUploadProgress(doneBytes, status, sessionId = uploadState.sessionId) {
+    const session = uploadState.activeSessions.get(sessionId);
+    if (!session) return;
+    session.doneBytes = Math.max(0, Math.min(session.totalBytes, Number(doneBytes) || 0));
+    if (status !== undefined) session.status = status;
     renderUploadProgress();
   }
 
-  function updateUploadProgress(doneBytes, status) {
-    if (!uploadState.visible) return;
-    uploadState.doneBytes = Math.max(0, Math.min(uploadState.totalBytes, Number(doneBytes) || 0));
-    if (status !== undefined) uploadState.status = status;
+  function setUploadError(title, status, sessionId = uploadState.sessionId) {
+    const session = uploadState.activeSessions.get(sessionId);
+    if (!session) return;
+    session.title = title || "Upload failed";
+    session.status = status || "";
+    session.error = true;
+    session.doneBytes = Math.max(session.doneBytes, session.totalBytes);
     renderUploadProgress();
-  }
-
-  function setUploadError(title, status) {
-    uploadState.visible = true;
-    uploadState.error = true;
-    uploadState.title = title || "Upload failed";
-    uploadState.status = status || "";
-    uploadState.doneBytes = uploadState.totalBytes;
-    renderUploadProgress();
-    setTimeout(() => {
-      hideUploadProgress(3000);
+    if (uploadState.hideTimer) clearTimeout(uploadState.hideTimer);
+    uploadState.hideTimer = setTimeout(() => {
+      if (uploadState.activeSessions.size > 0) return;
+      uploadState.visible = false;
+      renderUploadProgress();
     }, 1000);
   }
 
-  function hideUploadProgress(delay = 700) {
+  function hideUploadProgress(delay = 700, sessionId = uploadState.sessionId) {
+    if (uploadState.activeSessions.size > 0) return;
     if (uploadState.hideTimer) clearTimeout(uploadState.hideTimer);
     uploadState.hideTimer = setTimeout(() => {
+      if (uploadState.activeSessions.size > 0) return;
       uploadState.visible = false;
       uploadState.error = false;
       renderUploadProgress();
@@ -1297,10 +1324,12 @@ function makeIcon(type, size = 16) {
 
   function getNodeStorageUsed(node) {
     if (!node) return 0;
-    if (node[1] === null) return getEntryOnDiskSize(node[2]?.sizeOnDisk || 0);
+    if (node[1] === null) {
+      return Number(node[2]?.sizeOnDisk ?? getEntryOnDiskSize(node[2]?.size || 0));
+    }
     if (!Array.isArray(node[1])) return 4096;
 
-    return 4096 + node[1].reduce((sum, child) => sum + getNodeStorageUsed(child), 0);
+    return Number(node[2]?.sizeOnDisk ?? (4096 + node[1].reduce((sum, child) => sum + getNodeStorageUsed(child), 0)));
   }
 
   // Update the storage display element in the sidebar.
@@ -2848,7 +2877,7 @@ function makeIcon(type, size = 16) {
     const totalBytes = allowed.reduce((sum, file) => sum + file.size, 0);
     let uploadedBytes = 0;
     let uploadFailed = false;
-    showUploadProgress(
+    const uploadSessionId = showUploadProgress(
       `Uploading ${allowed.length} file${allowed.length === 1 ? "" : "s"}`,
       `0/${allowed.length} ready`,
       totalBytes,
@@ -2867,7 +2896,7 @@ function makeIcon(type, size = 16) {
           if (f.size === 0) {
             await window.protectedGlobals.WriteFile(cp + "/" + newName, new Uint8Array(0), { replace: true });
             uploadedBytes += f.size;
-            updateUploadProgress(uploadedBytes, `Uploaded ${fileLabel}`);
+            updateUploadProgress(uploadedBytes, `Uploaded ${fileLabel}`, uploadSessionId);
             continue;
           }
 
@@ -2885,27 +2914,35 @@ function makeIcon(type, size = 16) {
               progressLabel = `Uploading ${fileLabel} (${i + 1}/${total} chunks) (The 1st chunk may take longer to upload)`;
             }
 
-            updateUploadProgress(uploadedBytes, progressLabel);
+            updateUploadProgress(uploadedBytes, progressLabel, uploadSessionId);
             await window.protectedGlobals.WriteFile(cp + "/" + newName, chunk, { replace: i === 0 });
             uploadedBytes += chunkBytes;
-            updateUploadProgress(uploadedBytes, `Uploaded ${fileLabel}`);
+            updateUploadProgress(uploadedBytes, `Uploaded ${fileLabel}`, uploadSessionId);
           }
         } catch (err) {
           console.error(`Failed to upload ${newName}:`, err);
-          setUploadError("Upload failed", `Failed to upload ${newName}`);
+          uploadState.activeSessions.delete(uploadSessionId);
+          setUploadError("Upload failed", `Failed to upload ${newName}`, uploadSessionId);
           uploadFailed = true;
           break;
         }
       }
 
       if (!uploadFailed) {
-        updateUploadProgress(totalBytes, "Upload complete");
-        hideUploadProgress(900);
+        uploadState.activeSessions.delete(uploadSessionId);
+        if (uploadState.activeSessions.size > 0) {
+          return;
+        }
+        hideUploadProgress(900, uploadSessionId);
       }
     } catch (err) {
       console.error("upload failed", err);
-      setUploadError("Upload failed", err && (err.message || String(err)));
-      hideUploadProgress(2200);
+      uploadState.activeSessions.delete(uploadSessionId);
+      if (uploadState.activeSessions.size > 0) {
+        return;
+      }
+      setUploadError("Upload failed", err && (err.message || String(err)), uploadSessionId);
+      hideUploadProgress(2200, uploadSessionId);
     } finally {
       e.target.value = "";
       render();

@@ -1,9 +1,19 @@
 "use strict";
 
 window.protectedGlobals.activeWebSockets = window.protectedGlobals.activeWebSockets || new Set();
+window.protectedGlobals.serverErrorMsg = {
+  400: "Bad request: the request was malformed or missing required parameters",
+  413: "Out of storage: free up space",
+  403: "Access denied: if you think this is a mistake, use perm readwrite in terminal to grant access",
+  401: "Unauthorized: session expired or invalid token",
+  404: "Not found: the requested file or folder does not exist",
+  500: "Invalid Operation: usually because illegal processing of a file or folder, or a server-side error",
+  502: "Server Offline"
+}
 window.protectedGlobals.normalizeFsPath = function (path, {
   allowRoot = false
 } = {}) {
+  if (path == '/') return path;
   if (typeof path !== "string") {
     throw new TypeError("Path must be a string");
   }
@@ -393,14 +403,12 @@ window.protectedGlobals.WriteFile = async function (
       body = await response.json();
     } catch {}
 
-    if (body && typeof body === "object" && !body.error && body.success === false) {
-      body.error = body.message || body.result?.error || "Operation failed";
-    }
     if (!body || typeof body !== "object") {
       body = {};
     }
-    if (!body.error && !response.ok) {
-      body.error = `Request failed with status ${response.status}`;
+    if (!response.ok) {
+      body.error = window.protectedGlobals.serverErrorMsg[response.status] || `Request failed with status ${response.status}`;
+      alert(body.error);
     }
 
     if (
@@ -410,9 +418,6 @@ window.protectedGlobals.WriteFile = async function (
       const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
       if (refilled) return await sendChunk(chunk, chunkReplace);
       return { error: "unauthorized" };
-    }
-    else if (response.status === 403 || body.error) {
-      alert(body.error || "Access denied.");
     }
     return {
       response,
@@ -826,19 +831,16 @@ window.protectedGlobals.filePost = async function filePost(data) {
   if (!body || typeof body !== "object") {
     body = {};
   }
-  if (!body.error && !res.ok) {
-    body.error = `Request failed with status ${res.status}`;
+  if (!res.ok && !res.status === 401) {
+    body.error = window.protectedGlobals.serverErrorMsg[res.status] || `Request failed with status ${res.status}`;
+    alert(body.error || "Request failed with code " + res.status);
   }
   var fileErrorMessage = body && body.error ? String(body.error) : "";
-  if ((res.status === 403 || res.status === 413) || /denied/i.test(fileErrorMessage) || /quota/i.test(fileErrorMessage)) {
-    alert(fileErrorMessage || "Access denied.");
-  }
   if (res.status === 401 && !window.protectedGlobals.firstlogin) {
     const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
     if (refilled) return await window.protectedGlobals.filePost(data);
     return { error: "unauthorized" };
   }
-
   window.protectedGlobals.firstlogin = false;
   return body;
 };
