@@ -5,11 +5,9 @@ window.protectedGlobals.serverErrorMsg = {
   400: "Bad request: the request was malformed or missing required parameters",
   413: "Out of storage: free up space",
   403: "Access denied: if you think this is a mistake, use perm readwrite in terminal to grant access",
-  401: "Unauthorized: session expired or invalid token",
   404: "Not found: the requested file or folder does not exist",
   500: "Invalid Operation: usually because illegal processing of a file or folder, or a server-side error",
-  502: "Server Offline"
-}
+};
 window.protectedGlobals.normalizeFsPath = function (path, {
   allowRoot = false
 } = {}) {
@@ -492,6 +490,7 @@ window.protectedGlobals.PasteFile = async function (destinationRelPath, clipboar
 
   let lastResult = null;
   for (const entry of entries) {
+    entry.path = window.protectedGlobals.normalizeFsPath(entry.path, { allowRoot: true });
     const directions = [
       { copy: true, directions: entry },
       { paste: true, path: normalizedPath },
@@ -1422,6 +1421,31 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       pathBar.textContent = "Current: " + options.startPath;
       dialog.appendChild(pathBar);
 
+      const searchInput = document.createElement("input");
+      searchInput.type = "search";
+      searchInput.placeholder = "Search current folder...";
+      searchInput.autocomplete = "off";
+      searchInput.spellcheck = false;
+      searchInput.style.cssText = `
+        width: calc(100% - 32px);
+        box-sizing: border-box;
+        margin: 12px 16px 0;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid ${isDark ? "#333333" : "#d9d9d9"};
+        background: ${isDark ? "#1d1d1d" : "#ffffff"};
+        color: ${isDark ? "#ffffff" : "#111111"};
+        font-size: 13px;
+      `;
+      let searchTerm = "";
+      searchInput.addEventListener("input", () => {
+        searchTerm = (searchInput.value || "").trim().toLowerCase();
+        if (currentPath) {
+          loadFolder(currentPath);
+        }
+      });
+      dialog.appendChild(searchInput);
+
       // File browser area
       const browserContainer = document.createElement("div");
       browserContainer.style.cssText = `
@@ -1435,6 +1459,33 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       const selected = new Set();
       let currentPath = options.startPath || "/";
       let selectionAnchorIndex = -1;
+
+      const formatFileSize = (sizeValue) => {
+        const numeric = Number(sizeValue);
+        if (!Number.isFinite(numeric) || numeric < 0) return "—";
+        if (numeric === 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB", "TB"];
+        let value = numeric;
+        let unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.length - 1) {
+          value /= 1024;
+          unitIndex += 1;
+        }
+        const formatted = value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
+        return `${formatted} ${units[unitIndex]}`;
+      };
+
+      const formatFileDate = (timestamp) => {
+        const numeric = Number(timestamp);
+        if (!Number.isFinite(numeric) || numeric <= 0) return "—";
+        const date = new Date(numeric);
+        if (Number.isNaN(date.getTime())) return "—";
+        return date.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+      };
 
       const syncSelectionVisualState = () => {
         if (!browserContainer) return;
@@ -1529,16 +1580,17 @@ window.protectedGlobals.writeStatus = function writeStatus() {
         if (!files || files.length === 0) {
           const emptyMsg = document.createElement("div");
           emptyMsg.style.cssText = `padding: 16px; text-align: center; color: ${isDark ? "#aaa" : "#999"};`;
-          emptyMsg.textContent = "Folder is empty";
+          emptyMsg.textContent = searchTerm ? "No items match your search." : "Folder is empty";
           browserContainer.appendChild(emptyMsg);
           return;
         }
 
-        // Normalize entries returned from ReadFolder.
         const normalized = (files || []).map((file) => {
           let name = "";
           let isFolder = false;
           let entryPath = "";
+          let size = null;
+          let mtime = null;
 
           if (typeof file === "string") {
             name = file;
@@ -1553,6 +1605,8 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             entryPath = String(file.path || file.name || file.filename || file[0] || "");
             name = String((file.name || file.filename || entryPath).split("/").pop() || "");
             isFolder = typeName === "folder" || !!file.folder || !!file.isFolder || Array.isArray(file.children);
+            size = Number(file.size);
+            mtime = Number(file.mtime ?? file.modified ?? file.lastModified ?? 0);
           }
 
           entryPath = entryPath || name;
@@ -1563,11 +1617,25 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             name,
             folder: !!isFolder,
             path: normalizedPath,
+            size: Number.isFinite(size) ? size : null,
+            mtime: Number.isFinite(mtime) ? mtime : null,
           };
         });
 
-        const folders = normalized.filter((f) => f.folder);
-        const filelist = normalized.filter((f) => !f.folder);
+        const filteredEntries = searchTerm
+          ? normalized.filter((entry) => (entry.name || "").toLowerCase().includes(searchTerm))
+          : normalized;
+
+        if (!filteredEntries.length) {
+          const emptyMsg = document.createElement("div");
+          emptyMsg.style.cssText = `padding: 16px; text-align: center; color: ${isDark ? "#aaa" : "#999"};`;
+          emptyMsg.textContent = "No items match your search.";
+          browserContainer.appendChild(emptyMsg);
+          return;
+        }
+
+        const folders = filteredEntries.filter((f) => f.folder);
+        const filelist = filteredEntries.filter((f) => !f.folder);
 
         const getChildPath = (basePath, childName) => {
           const cleanBase = String(basePath || "/").replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
@@ -1600,6 +1668,7 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             padding: 12px 16px;
             display: flex;
             align-items: center;
+            gap: 12px;
             cursor: ${isEnabledItem ? "pointer" : "not-allowed"};
             opacity: ${isEnabledItem ? "1" : "0.45"};
             border-bottom: 1px solid ${isDark ? "#333333" : "#e0e0e0"};
@@ -1620,12 +1689,10 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             item.style.background = isDark ? "#1e1e1e" : "#ffffff";
           };
 
-          // Icon
           const icon = document.createElement("span");
           icon.style.cssText = `
             width: 20px;
             height: 20px;
-            margin-right: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1638,7 +1705,14 @@ window.protectedGlobals.writeStatus = function writeStatus() {
           icon.innerHTML = iconMarkup || (isFolder ? "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M3 7.5A2.5 2.5 0 0 1 5.5 5h4.2c.6 0 1.2.2 1.6.6l1.2 1.1c.2.2.5.3.8.3h5.2A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-10Z' fill='#F4C95D' stroke='currentColor' stroke-width='1.2' stroke-linejoin='round'/><path d='M3 11.5H21' stroke='rgba(0,0,0,.25)' stroke-width='1' stroke-linecap='round'/></svg>" : "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z' fill='rgba(255,255,255,.08)' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M14 2v5h5' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M9 12h6M9 16h6' stroke='currentColor' stroke-width='1.3' stroke-linecap='round'/></svg>");
           item.appendChild(icon);
 
-          // Filename
+          const labelWrap = document.createElement("div");
+          labelWrap.style.cssText = `
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+          `;
+
           const nameSpan = document.createElement("span");
           nameSpan.textContent = name;
           nameSpan.style.cssText = `
@@ -1649,7 +1723,31 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             overflow: hidden;
             text-overflow: ellipsis;
           `;
-          item.appendChild(nameSpan);
+          labelWrap.appendChild(nameSpan);
+          item.appendChild(labelWrap);
+
+          const meta = document.createElement("div");
+          meta.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 11px;
+            color: ${isDark ? "#aaaaaa" : "#666666"};
+            white-space: nowrap;
+            flex-shrink: 0;
+          `;
+
+          const sizeValue = isFolder ? "—" : formatFileSize(file.size);
+          const sizeSpan = document.createElement("span");
+          sizeSpan.textContent = sizeValue;
+          sizeSpan.title = isFolder ? "Folder" : `Size: ${formatFileSize(file.size)}`;
+          meta.appendChild(sizeSpan);
+
+          const dateSpan = document.createElement("span");
+          dateSpan.textContent = formatFileDate(file.mtime);
+          dateSpan.title = `Modified: ${formatFileDate(file.mtime)}`;
+          meta.appendChild(dateSpan);
+          item.appendChild(meta);
 
           item.ondblclick = async (e) => {
             if (!isFolder) return;
@@ -1664,7 +1762,6 @@ window.protectedGlobals.writeStatus = function writeStatus() {
             loadFolder(nextPath);
           };
 
-          // Click handler
           item.onclick = async (e) => {
             if (isFolderMode && !isFolder) {
               e.preventDefault();

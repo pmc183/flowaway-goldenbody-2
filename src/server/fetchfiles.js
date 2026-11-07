@@ -85,7 +85,7 @@ function safeResolve(root, userPath = "") {
 
   return resolved;
 }
-function createLimiter(maxConcurrent = 64, maxQueue = 500) {
+function createLimiter(maxConcurrent = 64, maxQueue = 2000) {
   let active = 0;
   const queue = [];
 
@@ -804,7 +804,9 @@ async function handleFetchfiles(req, res) {
                 const existingStat = await fsp.stat(folderPath);
 
                 if (!existingStat.isDirectory()) {
-                  throw new Error(`Cannot create folder, file exists: ${folderPath}`);
+                  success = false;
+                  error = `Cannot create folder at ${folderRel}: a file exists at that path`;
+                  continue;
                 }
               } else {
                 await createDirectoryWithQuota(username, userRoot, folderPath);
@@ -850,7 +852,9 @@ async function handleFetchfiles(req, res) {
 
             if (dir.rename) {
               if (isRootContainerPath(dir.path)) {
-                throw new Error("Cannot rename the root directory");
+                success = false;
+                error = "Cannot rename the root directory";
+                continue;
               }
 
               const oldPath = resolvePath(dir.path);
@@ -860,12 +864,16 @@ async function handleFetchfiles(req, res) {
               const newName = path.basename(String(dir.newName || "").trim());
 
               if (!newName || newName === "." || newName === "..") {
-                throw new Error("Invalid rename name");
+                success = false;
+                error = "Invalid new name for rename";
+                continue;
               }
 
               // Prevent hidden traversal attempts like ../file or folder/file
               if (newName !== dir.newName) {
-                throw new Error("Invalid rename name");
+                success = false;
+                error = "Invalid new name for rename";
+                continue;
               }
 
               const parentDir = path.dirname(oldPath);
@@ -1013,7 +1021,9 @@ async function handleFetchfiles(req, res) {
               }
 
               if (!entry || Array.isArray(entry) || typeof entry !== "object") {
-                throw new Error("Invalid clipboard entry: expected a path string or single object");
+                success = false;
+                error = "Invalid clipboard entry";
+                continue;
               }
 
               const copyRelPath = removeUnwantedStuffInPath(entry && entry.path ? entry.path : "");
@@ -1084,8 +1094,8 @@ async function handleFetchfiles(req, res) {
               const parentDir = path.dirname(dest);
               await ensureDir(parentDir);
               if (await exists(dest)) {
+                success = false;
                 error = 'Destination already exists';
-                throw new Error(`Destination already exists`);
               }
 
               const destRelPath = removeUnwantedStuffInPath(path.relative(userRoot, dest).replace(/\\/g, "/"));
@@ -1133,7 +1143,6 @@ async function handleFetchfiles(req, res) {
           } else {
             userClipboards.delete(username);
           }
-          result.clipboard = clipboard;
         }
         result.success = success;
         result.error = error;
@@ -1172,8 +1181,7 @@ async function handleFetchfiles(req, res) {
           result: {
             ...(result.checkFolder ? { checkFolder: result.checkFolder } : {}),
             ...(result.checkFile ? { checkFile: result.checkFile } : {}),
-          },
-          clipboard: result.clipboard,
+          }
         };
 
         return res.end(JSON.stringify(safePayload));

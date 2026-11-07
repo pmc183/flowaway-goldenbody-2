@@ -229,6 +229,27 @@
     breadcrumb.style.fontSize = "13px";
     panel.appendChild(breadcrumb);
 
+    let searchTerm = "";
+    const searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.placeholder = "Search current folder...";
+    searchInput.autocomplete = "off";
+    searchInput.spellcheck = false;
+    searchInput.style.width = "calc(100% - 40px)";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.style.margin = "0 20px 12px";
+    searchInput.style.background = "transparent";
+    searchInput.style.color = "inherit";
+    searchInput.style.padding = "10px 12px";
+    searchInput.style.borderRadius = "8px";
+    searchInput.style.border = "1px solid transparent";
+    searchInput.style.outline = "none";
+    searchInput.addEventListener("input", () => {
+      searchTerm = (searchInput.value || "").trim().toLowerCase();
+      renderEntries();
+    });
+    panel.appendChild(searchInput);
+
     const list = document.createElement("div");
     list.style.flex = "1";
     list.style.overflow = "auto";
@@ -304,6 +325,32 @@
       }
     };
 
+    function formatFileSize(sizeValue) {
+      if (!Number.isFinite(sizeValue)) return "";
+      const value = Number(sizeValue);
+      if (value === 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB", "TB"];
+      let current = value;
+      let unitIndex = 0;
+      while (current >= 1024 && unitIndex < units.length - 1) {
+        current /= 1024;
+        unitIndex += 1;
+      }
+      const formatted = current >= 10 || unitIndex === 0 ? current.toFixed(0) : current.toFixed(1);
+      return `${formatted} ${units[unitIndex]}`;
+    }
+
+    function formatFileDate(timestamp) {
+      if (!Number.isFinite(Number(timestamp)) || Number(timestamp) <= 0) return "—";
+      const date = new Date(Number(timestamp));
+      if (Number.isNaN(date.getTime())) return "—";
+      return date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    }
+
     async function getEntries() {
       const targetPath = normalizeVfsPath(currentPath || "");
       try {
@@ -314,10 +361,14 @@
           const name = rawName || "";
           const isFolder = String(child?.type || "").toLowerCase() === "folder" || !!child?.folder;
           const fullPath = normalizeVfsPath((currentPath ? currentPath + "/" : "") + name);
+          const sizeValue = Number(child?.size);
+          const mtimeValue = Number(child?.mtime ?? child?.modified ?? child?.lastModified ?? 0);
           return {
             label: name,
             kind: isFolder ? "folder" : "file",
             path: fullPath,
+            size: Number.isFinite(sizeValue) ? sizeValue : null,
+            mtime: Number.isFinite(mtimeValue) ? mtimeValue : null,
           };
         });
       } catch {
@@ -483,6 +534,9 @@
         }
         return true;
       });
+      if (searchTerm) {
+        entries = entries.filter((entry) => entry.label.toLowerCase().includes(searchTerm));
+      }
       if (!multiple && selectedPath && !entries.some((entry) => entry.path === selectedPath)) {
         selectedPath = "";
       }
@@ -495,7 +549,7 @@
       }
       if (entries.length === 0) {
         const empty = document.createElement("div");
-        empty.textContent = "This folder is empty.";
+        empty.textContent = searchTerm ? "No items match your search." : "This folder is empty.";
         empty.style.padding = "16px 0";
         empty.style.color = theme.muted;
         list.appendChild(empty);
@@ -558,11 +612,26 @@
         label.appendChild(labelText);
         row.appendChild(label);
 
-        const badge = document.createElement("span");
-        badge.textContent = entry.kind;
-        badge.style.color = theme.muted;
-        badge.style.fontSize = "12px";
-        row.appendChild(badge);
+        const meta = document.createElement("div");
+        meta.style.display = "flex";
+        meta.style.alignItems = "center";
+        meta.style.gap = "16px";
+        meta.style.flexShrink = "0";
+        meta.style.color = theme.muted;
+        meta.style.fontSize = "12px";
+
+        const sizeLabel = document.createElement("span");
+        sizeLabel.textContent = formatFileSize(entry.size);
+        sizeLabel.title = entry.kind === "folder" ? `Folder size: ${formatFileSize(entry.size)}` : `Size: ${formatFileSize(entry.size)}`;
+        sizeLabel.style.whiteSpace = "nowrap";
+        meta.appendChild(sizeLabel);
+
+        const dateLabel = document.createElement("span");
+        dateLabel.textContent = formatFileDate(entry.mtime);
+        dateLabel.title = `Modified: ${formatFileDate(entry.mtime)}`;
+        dateLabel.style.whiteSpace = "nowrap";
+        meta.appendChild(dateLabel);
+        row.appendChild(meta);
 
         if (!disableEntrySelection) {
           row.onclick = (event) => {

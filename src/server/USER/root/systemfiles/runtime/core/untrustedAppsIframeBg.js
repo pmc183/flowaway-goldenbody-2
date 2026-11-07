@@ -621,7 +621,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             } else if (e.detail.data.pasteFile) {
                 let clipboardData = e.detail.data.clipboard?.path;
                 try {
-                    if (!(clipboardData.startsWith("___public") || clipboardData.startsWith("/__public"))) {
+                    if (!(clipboardData.startsWith("__public") || clipboardData.startsWith("/__public"))) {
                         clipboardData = "systemfiles/runtime/apps/" + e.detail.from + "/" + clipboardData;
                     }
                 } catch {
@@ -639,7 +639,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             } else if (e.detail.data.pasteFolder) {
                 let clipboardData = e.detail.data.clipboard?.path;
                 try {
-                    if (!(clipboardData.startsWith("___public") || clipboardData.startsWith("/__public"))) {
+                    if (!(clipboardData.startsWith("__public") || clipboardData.startsWith("/__public"))) {
                         clipboardData = "systemfiles/runtime/apps/" + e.detail.from + "/" + clipboardData;
                     }
                 } catch {
