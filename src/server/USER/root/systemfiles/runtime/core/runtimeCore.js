@@ -5,7 +5,6 @@ window.protectedGlobals.serverErrorMsg = {
   400: "Bad request: the request was malformed or missing required parameters",
   413: "Out of storage: free up space",
   403: "Access denied: if you think this is a mistake, use perm readwrite in terminal to grant access",
-  404: "Not found: the requested file or folder does not exist",
   500: "Invalid Operation: usually because illegal processing of a file or folder, or a server-side error",
 };
 window.protectedGlobals.normalizeFsPath = function (path, {
@@ -824,13 +823,7 @@ window.protectedGlobals.filePost = async function filePost(data) {
     body = {};
   }
   extractAuthTokenFromResponse(body);
-  if (body && typeof body === "object" && !body.error && body.success === false) {
-    body.error = body.message || body.result?.error || "Operation failed";
-  }
-  if (!body || typeof body !== "object") {
-    body = {};
-  }
-  if (!res.ok && !res.status === 401) {
+  if (!res.ok && !(res.status === 401)) {
     body.error = window.protectedGlobals.serverErrorMsg[res.status] || `Request failed with status ${res.status}`;
     alert(body.error || "Request failed with code " + res.status);
   }

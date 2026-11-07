@@ -74,6 +74,33 @@
           return text.slice(0, maxLen - 3) + "...";
         }
 
+        function formatPickerSize(value) {
+          const bytes = Number(value) || 0;
+          if (!Number.isFinite(bytes) || bytes < 0) return "0 B";
+          if (bytes === 0) return "0 B";
+          const units = ["B", "KB", "MB", "GB", "TB"];
+          let size = bytes;
+          let unit = 0;
+          while (size >= 1024 && unit < units.length - 1) {
+            size /= 1024;
+            unit++;
+          }
+          const digits = unit === 0 ? 0 : size >= 10 ? 0 : 1;
+          return `${size.toFixed(digits)} ${units[unit]}`;
+        }
+
+        function formatPickerDate(value) {
+          const ms = Number(value);
+          if (!Number.isFinite(ms)) return "—";
+          const date = new Date(ms);
+          if (!Number.isFinite(date.getTime())) return "—";
+          return date.toLocaleDateString([], {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
+
         function createPickerItemIcon(type, size = 16) {
           const ns = "http://www.w3.org/2000/svg";
           const svg = document.createElementNS(ns, "svg");
@@ -472,6 +499,26 @@
             });
             pickerBox.appendChild(breadcrumbDiv);
 
+            const searchRow = document.createElement("div");
+            Object.assign(searchRow.style, {
+              padding: "6px 10px",
+              borderBottom: `1px solid ${theme.border}`,
+              background: theme.panelBg,
+            });
+            const searchInput = document.createElement("input");
+            Object.assign(searchInput.style, {
+              width: "100%",
+              padding: "6px 8px",
+              borderRadius: "6px",
+              border: `1px solid ${theme.border}`,
+              background: theme.inputBg,
+              color: theme.inputText,
+              boxSizing: "border-box",
+            });
+            searchInput.placeholder = "Search this folder";
+            searchRow.appendChild(searchInput);
+            pickerBox.appendChild(searchRow);
+
             const fileArea = document.createElement("div");
             fileArea.style.flex = "1";
             fileArea.style.overflowY = "auto";
@@ -572,6 +619,8 @@
               }
             };
 
+            let pickerSearchTerm = "";
+
             function renderPicker() {
               breadcrumbDiv.innerHTML = "";
               pickerCurrentPath.forEach((p, i) => {
@@ -606,7 +655,20 @@
               }
               if (!node || !node[1]) return;
 
-              node[1].forEach((item) => {
+              const visibleItems = pickerSearchTerm
+                ? node[1].filter((item) => String(item[0]).toLowerCase().includes(pickerSearchTerm))
+                : node[1];
+
+              if (visibleItems.length == 0) {
+                const empty = document.createElement("div");
+                empty.textContent = pickerSearchTerm && node[1].length ? "No items match your search." : "This folder is empty.";
+                empty.style.color = theme.muted;
+                empty.style.padding = "12px 10px";
+                fileArea.appendChild(empty);
+                return;
+              }
+
+              visibleItems.forEach((item) => {
                 const isFolder = Array.isArray(item[1]);
                 const div = document.createElement("div");
                 div.style.padding = "6px 10px";
@@ -619,19 +681,39 @@
                 const label = document.createElement("span");
                 label.textContent = truncateDisplayName(item[0]);
                 label.title = item[0];
+                label.style.flex = "1";
+                label.style.minWidth = "0";
+                label.style.overflow = "hidden";
+                label.style.textOverflow = "ellipsis";
+                label.style.whiteSpace = "nowrap";
                 div.appendChild(label);
+
+                const meta = document.createElement("div");
+                meta.style.display = "flex";
+                meta.style.gap = "16px";
+                meta.style.alignItems = "center";
+                meta.style.fontSize = "11px";
+                meta.style.color = theme.muted;
+                meta.style.whiteSpace = "nowrap";
+                const itemMeta = item[2] || {};
+                const sizeEl = document.createElement("span");
+                sizeEl.textContent = isFolder ? "—" : formatPickerSize(itemMeta.size ?? 0);
+                const dateEl = document.createElement("span");
+                dateEl.textContent = formatPickerDate(itemMeta.mtime ?? 0);
+                meta.appendChild(sizeEl);
+                meta.appendChild(dateEl);
+                div.appendChild(meta);
+
                 div.onclick = (e) => {
                   const isToggle = e.ctrlKey || e.metaKey;
 
                   if (!isToggle) {
-                    // single select
                     pickerSelection = [item];
                     fileArea
                       .querySelectorAll("div")
                       .forEach((d) => (d.style.background = ""));
                     div.style.background = theme.selectedBg;
                   } else {
-                    // toggle select
                     const idx = pickerSelection.indexOf(item);
                     if (idx >= 0) {
                       pickerSelection.splice(idx, 1);
@@ -660,6 +742,11 @@
                 fileArea.appendChild(div);
               });
             }
+
+            searchInput.addEventListener("input", () => {
+              pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+              renderPicker();
+            });
 
             renderPicker();
             await window.protectedGlobals.onlyloadTree();
@@ -711,6 +798,26 @@
             borderBottom: `1px solid ${theme.border}`,
           });
           box.appendChild(breadcrumb);
+
+          const searchRow = document.createElement("div");
+          Object.assign(searchRow.style, {
+            padding: "6px 10px",
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.panelBg,
+          });
+          const searchInput = document.createElement("input");
+          Object.assign(searchInput.style, {
+            width: "100%",
+            padding: "6px 8px",
+            borderRadius: "6px",
+            border: `1px solid ${theme.border}`,
+            background: theme.inputBg,
+            color: theme.inputText,
+            boxSizing: "border-box",
+          });
+          searchInput.placeholder = "Search this folder";
+          searchRow.appendChild(searchInput);
+          box.appendChild(searchRow);
 
           const fileArea = document.createElement("div");
           fileArea.style.flex = "1";
@@ -808,6 +915,7 @@
           let savePickerTree = null;
           let savePickerCurrentPath = ["root"];
           let savePickerSelection = [];
+          let savePickerSearchTerm = "";
 
           function render() {
             breadcrumb.innerHTML = "";
@@ -845,10 +953,23 @@
             }
             if (!node || !node[1]) return;
 
-            node[1].forEach((item) => {
+            const visibleItems = savePickerSearchTerm
+              ? node[1].filter((item) => String(item[0]).toLowerCase().includes(savePickerSearchTerm))
+              : node[1];
+
+            if (!visibleItems.length) {
+              const empty = document.createElement("div");
+              empty.textContent = savePickerSearchTerm && node[1].length ? "No items match your search." : "This folder is empty.";
+              empty.style.color = theme.muted;
+              empty.style.padding = "12px 10px";
+              fileArea.appendChild(empty);
+              return;
+            }
+
+            visibleItems.forEach((item) => {
               const isFolder = Array.isArray(item[1]);
               const div = document.createElement("div");
-              div.style.padding = "6px";
+              div.style.padding = "6px 10px";
               div.style.cursor = "pointer";
               div.style.borderBottom = `1px solid ${theme.border}`;
               div.style.display = "flex";
@@ -858,7 +979,28 @@
               const label = document.createElement("span");
               label.textContent = truncateDisplayName(item[0]);
               label.title = item[0];
+              label.style.flex = "1";
+              label.style.minWidth = "0";
+              label.style.overflow = "hidden";
+              label.style.textOverflow = "ellipsis";
+              label.style.whiteSpace = "nowrap";
               div.appendChild(label);
+
+              const meta = document.createElement("div");
+              meta.style.display = "flex";
+              meta.style.gap = "16px";
+              meta.style.alignItems = "center";
+              meta.style.fontSize = "11px";
+              meta.style.color = theme.muted;
+              meta.style.whiteSpace = "nowrap";
+              const itemMeta = item[2] || {};
+              const sizeEl = document.createElement("span");
+              sizeEl.textContent = isFolder ? "—" : formatPickerSize(itemMeta.size ?? 0);
+              const dateEl = document.createElement("span");
+              dateEl.textContent = formatPickerDate(itemMeta.mtime ?? 0);
+              meta.appendChild(sizeEl);
+              meta.appendChild(dateEl);
+              div.appendChild(meta);
 
               div.onclick = (e) => {
                 const isToggle = e.ctrlKey || e.metaKey;
@@ -898,6 +1040,11 @@
             });
           }
 
+          searchInput.addEventListener("input", () => {
+            savePickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+            render();
+          });
+
           root.addEventListener("styleapplied", () => {
             theme = getPickerTheme();
             box.style.borderBottom = `1px solid ${theme.border}`;
@@ -911,6 +1058,9 @@
             nameInput.style.background = theme.inputBg;
             nameInput.style.color = theme.inputText;
             nameInput.style.border = `1px solid ${theme.border}`;
+            searchInput.style.background = theme.inputBg;
+            searchInput.style.color = theme.inputText;
+            searchInput.style.border = `1px solid ${theme.border}`;
             render();
           });
 
@@ -954,6 +1104,26 @@
             borderBottom: `1px solid ${theme.border}`,
           });
           box.appendChild(breadcrumb);
+
+          const searchRow = document.createElement("div");
+          Object.assign(searchRow.style, {
+            padding: "6px 10px",
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.panelBg,
+          });
+          const searchInput = document.createElement("input");
+          Object.assign(searchInput.style, {
+            width: "100%",
+            padding: "6px 8px",
+            borderRadius: "6px",
+            border: `1px solid ${theme.border}`,
+            background: theme.inputBg,
+            color: theme.inputText,
+            boxSizing: "border-box",
+          });
+          searchInput.placeholder = "Search this folder";
+          searchRow.appendChild(searchInput);
+          box.appendChild(searchRow);
 
           const fileArea = document.createElement("div");
           fileArea.style.flex = "1";
@@ -1068,6 +1238,7 @@
           let dirPickerTree = null;
           let dirPickerCurrentPath = ["root"];
           let dirPickerSelectionPaths = [];
+          let dirPickerSearchTerm = "";
 
           function render() {
             breadcrumb.innerHTML = "";
@@ -1105,12 +1276,25 @@
             }
             if (!node || !node[1]) return;
 
-            node[1].forEach((item) => {
+            const visibleItems = dirPickerSearchTerm
+              ? node[1].filter((item) => String(item[0]).toLowerCase().includes(dirPickerSearchTerm))
+              : node[1];
+
+            if (!visibleItems.length) {
+              const empty = document.createElement("div");
+              empty.textContent = dirPickerSearchTerm && node[1].length ? "No items match your search." : "This folder is empty.";
+              empty.style.color = theme.muted;
+              empty.style.padding = "12px 10px";
+              fileArea.appendChild(empty);
+              return;
+            }
+
+            visibleItems.forEach((item) => {
               const isFolder = Array.isArray(item[1]);
               const currentBasePath = dirPickerCurrentPath.slice(1).join("/");
               const itemPath = currentBasePath ? currentBasePath + "/" + item[0] : item[0];
               const div = document.createElement("div");
-              div.style.padding = "6px";
+              div.style.padding = "6px 10px";
               div.style.cursor = "pointer";
               div.style.borderBottom = `1px solid ${theme.border}`;
               div.style.display = "flex";
@@ -1120,7 +1304,28 @@
               const label = document.createElement("span");
               label.textContent = truncateDisplayName(item[0]);
               label.title = item[0];
+              label.style.flex = "1";
+              label.style.minWidth = "0";
+              label.style.overflow = "hidden";
+              label.style.textOverflow = "ellipsis";
+              label.style.whiteSpace = "nowrap";
               div.appendChild(label);
+
+              const meta = document.createElement("div");
+              meta.style.display = "flex";
+              meta.style.gap = "16px";
+              meta.style.alignItems = "center";
+              meta.style.fontSize = "11px";
+              meta.style.color = theme.muted;
+              meta.style.whiteSpace = "nowrap";
+              const itemMeta = item[2] || {};
+              const sizeEl = document.createElement("span");
+              sizeEl.textContent = isFolder ? "—" : formatPickerSize(itemMeta.size ?? 0);
+              const dateEl = document.createElement("span");
+              dateEl.textContent = formatPickerDate(itemMeta.mtime ?? 0);
+              meta.appendChild(sizeEl);
+              meta.appendChild(dateEl);
+              div.appendChild(meta);
 
               div.onclick = (e) => {
                 if (!isFolder) return;
@@ -1164,6 +1369,11 @@
             });
           }
 
+          searchInput.addEventListener("input", () => {
+            dirPickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+            render();
+          });
+
           root.addEventListener("styleapplied", () => {
             theme = getPickerTheme();
             box.style.borderBottom = `1px solid ${theme.border}`;
@@ -1176,6 +1386,9 @@
             btnBar.style.borderTop = `1px solid ${theme.border}`;
             stylePickerButton(btnCancel, theme, false);
             stylePickerButton(btnOpen, theme, true);
+            searchInput.style.background = theme.inputBg;
+            searchInput.style.color = theme.inputText;
+            searchInput.style.border = `1px solid ${theme.border}`;
             render();
           });
 

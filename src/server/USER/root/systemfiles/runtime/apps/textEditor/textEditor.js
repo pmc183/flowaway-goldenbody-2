@@ -119,6 +119,33 @@ window.textEditorGlobals.getTextEditorSettings = function getTextEditorSettings(
   return window.textEditorGlobals.normalizeTextEditorSettings(window.textEditorGlobals.editorSettings);
 };
 
+window.textEditorGlobals.formatPickerSize = function formatPickerSize(sizeValue) {
+  const numeric = Number(sizeValue);
+  if (!Number.isFinite(numeric) || numeric < 0) return "—";
+  if (numeric === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = numeric;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const formatted = value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1);
+  return `${formatted} ${units[unitIndex]}`;
+};
+
+window.textEditorGlobals.formatPickerDate = function formatPickerDate(timestamp) {
+  const numeric = Number(timestamp);
+  if (!Number.isFinite(numeric) || numeric <= 0) return "—";
+  const date = new Date(numeric);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 function truncateDisplayName(name, maxLen = 50) {
   const text = String(name ?? "");
   if (text.length <= maxLen) return text;
@@ -830,7 +857,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       const name = typeof entry?.name === "string" && entry.name ? entry.name : (typeof entry?.path === "string" ? String(entry.path).split("/").pop() : "");
       const isFolder = String(entry?.type || "").toLowerCase() === "folder" || !!entry?.folder;
       const resolvedPath = normalizedPath ? `${normalizedPath}/${name}` : name;
-      return [name, isFolder ? [] : null, { path: resolvedPath, kind: isFolder ? "folder" : "file" }];
+      return [name, isFolder ? [] : null, { path: resolvedPath, kind: isFolder ? "folder" : "file", size: entry?.size, mtime: entry?.mtime }];
     });
   }
 
@@ -855,8 +882,10 @@ window.textEditor = function (path, posX = 50, posY = 50) {
   async function openEditorSaveUI() {
     let pickerCurrentPath = "";
     let pickerSelection = [];
+    let pickerSearchTerm = "";
+    let pickerRenderId = 0;
     let pickerOverlay = document.createElement("div");
-    pickerOverlay.addEventListener('keydown', (e) => e.stopPropagation());
+    pickerOverlay.addEventListener("keydown", (e) => e.stopPropagation());
     Object.assign(pickerOverlay.style, {
       position: "fixed",
       top: "0",
@@ -890,6 +919,21 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     const breadcrumbDiv = document.createElement("div");
     breadcrumbDiv.style.padding = "6px";
     pickerBox.appendChild(breadcrumbDiv);
+
+    const searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.placeholder = "Search current folder...";
+    searchInput.autocomplete = "off";
+    searchInput.spellcheck = false;
+    searchInput.style.width = "calc(100% - 16px)";
+    searchInput.style.margin = "6px 8px 0";
+    searchInput.style.padding = "8px 10px";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.style.borderRadius = "6px";
+    searchInput.style.background = window.protectedGlobals.data.dark ? "#0f1724" : "#f8fafc";
+    searchInput.style.color = window.protectedGlobals.data.dark ? "#e6eef8" : "#0f1724";
+    searchInput.style.border = "1px solid rgba(148,163,184,0.45)";
+    pickerBox.appendChild(searchInput);
 
     const fileArea = document.createElement("div");
     fileArea.style.flex = "1";
@@ -975,7 +1019,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       });
     }
 
-    async function renderPicker() {
+    const renderPicker = async () => {
       const renderId = ++pickerRenderId;
       breadcrumbDiv.innerHTML = "";
       const parts = pickerCurrentPath ? pickerCurrentPath.split("/").filter(Boolean) : [];
@@ -1020,6 +1064,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       loadingIndicator.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
       loadingIndicator.style.fontWeight = "600";
       fileArea.appendChild(loadingIndicator);
+
       let entries = [];
       try {
         entries = await readFolderEntriesForPicker(pickerCurrentPath);
@@ -1028,7 +1073,21 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       }
       if (renderId !== pickerRenderId) return;
       loadingIndicator.remove();
-      entries.forEach((item) => {
+
+      const filteredEntries = pickerSearchTerm
+        ? entries.filter((item) => String(item[0] || "").toLowerCase().includes(pickerSearchTerm))
+        : entries;
+
+      if (!filteredEntries.length) {
+        const emptyState = document.createElement("div");
+        emptyState.textContent = pickerSearchTerm && entries.length ? "No items match your search." : "This folder is empty.";
+        emptyState.style.padding = "20px 12px";
+        emptyState.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
+        fileArea.appendChild(emptyState);
+        return;
+      }
+
+      filteredEntries.forEach((item) => {
         const row = document.createElement("div");
         row.dataset.pickerItem = "true";
         row.style.display = "flex";
@@ -1043,11 +1102,39 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
         const isFolder = Array.isArray(item[1]);
         const icon = makeIcon(isFolder ? "folder" : "file", 14);
+        const labelWrap = document.createElement("div");
+        labelWrap.style.display = "flex";
+        labelWrap.style.alignItems = "center";
+        labelWrap.style.flex = "1";
+        labelWrap.style.minWidth = "0";
+
         const label = document.createElement("span");
         label.textContent = truncateDisplayName(item[0]);
         label.title = item[0];
+        label.style.flex = "1";
+        label.style.whiteSpace = "nowrap";
+        label.style.overflow = "hidden";
+        label.style.textOverflow = "ellipsis";
+        labelWrap.appendChild(label);
         row.appendChild(icon);
-        row.appendChild(label);
+        row.appendChild(labelWrap);
+
+        const meta = document.createElement("div");
+        meta.style.display = "flex";
+        meta.style.gap = "16px";
+        meta.style.alignItems = "center";
+        meta.style.fontSize = "11px";
+        meta.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
+        meta.style.whiteSpace = "nowrap";
+
+        const metaSize = document.createElement("span");
+        const metaDate = document.createElement("span");
+        const itemMeta = item[2] || {};
+        metaSize.textContent = isFolder ? "—" : window.textEditorGlobals.formatPickerSize(itemMeta.size ?? 0);
+        metaDate.textContent = window.textEditorGlobals.formatPickerDate(itemMeta.mtime ?? 0);
+        meta.appendChild(metaSize);
+        meta.appendChild(metaDate);
+        row.appendChild(meta);
 
         row.onclick = (e) => {
           const isToggle = e.ctrlKey || e.metaKey;
@@ -1080,7 +1167,12 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         }
         fileArea.appendChild(row);
       });
-    }
+    };
+
+    searchInput.addEventListener("input", () => {
+      pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+      renderPicker();
+    });
 
     const onSavePickerStyleApplied = () => {
       applySavePickerTheme();
@@ -1088,7 +1180,6 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
     root.addEventListener("styleapplied", onSavePickerStyleApplied);
 
-    let pickerRenderId = 0;
     renderPicker();
     applySavePickerTheme();
 
@@ -1110,18 +1201,16 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         if (!fname) return getUIMessage("Enter a filename");
 
         let chosen = null;
-        if (!selections.length)
-          chosen = basePath ? basePath + "/" + fname : fname;
-        else {
+        if (!selections.length) {
+          chosen = basePath ? `${basePath}/${fname}` : fname;
+        } else {
           const sel = selections[0];
           const isFolder = Array.isArray(sel[1]);
-          if (isFolder) chosen = (basePath ? basePath + "/" : "") + fname;
-          else {
-            if (!basePath && !selections.length) chosen = fname;
-            else {
-              alert("Cannot select a file for save destination");
-              throw new Error("Cannot select a file for save destination");
-            }
+          if (isFolder) {
+            chosen = (basePath ? `${basePath}/` : "") + fname;
+          } else {
+            alert("Cannot select a file for save destination");
+            throw new Error("Cannot select a file for save destination");
           }
         }
 
@@ -1162,15 +1251,15 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     } catch (e) {
       /* swallow */
     }
-  });
-
-  // Recreate the app's custom picker UI (shared overlay pattern)
+  });  // Recreate the app's custom picker UI (shared overlay pattern)
   async function openEditorPickerUI() {
     let pickerCurrentPath = "";
     let pickerSelection = [];
-    let pickerOverlay = document.createElement("div");
+    let pickerSearchTerm = "";
+    let pickerRenderId = 0;
+    const pickerOverlay = document.createElement("div");
     pickerOverlay.tabIndex = "0";
-    pickerOverlay.addEventListener('keydown', (e) => e.stopPropagation());
+    pickerOverlay.addEventListener("keydown", (e) => e.stopPropagation());
     Object.assign(pickerOverlay.style, {
       position: "fixed",
       top: "0",
@@ -1199,9 +1288,25 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     pickerOverlay.appendChild(pickerBox);
     pickerBox.tabIndex = "0";
     pickerBox.focus();
+
     const breadcrumbDiv = document.createElement("div");
     breadcrumbDiv.style.padding = "6px";
     pickerBox.appendChild(breadcrumbDiv);
+
+    const searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.placeholder = "Search current folder...";
+    searchInput.autocomplete = "off";
+    searchInput.spellcheck = false;
+    searchInput.style.width = "calc(100% - 16px)";
+    searchInput.style.margin = "6px 8px 0";
+    searchInput.style.padding = "8px 10px";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.style.borderRadius = "6px";
+    searchInput.style.background = window.protectedGlobals.data.dark ? "#0f1724" : "#f8fafc";
+    searchInput.style.color = window.protectedGlobals.data.dark ? "#e6eef8" : "#0f1724";
+    searchInput.style.border = "1px solid rgba(148,163,184,0.45)";
+    pickerBox.appendChild(searchInput);
 
     const fileArea = document.createElement("div");
     fileArea.style.flex = "1";
@@ -1270,7 +1375,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       });
     }
 
-    async function renderPicker() {
+    const renderPicker = async () => {
       const renderId = ++pickerRenderId;
       breadcrumbDiv.innerHTML = "";
       const parts = pickerCurrentPath ? pickerCurrentPath.split("/").filter(Boolean) : [];
@@ -1315,6 +1420,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       loadingIndicator.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
       loadingIndicator.style.fontWeight = "600";
       fileArea.appendChild(loadingIndicator);
+
       let entries = [];
       try {
         entries = await readFolderEntriesForPicker(pickerCurrentPath);
@@ -1323,7 +1429,21 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       }
       if (renderId !== pickerRenderId) return;
       loadingIndicator.remove();
-      entries.forEach((item) => {
+
+      const filteredEntries = pickerSearchTerm
+        ? entries.filter((item) => String(item[0] || "").toLowerCase().includes(pickerSearchTerm))
+        : entries;
+
+      if (!filteredEntries.length) {
+        const emptyState = document.createElement("div");
+        emptyState.textContent = pickerSearchTerm && entries.length ? "No items match your search." : "This folder is empty.";
+        emptyState.style.padding = "20px 12px";
+        emptyState.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
+        fileArea.appendChild(emptyState);
+        return;
+      }
+
+      filteredEntries.forEach((item) => {
         const row = document.createElement("div");
         row.dataset.pickerItem = "true";
         row.style.display = "flex";
@@ -1338,11 +1458,39 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
         const isFolder = Array.isArray(item[1]);
         const icon = makeIcon(isFolder ? "folder" : "file", 14);
+        const labelWrap = document.createElement("div");
+        labelWrap.style.display = "flex";
+        labelWrap.style.alignItems = "center";
+        labelWrap.style.flex = "1";
+        labelWrap.style.minWidth = "0";
+
         const label = document.createElement("span");
         label.textContent = truncateDisplayName(item[0]);
         label.title = item[0];
+        label.style.flex = "1";
+        label.style.whiteSpace = "nowrap";
+        label.style.overflow = "hidden";
+        label.style.textOverflow = "ellipsis";
+        labelWrap.appendChild(label);
         row.appendChild(icon);
-        row.appendChild(label);
+        row.appendChild(labelWrap);
+
+        const meta = document.createElement("div");
+        meta.style.display = "flex";
+        meta.style.gap = "16px";
+        meta.style.alignItems = "center";
+        meta.style.fontSize = "11px";
+        meta.style.color = window.protectedGlobals.data.dark ? "#cbd5e1" : "#475569";
+        meta.style.whiteSpace = "nowrap";
+
+        const metaSize = document.createElement("span");
+        const metaDate = document.createElement("span");
+        const itemMeta = item[2] || {};
+        metaSize.textContent = isFolder ? "—" : window.textEditorGlobals.formatPickerSize(itemMeta.size ?? 0);
+        metaDate.textContent = window.textEditorGlobals.formatPickerDate(itemMeta.mtime ?? 0);
+        meta.appendChild(metaSize);
+        meta.appendChild(metaDate);
+        row.appendChild(meta);
 
         row.onclick = (e) => {
           const isToggle = e.ctrlKey || e.metaKey;
@@ -1375,7 +1523,12 @@ window.textEditor = function (path, posX = 50, posY = 50) {
         }
         fileArea.appendChild(row);
       });
-    }
+    };
+
+    searchInput.addEventListener("input", () => {
+      pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+      renderPicker();
+    });
 
     const onOpenPickerStyleApplied = () => {
       applyOpenPickerTheme();
@@ -1383,7 +1536,6 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
     root.addEventListener("styleapplied", onOpenPickerStyleApplied);
 
-    let pickerRenderId = 0;
     renderPicker();
     applyOpenPickerTheme();
 
@@ -1411,8 +1563,9 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       };
     });
   }
+
   // Assign the editor's path from the picked file (do not reuse old path)
-  async function preloadFile() {
+async function preloadFile() {
     const reqName = toRequestFileName(path);
     if (!reqName) return;
     const res = await window.protectedGlobals.ReadFile(reqName, { text: true, direct: true });

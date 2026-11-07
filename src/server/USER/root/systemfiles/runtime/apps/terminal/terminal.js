@@ -1454,6 +1454,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
       if (cmd === 'perm' || cmd === 'chmod') {
         // perm "<path>" rw|r|w|
         const path = parseQuotedPath(cmdline) || parts[1];
+        if (parts.length < 3) { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
         if (!path) { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
         const m = cmdline.match(/\s(\w+)\s*$/);
         const permArg = m ? m[1] : '';

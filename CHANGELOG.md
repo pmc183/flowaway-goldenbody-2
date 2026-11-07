@@ -220,6 +220,8 @@
 - Updated login/signup page so users wont think they got stuck by more state feedback.
 - Some annoying bugs fixed are not documented.
 
+# FlowAway GoldenBody has reached a new stable era, It will offically enter the "Age Of Bug Fixing".
+
 # V 2.7.1
 - Removed the broken app unresponsiveness checks.
 - Fixed stale rendering in file pickers.
@@ -243,3 +245,23 @@
 - Fixed how some rendering stuff to remove redundant rendering such as rerender all entries when the user selects one.
 - Patched the possible exploit to create millions of empty files and folders which isnt registered in the quota.
 - Fixed some server error handling
+
+# V 2.7.4
+- fixed startup notification frequently do not log in the notifications panel.
+- fixed limit of display for search in file explorer, bug introduced by slop.ai.
+- fixed "kill" cmd in terminal saying it killed processes that don't exist, change the wording from thread to process to make sure the wording is unified. 
+- fixed iframe app windows not self closing when the process is killed for whatever reason.
+- added beforeunload guards in homepage to prevent accidental navigations.
+- updated the create shortcut in showUnifiedAppContextmenu() to report progress if needed.
+- added search feature for file pickers, along with date and size display.
+- fixed upload and then upload causes the progress bar to become funky in file explorer.
+- fixed move temporary consumes quota and can cause data loss when storage is full.
+- fixed writing existing files dont consume quota, bug introduced from the last update.
+- the server now sends more descriptive error message whenever the server sends a non 200 code.
+- fixed critical exploit with pastefile to steal js keys.
+- fixed path traversal bugs for clipboard for pastefile/folder.
+- tweaked error msg and trigger conditions of fs operations.
+
+- terminal uses fs watchers to monitor cwd.
+- fixed permadelete file dont clear quota on client side.
+- added css for buttons in settings and text editor settings, session expired dialog.
