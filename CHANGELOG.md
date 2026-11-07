@@ -261,7 +261,5 @@
 - fixed critical exploit with pastefile to steal js keys.
 - fixed path traversal bugs for clipboard for pastefile/folder.
 - tweaked error msg and trigger conditions of fs operations.
-
-- terminal uses fs watchers to monitor cwd.
 - fixed permadelete file dont clear quota on client side.
 - added css for buttons in settings and text editor settings, session expired dialog.

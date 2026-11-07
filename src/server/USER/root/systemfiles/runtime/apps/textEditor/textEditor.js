@@ -21,6 +21,43 @@ window.textEditorGlobals.__textEditorStyle.textContent = `
   background: #fafafa;
   color: #000;
 }
+.texteditor-settings-panel {
+  width: 360px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--texteditor-panel-bg, #fff);
+  color: var(--texteditor-panel-fg, #111);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.texteditor-settings-panel input[type="number"] {
+  width: 100px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(255,255,255,0.02);
+  color: inherit;
+}
+.texteditor-settings-button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: rgba(148, 163, 184, 0.12);
+  color: inherit;
+}
+.texteditor-settings-button.primary {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+.texteditor-settings-button.secondary {
+  background: rgba(148, 163, 184, 0.12);
+}
+.texteditor-settings-toggle {
+  accent-color: #3b82f6;
+}
 `;
 document.head.appendChild(window.textEditorGlobals.__textEditorStyle);
 
@@ -644,16 +681,12 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
     // panel
     const panel = document.createElement("div");
+    panel.className = "texteditor-settings-panel";
+    panel.style.setProperty("--texteditor-panel-bg", window.protectedGlobals.data.dark ? "#222" : "#fff");
+    panel.style.setProperty("--texteditor-panel-fg", window.protectedGlobals.data.dark ? "#eee" : "#111");
     Object.assign(panel.style, {
-      width: "360px",
-      padding: "12px",
-      borderRadius: "8px",
       background: window.protectedGlobals.data.dark ? "#222" : "#fff",
       color: window.protectedGlobals.data.dark ? "#eee" : "#111",
-      boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
-      display: "flex",
-      flexDirection: "column",
-      gap: "8px",
     });
     overlay.appendChild(panel);
 
@@ -682,6 +715,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     autosaveRow.style.alignItems = "center";
     const autosave = document.createElement("input");
     autosave.type = "checkbox";
+    autosave.className = "texteditor-settings-toggle";
     autosave.checked = !!currentSettings.autosave;
     const autosaveLabel = document.createElement("span");
     autosaveLabel.textContent = " Autosave";
@@ -695,8 +729,10 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     btnRow.style.justifyContent = "flex-end";
     btnRow.style.gap = "8px";
     const btnCancel = document.createElement("button");
+    btnCancel.className = "texteditor-settings-button secondary";
     btnCancel.textContent = "Cancel";
     const btnApply = document.createElement("button");
+    btnApply.className = "texteditor-settings-button primary";
     btnApply.textContent = "Apply";
 
     btnRow.appendChild(btnCancel);

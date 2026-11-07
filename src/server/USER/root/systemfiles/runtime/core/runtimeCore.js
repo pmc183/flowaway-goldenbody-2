@@ -48,6 +48,69 @@ window.protectedGlobals.normalizeFsPath = function (path, {
 
 
 console.log("runtimeCore.js loaded");
+window.protectedGlobals.runtimeCoreUiStyles = document.createElement("style");
+window.protectedGlobals.runtimeCoreUiStyles.textContent = `
+  .session-expired-dialog {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 420px;
+    max-width: 90vw;
+    background: var(--session-expired-bg, #fff);
+    color: var(--session-expired-fg, #000);
+    border-radius: 8px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    z-index: 100002;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 12px;
+  }
+  .session-expired-button {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    background: rgba(148, 163, 184, 0.12);
+    color: inherit;
+  }
+  .session-expired-button.primary {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+  .session-expired-button.secondary {
+    background: rgba(148, 163, 184, 0.12);
+  }
+  .session-expired-button.danger {
+    background: rgba(220, 38, 38, 0.12);
+    border-color: rgba(220, 38, 38, 0.28);
+  }
+  .session-expired-input {
+    flex: 1;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.02);
+    color: inherit;
+  }
+  .session-expired-close {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    width: 32px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    line-height: 0;
+    font-size: 14px;
+    color: inherit;
+  }
+`;
+document.head.appendChild(window.protectedGlobals.runtimeCoreUiStyles);
+delete window.protectedGlobals.runtimeCoreUiStyles;
 window.protectedGlobals.WriteFolder = async function (relPath, options = {}) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath, { allowRoot: true });
   const directions = [{ path: normalizedPath, addFolder: true }, { end: true }];
@@ -563,22 +626,12 @@ window.protectedGlobals.showSessionExpiredDialog = function showSessionExpiredDi
 
   const dlg = document.createElement("div");
   dlg.id = "session-expired-dialog";
+  dlg.className = "session-expired-dialog";
+  dlg.style.setProperty("--session-expired-bg", window.protectedGlobals.data.dark ? "#222" : "#fff");
+  dlg.style.setProperty("--session-expired-fg", window.protectedGlobals.data.dark ? "#fff" : "#000");
   Object.assign(dlg.style, {
-    position: "fixed",
-    left: "50%",
-    top: "50%",
-    transform: "translate(-50%, -50%)",
-    width: "420px",
-    maxWidth: "90vw",
     background: window.protectedGlobals.data.dark ? "#222" : "#fff",
     color: window.protectedGlobals.data.dark ? "#fff" : "#000",
-    borderRadius: "8px",
-    boxShadow: "0 8px 30px rgba(0,0,0,0.3)",
-    zIndex: 100002,
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    padding: "12px",
   });
 
   const header = document.createElement("div");
@@ -591,6 +644,7 @@ window.protectedGlobals.showSessionExpiredDialog = function showSessionExpiredDi
   htitle.style.fontWeight = "600";
 
   const closeX = document.createElement("button");
+  closeX.className = "session-expired-close";
   closeX.setAttribute("aria-label", "Close dialog");
   closeX.textContent = "✕";
   Object.assign(closeX.style, {
@@ -632,6 +686,7 @@ window.protectedGlobals.showSessionExpiredDialog = function showSessionExpiredDi
   pwdRow.style.marginBottom = "8px";
 
   const pwdInput = document.createElement("input");
+  pwdInput.className = "session-expired-input";
   pwdInput.type = "password";
   pwdInput.placeholder = "Account password";
   Object.assign(pwdInput.style, {
@@ -651,14 +706,17 @@ window.protectedGlobals.showSessionExpiredDialog = function showSessionExpiredDi
   btnRow.style.gap = "8px";
 
   const reloadBtn = document.createElement("button");
+  reloadBtn.className = "session-expired-button primary";
   reloadBtn.textContent = "Sign In Again";
   reloadBtn.style.padding = "6px 10px";
 
   const refillBtn = document.createElement("button");
+  refillBtn.className = "session-expired-button secondary";
   refillBtn.textContent = "Refill Session";
   refillBtn.style.padding = "6px 10px";
 
   const closeBtn = document.createElement("button");
+  closeBtn.className = "session-expired-button danger";
   closeBtn.textContent = "Close";
   closeBtn.style.padding = "6px 10px";
 

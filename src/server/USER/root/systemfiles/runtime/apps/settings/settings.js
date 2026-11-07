@@ -5,6 +5,65 @@ window.settingsGlobals = {};
 window.settingsGlobals.allSettings = [];
 window.settingsGlobals.goldenbodyId = 0;
 
+window.settingsGlobals.settingsAppStyles = document.createElement("style");
+window.settingsGlobals.settingsAppStyles.textContent = `
+  .settings-panel-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #3b82f6 0%, #3b82f6 var(--slider-progress, 50%), rgba(148, 163, 184, 0.35) var(--slider-progress, 50%), rgba(148, 163, 184, 0.35) 100%);
+    outline: none;
+    cursor: pointer;
+  }
+  .settings-panel-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background: #3b82f6;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  }
+  .settings-panel-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #3b82f6;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  }
+  .settings-action-button,
+  .settings-primary-button,
+  .settings-secondary-button {
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    background: rgba(148, 163, 184, 0.12);
+    color: inherit;
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .settings-action-button:hover,
+  .settings-primary-button:hover,
+  .settings-secondary-button:hover {
+    filter: brightness(1.05);
+  }
+  .settings-primary-button {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+  .settings-secondary-button {
+    background: rgba(148, 163, 184, 0.12);
+  }
+  .settings-toggle {
+    accent-color: #3b82f6;
+  }
+`;
+document.head.appendChild(window.settingsGlobals.settingsAppStyles);
+
 window.settingsGlobals.persistSettingsProfilePatch = function (patch) {
   return window.protectedGlobals.persistUserProfilePatch(patch || {});
 };
@@ -466,6 +525,7 @@ window.settings = function (posX = 50, posY = 50) {
   confirm.style.marginTop = "6px";
 
   const button = document.createElement("button");
+  button.className = "settings-primary-button";
   button.textContent = "Save Password";
   button.style.marginTop = "10px";
 
@@ -1194,6 +1254,7 @@ window.settings = function (posX = 50, posY = 50) {
 
   const brightness = document.createElement("input");
   brightness.type = "range";
+  brightness.className = "settings-panel-slider";
   brightness.min = 0;
   brightness.style.width = "calc(100% - 10px)";
 
@@ -1242,6 +1303,7 @@ window.settings = function (posX = 50, posY = 50) {
 
   const themeToggle = document.createElement("input");
   themeToggle.type = "checkbox";
+  themeToggle.className = "settings-toggle";
   themeToggle.checked = !!window.protectedGlobals.data.dark;
 
   /* Toggle handler */
@@ -1268,6 +1330,7 @@ window.settings = function (posX = 50, posY = 50) {
   backgroundActionsRow.style.gap = "8px";
   backgroundActionsRow.style.marginTop = "8px";
   const changeBackgroundBtn = document.createElement("button");
+  changeBackgroundBtn.className = "settings-action-button";
   changeBackgroundBtn.textContent = "Change Background";
   changeBackgroundBtn.style.padding = "6px 10px";
   changeBackgroundBtn.style.borderRadius = "6px";
@@ -1280,6 +1343,7 @@ window.settings = function (posX = 50, posY = 50) {
   };
 
   const resetBackgroundBtn = document.createElement("button");
+  resetBackgroundBtn.className = "settings-action-button";
   resetBackgroundBtn.textContent = "Reset Background";
   resetBackgroundBtn.style.padding = "6px 10px";
   resetBackgroundBtn.style.borderRadius = "6px";
@@ -1641,6 +1705,7 @@ window.settings = function (posX = 50, posY = 50) {
 
   const aboutBtn = document.createElement("button");
   aboutBtn.textContent = "Developer Docs";
+  aboutBtn.className = "settings-action-button";
   aboutBtn.style.marginLeft = "8px";
 
   aboutRow.append(aboutText, aboutBtn);

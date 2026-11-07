@@ -1116,7 +1116,7 @@ async function handleFetchfiles(req, res) {
                   continue;
                 } catch (e) {
                   success = false;
-                  error = e && e.message ? e.message : "Move failed";
+                  error = "Move failed, usually because moving into existing items.";
                   continue;
                 }
               }

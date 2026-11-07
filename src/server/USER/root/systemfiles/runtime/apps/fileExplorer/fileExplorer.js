@@ -1347,6 +1347,32 @@ function makeIcon(type, size = 16) {
     }
   }
 
+  function recalculateTreeStorage(node) {
+    if (!node) return 0;
+
+    if (node[1] === null) {
+      const size = Number(node[2]?.size || 0);
+      const sizeOnDisk = getEntryOnDiskSize(size);
+      node[2] = { ...(node[2] || {}), size, sizeOnDisk };
+      return sizeOnDisk;
+    }
+
+    if (!Array.isArray(node[1])) {
+      const sizeOnDisk = 4096;
+      node[2] = { ...(node[2] || {}), size: 0, sizeOnDisk };
+      return sizeOnDisk;
+    }
+
+    let total = 0;
+    for (const child of node[1]) {
+      total += recalculateTreeStorage(child);
+    }
+
+    const sizeOnDisk = 4096 + total;
+    node[2] = { ...(node[2] || {}), size: getNodeSize(node), sizeOnDisk };
+    return sizeOnDisk;
+  }
+
   function removeNodeFromTree(node, pathParts) {
     if (!node || !Array.isArray(node[1])) return false;
 
@@ -2292,6 +2318,7 @@ function makeIcon(type, size = 16) {
               });
               const deletePath = [...currentPath.slice(1), item[0]];
               removeNodeFromTree(treeData, deletePath);
+              recalculateTreeStorage(treeData);
             }
             selectedItems = [];
             selectedItem = null;
@@ -2794,6 +2821,7 @@ function makeIcon(type, size = 16) {
           path: "root/.trash/" + item[0],
         });
         removeNodeFromTree(treeData, [".trash", item[0]]);
+        recalculateTreeStorage(treeData);
       }
       render();
       triggerAutosave();
