@@ -1,12 +1,8 @@
-const fs = require('fs');
-const fsp = require('fs/promises');
-const path = require('path');
+const fs = require("fs");
+const fsp = require("fs/promises");
+const path = require("path");
 
-const {
-  getUserUsage,
-  adjustUserUsage,
-  getUserQuotaBytes,
-} = require('./storageQuota');
+const { getUserUsage, adjustUserUsage, getUserQuotaBytes } = require("./storageQuota");
 
 const userLocks = new Map();
 const MIN_ENTRY_SIZE_BYTES = 4 * 1024;
@@ -23,7 +19,10 @@ function withUserLock(username, fn) {
   const prev = userLocks.get(username) || Promise.resolve();
   const next = prev.then(fn, fn);
 
-  userLocks.set(username, next.catch(() => {}));
+  userLocks.set(
+    username,
+    next.catch(() => {}),
+  );
 
   return next;
 }
@@ -38,9 +37,7 @@ async function exists(fullPath) {
 }
 
 function getByteLength(value) {
-  return Buffer.isBuffer(value)
-    ? value.length
-    : Buffer.byteLength(String(value), 'utf8');
+  return Buffer.isBuffer(value) ? value.length : Buffer.byteLength(String(value), "utf8");
 }
 
 async function getPathSizeBytes(target) {
@@ -76,17 +73,11 @@ async function getPathSizeBytes(target) {
 
 function createQuotaError(message) {
   const err = new Error(message);
-  err.code = 'QUOTA_EXCEEDED';
+  err.code = "QUOTA_EXCEEDED";
   return err;
 }
 
-async function writeFileWithQuota(
-  username,
-  userRoot,
-  filePath,
-  rawBody,
-  replace
-) {
+async function writeFileWithQuota(username, userRoot, filePath, rawBody, replace) {
   let oldSize = 0;
   let existed = false;
 
@@ -103,9 +94,7 @@ async function writeFileWithQuota(
   }
 
   const byteLength = getByteLength(rawBody);
-  const nextSize = existed
-    ? (replace ? byteLength : oldSize + byteLength)
-    : byteLength;
+  const nextSize = existed ? (replace ? byteLength : oldSize + byteLength) : byteLength;
 
   const previousSize = getEntryDiskSizeBytes(oldSize);
   const nextDiskSize = getEntryDiskSizeBytes(nextSize);
@@ -113,27 +102,21 @@ async function writeFileWithQuota(
   // Existing-file writes consume quota only by the net growth from the previous
   // stored size. Replacing a file with the same or smaller payload must not add
   // usage, and an append only counts the new bytes.
-  const delta = existed
-    ? nextDiskSize - previousSize
-    : nextDiskSize;
+  const delta = existed ? nextDiskSize - previousSize : nextDiskSize;
 
   const used = await getUserUsage(username, userRoot);
   const quota = await getUserQuotaBytes(userRoot);
 
   if (delta > 0 && used + delta > quota) {
-    throw createQuotaError(
-      'Out of storage: cannot write file'
-    );
+    throw createQuotaError("Out of storage: cannot write file");
   }
 
-  await fsp.mkdir(path.dirname(filePath), {
-    recursive: true,
-  });
+  await createDirectoryWithQuota(username, userRoot, path.dirname(filePath));
 
   const loadTreeRequired = !(await exists(filePath));
 
   await fsp.writeFile(filePath, rawBody, {
-    flag: replace ? 'w' : 'a',
+    flag: replace ? "w" : "a",
   });
 
   adjustUserUsage(username, delta, userRoot);
@@ -141,31 +124,25 @@ async function writeFileWithQuota(
   return { loadTreeRequired };
 }
 
-async function finalizeDownloadWithQuota(
-  username,
-  userRoot,
-  tmpPath,
-  destCandidate
-) {
+async function finalizeDownloadWithQuota(username, userRoot, tmpPath, destCandidate) {
   const quota = await getUserQuotaBytes(userRoot);
   const currentUsage = await getUserUsage(username, userRoot);
 
-  const pendingSize = (
-    await fsp.stat(tmpPath).catch(() => ({ size: 0 }))
-  ).size;
+  const pendingSize = (await fsp.stat(tmpPath).catch(() => ({ size: 0 }))).size;
 
-  const existingSize = await fsp.stat(destCandidate).then((stat) => {
-    return stat.isFile() ? stat.size : 0;
-  }).catch(() => 0);
+  const existingSize = await fsp
+    .stat(destCandidate)
+    .then((stat) => {
+      return stat.isFile() ? stat.size : 0;
+    })
+    .catch(() => 0);
 
   const delta = getEntryDiskSizeBytes(pendingSize) - getEntryDiskSizeBytes(existingSize);
 
   if (delta > 0 && currentUsage + delta > quota) {
     await fsp.unlink(tmpPath).catch(() => {});
 
-    throw createQuotaError(
-      'Out of storage: cannot download this file'
-    );
+    throw createQuotaError("Out of storage: cannot download this file");
   }
 
   try {
@@ -185,38 +162,45 @@ async function finalizeDownloadWithQuota(
   return pendingSize;
 }
 
-async function createDirectoryWithQuota(
-  username,
-  userRoot,
-  dirPath
-) {
-  const quota = await getUserQuotaBytes(userRoot);
-  const currentUsage = await getUserUsage(username, userRoot);
-  const dirSize = getEntryDiskSizeBytes(0);
-
-  if (currentUsage + dirSize > quota) {
-    throw createQuotaError(
-      'Out of storage: cannot create folder'
-    );
-  }
-
+async function createDirectoryWithQuota(username, userRoot, dirPath) {
   if (await exists(dirPath)) {
     return false;
   }
 
-  await fsp.mkdir(dirPath, {
-    recursive: true,
-  });
+  const parentDir = path.dirname(dirPath);
+  const relative = path.relative(userRoot, parentDir);
 
+  if (relative && relative !== ".") {
+    const segments = relative.split(path.sep);
+    let current = userRoot;
+
+    for (const segment of segments) {
+      current = path.join(current, segment);
+
+      await createDirectoryWithQuota(username, userRoot, current);
+    }
+  }
+
+  // Check again after creating parents.
+  if (await exists(dirPath)) {
+    return false;
+  }
+
+  const dirSize = getEntryDiskSizeBytes(0);
+  const currentUsage = await getUserUsage(username, userRoot);
+  const quota = await getUserQuotaBytes(userRoot);
+
+  if (currentUsage + dirSize > quota) {
+    throw createQuotaError("Out of storage: cannot create folder");
+  }
+
+  await fsp.mkdir(dirPath);
   adjustUserUsage(username, dirSize, userRoot);
+
   return true;
 }
 
-async function deletePathWithQuota(
-  username,
-  userRoot,
-  targetPath
-) {
+async function deletePathWithQuota(username, userRoot, targetPath) {
   // Calculate the size BEFORE deleting it.
   // This is necessary for directories because their size is not
   // necessarily known from a single stat().
@@ -231,20 +215,12 @@ async function deletePathWithQuota(
   adjustUserUsage(username, -deletedSize, userRoot);
 }
 
-async function copyPathWithQuota(
-  username,
-  userRoot,
-  src,
-  dest,
-  currentUsed
-) {
+async function copyPathWithQuota(username, userRoot, src, dest, currentUsed) {
   const srcSize = await getPathSizeBytes(src);
   const quota = await getUserQuotaBytes(userRoot);
 
   if (currentUsed + srcSize > quota) {
-    throw createQuotaError(
-      `Out of storage: cannot paste "${path.basename(src)}"`
-    );
+    throw createQuotaError(`Out of storage: cannot paste "${path.basename(src)}"`);
   }
 
   await fsp.cp(src, dest, {

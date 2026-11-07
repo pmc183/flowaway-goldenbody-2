@@ -263,3 +263,7 @@
 - tweaked error msg and trigger conditions of fs operations.
 - fixed permadelete file dont clear quota on client side.
 - added css for buttons in settings and text editor settings, session expired dialog.
+
+# V 2.7.5
+- Fixed recursive folder creation evading quota
+- Added more error handling in writefile

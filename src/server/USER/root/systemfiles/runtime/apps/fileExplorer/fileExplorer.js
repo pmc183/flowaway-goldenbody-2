@@ -2337,6 +2337,8 @@ function makeIcon(type, size = 16) {
             });
             const deletePath = [...currentPath.slice(1), item[0]];
             removeNodeFromTree(treeData, deletePath);
+            await onlyloadTree();
+            render();
           }
           selectedItems = [];
           selectedItem = null;

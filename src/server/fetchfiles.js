@@ -475,8 +475,6 @@ async function handleRawFileUpload(req, res) {
   
   const rawBody = await getRawBody(req);
 
-  let oldSize = 0;
-
   return withUserLock(username, async () => {
     const { loadTreeRequired } = await writeFileWithQuota(username, userRoot, filePath, rawBody, replace);
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -502,7 +500,11 @@ async function handleFetchfiles(req, res) {
 
   // Support simple streaming download endpoint for large files.
   if (req.method === "POST" && req.headers["content-type"] && req.headers["content-type"].startsWith("application/octet-stream") && req.headers["x-file-action"] === "write") {
-    return handleRawFileUpload(req, res);
+    try {
+      return await handleRawFileUpload(req, res);
+    } catch (err) {
+      sendSafeError(res, err);
+    }
   }
 
   if (req.method !== "POST") {
@@ -716,7 +718,7 @@ async function handleFetchfiles(req, res) {
       }
 
       async function ensureDir(p) {
-        await fsp.mkdir(p, { recursive: true });
+        await createDirectoryWithQuota(username, userRoot, p);
       }
 
       async function applyDirections(rootPath, directions, username, userPathPermissions, options = {}) {
@@ -922,6 +924,7 @@ async function handleFetchfiles(req, res) {
                 continue;
               }
               // Move to hidden .trash folder instead of permanently deleting
+              // This should not count towards the user quota because the dir it's really small and if the user is out of quota they can still delete items.
               const trashDir = safeResolve(rootPath, ".trash");
               await fsp.mkdir(trashDir, { recursive: true });
               const itemName = path.basename(targetPath);
@@ -1096,6 +1099,7 @@ async function handleFetchfiles(req, res) {
               if (await exists(dest)) {
                 success = false;
                 error = 'Destination already exists';
+                continue;
               }
 
               const destRelPath = removeUnwantedStuffInPath(path.relative(userRoot, dest).replace(/\\/g, "/"));
