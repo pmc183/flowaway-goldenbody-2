@@ -1,6 +1,8 @@
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
+const { pipeline } = require("stream/promises");
+const { Transform } = require("stream");
 
 const { getUserUsage, adjustUserUsage, getUserQuotaBytes } = require("./storageQuota");
 
@@ -78,6 +80,73 @@ function createQuotaError(message) {
 }
 
 async function writeFileWithQuota(username, userRoot, filePath, rawBody, replace) {
+  const isStream = rawBody && typeof rawBody.pipe === "function";
+
+  if (isStream) {
+    let oldSize = 0;
+    let existed = false;
+
+    try {
+      const st = await fsp.stat(filePath);
+      if (st.isFile()) {
+        oldSize = st.size;
+        existed = true;
+      }
+    } catch {
+      oldSize = 0;
+      existed = false;
+    }
+
+    const previousDiskSize = existed
+      ? getEntryDiskSizeBytes(oldSize)
+      : 0;
+
+    await createDirectoryWithQuota(
+      username,
+      userRoot,
+      path.dirname(filePath)
+    );
+
+    const used = await getUserUsage(username, userRoot);
+    const quota = await getUserQuotaBytes(userRoot);
+
+    const loadTreeRequired = !(await exists(filePath));
+    const output = fs.createWriteStream(filePath, { flags: replace ? "w" : "a" });
+    let written = 0;
+
+    const quotaGuard = new Transform({
+      transform(chunk, encoding, callback) {
+        const nextWritten = written + getByteLength(chunk);
+        const projectedSize = replace ? nextWritten : oldSize + nextWritten;
+        const projectedDiskSize = getEntryDiskSizeBytes(projectedSize);
+        const delta = projectedDiskSize - previousDiskSize;
+
+        if (used + delta > quota) {
+          callback(createQuotaError("Out of storage: cannot write file"));
+          return;
+        }
+
+        written = nextWritten;
+        callback(null, chunk);
+      },
+    });
+
+    try {
+      await pipeline(rawBody, quotaGuard, output);
+    } catch (err) {
+      if (!replace && existed) {
+        await fsp.truncate(filePath, oldSize).catch(() => {});
+      }
+      throw err;
+    }
+    const finalSize = replace ? written : oldSize + written;
+    const nextDiskSize = getEntryDiskSizeBytes(finalSize);
+    const delta = nextDiskSize - previousDiskSize;
+    adjustUserUsage(username, delta, userRoot);
+
+    return { loadTreeRequired };
+  }
+
   let oldSize = 0;
   let existed = false;
 
@@ -104,15 +173,14 @@ async function writeFileWithQuota(username, userRoot, filePath, rawBody, replace
   // usage, and an append only counts the new bytes.
   const delta = existed ? nextDiskSize - previousSize : nextDiskSize;
 
+  await createDirectoryWithQuota(username, userRoot, path.dirname(filePath));
+
   const used = await getUserUsage(username, userRoot);
   const quota = await getUserQuotaBytes(userRoot);
 
   if (delta > 0 && used + delta > quota) {
     throw createQuotaError("Out of storage: cannot write file");
   }
-
-  await createDirectoryWithQuota(username, userRoot, path.dirname(filePath));
-
   const loadTreeRequired = !(await exists(filePath));
 
   await fsp.writeFile(filePath, rawBody, {
@@ -130,14 +198,21 @@ async function finalizeDownloadWithQuota(username, userRoot, tmpPath, destCandid
 
   const pendingSize = (await fsp.stat(tmpPath).catch(() => ({ size: 0 }))).size;
 
-  const existingSize = await fsp
+  const existingStat = await fsp
     .stat(destCandidate)
-    .then((stat) => {
-      return stat.isFile() ? stat.size : 0;
-    })
-    .catch(() => 0);
+    .catch(() => null);
 
-  const delta = getEntryDiskSizeBytes(pendingSize) - getEntryDiskSizeBytes(existingSize);
+  const destinationExists = !!existingStat && existingStat.isFile();
+
+  const existingDiskSize = destinationExists
+    ? getEntryDiskSizeBytes(existingStat.size)
+    : 0;
+
+  const nextDiskSize = getEntryDiskSizeBytes(pendingSize);
+
+  const delta = destinationExists
+    ? nextDiskSize - existingDiskSize
+    : nextDiskSize;
 
   if (delta > 0 && currentUsage + delta > quota) {
     await fsp.unlink(tmpPath).catch(() => {});
@@ -204,6 +279,7 @@ async function deletePathWithQuota(username, userRoot, targetPath) {
   // Calculate the size BEFORE deleting it.
   // This is necessary for directories because their size is not
   // necessarily known from a single stat().
+  await getUserUsage(username, userRoot);
   const deletedSize = await getPathSizeBytes(targetPath);
 
   await fsp.rm(targetPath, {
@@ -215,10 +291,10 @@ async function deletePathWithQuota(username, userRoot, targetPath) {
   adjustUserUsage(username, -deletedSize, userRoot);
 }
 
-async function copyPathWithQuota(username, userRoot, src, dest, currentUsed) {
+async function copyPathWithQuota(username, userRoot, src, dest) {
   const srcSize = await getPathSizeBytes(src);
   const quota = await getUserQuotaBytes(userRoot);
-
+  const currentUsed = await getUserUsage(username, userRoot);
   if (currentUsed + srcSize > quota) {
     throw createQuotaError(`Out of storage: cannot paste "${path.basename(src)}"`);
   }

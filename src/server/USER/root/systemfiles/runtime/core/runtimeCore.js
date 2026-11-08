@@ -466,8 +466,8 @@ window.protectedGlobals.WriteFile = async function (
     if (!body || typeof body !== "object") {
       body = {};
     }
-    if (!response.ok) {
-      body.error = window.protectedGlobals.serverErrorMsg[response.status] || `Request failed with status ${response.status}`;
+    if (!response.ok && response.status !== 401) {
+      body.error = body.error || window.protectedGlobals.serverErrorMsg[response.status] || `Request failed with status ${response.status}`;
       alert(body.error);
     }
 
@@ -519,11 +519,7 @@ window.protectedGlobals.DeleteFile = async function (relPath) {
   const directions = [{ delete: true, path: normalizedPath }, { end: true }];
   return await window.protectedGlobals.filePost({ saveSnapshot: true, directions });
 };
-window.protectedGlobals.DeleteFolder = async function (relPath) {
-  const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath, { allowRoot: true });
-  const directions = [{ deleteFolder: true, path: normalizedPath }, { end: true }];
-  return await window.protectedGlobals.filePost({ saveSnapshot: true, directions });
-};
+window.protectedGlobals.DeleteFolder = window.protectedGlobals.DeleteFile;
 window.protectedGlobals.RenameFile = async function (relPath, newName) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
   const normalizedNewName = window.protectedGlobals.normalizeFsPath(newName);
@@ -554,8 +550,7 @@ window.protectedGlobals.PasteFile = async function (destinationRelPath, clipboar
   for (const entry of entries) {
     entry.path = window.protectedGlobals.normalizeFsPath(entry.path, { allowRoot: true });
     const directions = [
-      { copy: true, directions: entry },
-      { paste: true, path: normalizedPath },
+      { paste: true, path: normalizedPath, clipboard: entry },
       { end: true },
     ];
     lastResult = await window.protectedGlobals.filePost({ saveSnapshot: true, directions, move: !!options.move });
@@ -565,24 +560,7 @@ window.protectedGlobals.PasteFile = async function (destinationRelPath, clipboar
   return lastResult;
 };
 
-window.protectedGlobals.PasteFolder = async function (destinationRelPath, clipboard, options = { move: false }) {
-  const normalizedPath = window.protectedGlobals.normalizeFsPath(destinationRelPath, { allowRoot: true });
-  // Accept either a single clipboard object or an array; perform individual copy+pasteFolder requests per item.
-  const entries = Array.isArray(clipboard) ? clipboard : [clipboard];
-  if (!entries.length) return { success: true };
-
-  let lastResult = null;
-  for (const entry of entries) {
-    const directions = [
-      { copy: true, directions: entry },
-      { pasteFolder: true, path: normalizedPath },
-      { end: true },
-    ];
-    lastResult = await window.protectedGlobals.filePost({ saveSnapshot: true, directions, move: !!options.move });
-    if (!lastResult || lastResult.error) return lastResult;
-  }
-  return lastResult;
-};
+window.protectedGlobals.PasteFolder = window.protectedGlobals.PasteFile;
 
 // Helper function to extract auth token from response
 function extractAuthTokenFromResponse(body) {
@@ -609,11 +587,14 @@ window.protectedGlobals.zmcdpost = async function (data) {
   if (res.status === 403 || /denied/i.test(zmcdErrorMessage)) {
     alert(zmcdErrorMessage || "Access denied.");
   }
+  if (res.status === 404 && /unauthorized/i.test(zmcdErrorMessage)) {
+    window.protectedGlobals.showSessionExpiredDialog();
+  }
   return body;
 }
 window.protectedGlobals._sessionExpiredPromiseQueue = window.protectedGlobals._sessionExpiredPromiseQueue || [];
 window.protectedGlobals._sessionExpiredDialogOpen = window.protectedGlobals._sessionExpiredDialogOpen || false;
-window.protectedGlobals.showSessionExpiredDialog = function showSessionExpiredDialog() {
+window.protectedGlobals.showSessionExpiredDialog = function () {
   // Return a promise that resolves true when a session refill occurs,
   // or rejects when the user cancels / chooses Sign In Again.
   if (window.protectedGlobals._sessionExpiredDialogOpen) {
@@ -882,7 +863,7 @@ window.protectedGlobals.filePost = async function filePost(data) {
   }
   extractAuthTokenFromResponse(body);
   if (!res.ok && !(res.status === 401)) {
-    body.error = window.protectedGlobals.serverErrorMsg[res.status] || `Request failed with status ${res.status}`;
+    body.error = body.error || window.protectedGlobals.serverErrorMsg[res.status] || `Request failed with status ${res.status}`;
     alert(body.error || "Request failed with code " + res.status);
   }
   var fileErrorMessage = body && body.error ? String(body.error) : "";

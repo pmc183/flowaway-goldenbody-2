@@ -586,7 +586,7 @@ await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true }
     <code>clipboard</code> array contains objects like
     <code>{ path: '/source/thing.txt', kind: 'file' }</code>. Example:
 </p>
-<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt', kind: 'file' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source', kind: 'folder' }, { move: false });</code></pre>
+<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt', kind: 'file' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source' }, { move: false });</code></pre>
 <h4>Permission note</h4>
 <p>
     Read-like operations such as <code>readFile</code>, <code>readFolder</code>, <code>fileExists</code>, and

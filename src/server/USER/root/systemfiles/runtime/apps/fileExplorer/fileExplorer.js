@@ -2115,56 +2115,69 @@ function makeIcon(type, size = 16) {
       if (!e || !e.target || !root.contains(e.target)) return;
       if (e.repeat) return;
     }
+
     if ((e.ctrlKey && e.key.toLowerCase() === "v") || e == "cmp") {
-      if (e && (e.preventDefault)) e.preventDefault();
-      if (e && (e.stopPropagation)) e.stopPropagation();
-      const targetPath = [...currentPath]; // current folder path array
-      // Quota check: sum total size of clipboard items
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+
+      const targetPath = [...currentPath];
+
       let currentUsed = getNodeStorageUsed(treeData);
       let clipboardTotal = 0;
+
       for (const item of window.explorerGlobals.clipboard) {
         clipboardTotal += getNodeStorageUsed(item.node);
       }
+
       if (currentUsed + clipboardTotal > STORAGE_QUOTA_BYTES) {
         alert("Cannot paste — storage quota would be exceeded.");
         return;
       }
 
       for (const item of window.explorerGlobals.clipboard) {
-        const sourceFullPath = getFullPathFromNode(item.node, []); // e.g., "FolderA"
-        const targetFullPath = targetPath.join("/"); // e.g., "FolderA/Sub"
+        // Use the clipboard's actual source path, not just the entry name.
+        const sourceFullPath = (item.path || "")
+          .replace(/\\/g, "/")
+          .replace(/^\/+|\/+$/g, "");
 
-        // ❌ Prevent circular paste
-        if (item.isFolder && targetFullPath.startsWith(sourceFullPath + "/")) {
+        const targetFullPath = targetPath.join("/");
+
+        // Prevent pasting a folder into itself or one of its descendants.
+        if (
+          item.isFolder &&
+          (targetFullPath === sourceFullPath ||
+            targetFullPath.startsWith(sourceFullPath + "/"))
+        ) {
           alert(
             `Cannot paste folder "${item.name}" into itself or a subfolder.`,
           );
           continue;
         }
 
-        // Find target node in treeData
         const node = findNode(treeData, targetPath);
         if (!node || !node[1]) continue;
 
-        // Deep clone the node to avoid circular references
         const newNode = JSON.parse(JSON.stringify(item.node));
 
-        // Ensure metadata object exists and set mtime to now for the newly-pasted node
         newNode[2] = newNode[2] || {};
         newNode[2].mtime = Date.now();
 
-        // Recreate the old behavior: copy into the destination folder and give the pasted
-        // item a unique name if that name already exists.
         newNode[0] = getUniqueName(newNode[0], "", node[1]);
         node[1].push(newNode);
 
         const pasteTarget = [...targetPath];
         pasteTarget.splice(0, 1);
         pasteTarget.push(newNode[0]);
-        // Add a copy directive for this specific source, then a paste to the destination.
-        directions.push({ copy: true, directions: { path: item.path, kind: item.isFolder ? 'directory' : 'file' } });
-        directions.push({ paste: true, path: pasteTarget.join("/") });
+
+        directions.push({
+          paste: true,
+          path: pasteTarget.join("/"),
+          clipboard: {
+            path: sourceFullPath
+          }
+        });
       }
+
       render();
       triggerAutosave();
     }
@@ -2328,7 +2341,7 @@ function makeIcon(type, size = 16) {
         });
 
         // ── Restore: move item back to root ──
-        addItem("Restore", () => {
+        addItem("Restore", async () => {
           const targetPath = [...currentPath];
           for (const item of selectedItems) {
             directions.push({
@@ -2337,7 +2350,6 @@ function makeIcon(type, size = 16) {
             });
             const deletePath = [...currentPath.slice(1), item[0]];
             removeNodeFromTree(treeData, deletePath);
-            await onlyloadTree();
             render();
           }
           selectedItems = [];
@@ -2855,12 +2867,7 @@ function makeIcon(type, size = 16) {
     saveBtn.innerHTML = '';
     saveBtn.appendChild(makeIcon('save',16));
     saveBtn.appendChild(document.createTextNode(saveFailed ? 'Save Failed!' : 'Saved!'));
-    if (needRefresh) {
-      statusDiv.textContent = "Deleting and Fetching Newest Files...";
-      await onlyloadTree();
-      render();
-      needRefresh = false;
-    }
+    onlyloadTree(); // refresh treeData from server to ensure consistency
     setTimeout(() => {
       saveBtn.innerHTML = '';
       saveBtn.appendChild(makeIcon('save',16));

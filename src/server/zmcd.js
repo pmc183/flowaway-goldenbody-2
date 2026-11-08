@@ -134,6 +134,99 @@ function isAuthorized(authRecord, data/*, authHeader */) {
   return passwordValid || oldPasswordValid;
 }
 
+function getAuthTokenFromHeader(authHeader) {
+  const raw = typeof authHeader === 'string' ? authHeader.trim() : '';
+  if (!raw) return '';
+  const match = raw.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : raw.trim();
+}
+
+function isTokenAuthorized(authRecord, authHeader) {
+  pruneExpiredTokens(authRecord);
+  const token = getAuthTokenFromHeader(authHeader);
+  if (!token) return false;
+  return Array.isArray(authRecord.authTokens) && authRecord.authTokens.some((row) => row && row.token === token);
+}
+
+async function resolveUserByToken(authHeader, usernameHint) {
+  const token = getAuthTokenFromHeader(authHeader);
+  if (!token) return null;
+
+  const candidates = [];
+  const hintedUsername = typeof usernameHint === 'string' ? usernameHint.trim() : '';
+  if (hintedUsername) candidates.push(hintedUsername);
+
+  try {
+    const entries = await fs.promises.readdir(directoryPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry && entry.isDirectory()) candidates.push(entry.name);
+    }
+  } catch (e) {}
+
+  const seen = new Set();
+  for (const username of candidates) {
+    if (!username || seen.has(username)) continue;
+    seen.add(username);
+    const userPaths = getUserPaths(username);
+    const authResult = await readAuthRecord(userPaths);
+    if (authResult && isTokenAuthorized(authResult.auth, authHeader)) return authResult;
+  }
+
+  return null;
+}
+
+function normalizePermissionPath(rawPath) {
+  const value = String(rawPath ?? '').replace(/\\/g, '/').trim();
+  if (!value) return '/';
+  const parts = [];
+  for (const part of value.split('/')) {
+    if (!part || part === '.') continue;
+    parts.push(part);
+  }
+  return '/' + parts.join('/');
+}
+
+function getPermissionForPath(relPath, permissionEntries) {
+  const normalizedTarget = normalizePermissionPath(relPath);
+  const segments = normalizedTarget.split("/").filter(Boolean);
+
+  let permissions = { read: true, write: true };
+
+  // Root permissions
+  const rootEntry = (permissionEntries || []).find(
+    row => normalizePermissionPath(row?.path) === "/"
+  );
+
+  if (rootEntry?.perm) {
+    permissions = {
+      read: rootEntry.perm.read !== false,
+      write: rootEntry.perm.write !== false,
+    };
+  }
+
+  // Walk each ancestor, applying explicitly configured permissions.
+  let currentPath = "";
+
+  for (const segment of segments) {
+    currentPath += "/" + segment;
+
+    const entry = (permissionEntries || []).find(
+      row => normalizePermissionPath(row?.path) === currentPath
+    );
+
+    if (entry?.perm) {
+      if (typeof entry.perm.read === "boolean") {
+        permissions.read = entry.perm.read;
+      }
+
+      if (typeof entry.perm.write === "boolean") {
+        permissions.write = entry.perm.write;
+      }
+    }
+  }
+
+  return permissions;
+}
 function issueToken(authRecord) {
   pruneExpiredTokens(authRecord);
   const token = crypto.randomBytes(24).toString('hex');
@@ -168,6 +261,9 @@ function handleZMCd(req, res) {
   let body = '';
   req.on('data', (chunk) => {
     body += chunk;
+    if (body.length > 1e6) {
+      req.destroy();
+    }
   });
 
   req.on('end', async () => {
@@ -176,6 +272,29 @@ function handleZMCd(req, res) {
       const data = JSON.parse(body);
       const authHeader = (req.headers && (req.headers.authorization || req.headers.Authorization)) || '';
       const password = typeof data.password === 'string' ? data.password : '';
+
+      if (data.getPerm) {
+        const targetPathRaw = data.getPerm && typeof data.getPerm === 'object' ? data.getPerm.path : data.getPerm;
+        if (typeof targetPathRaw !== 'string' || !targetPathRaw.trim()) {
+          return sendJson(res, 400, { error: 'missing path' });
+        }
+
+        const authResult = await resolveUserByToken(authHeader, data.username);
+        if (!authResult) {
+          return sendJson(res, 404, { error: 'unauthorized-token' });
+        }
+
+        const authRecord = authResult.auth;
+        const permissions = getPermissionForPath(targetPathRaw, authRecord.pathPermissions);
+        const read = permissions.read !== false;
+        const write = permissions.write !== false;
+        return res.end(JSON.stringify({
+          success: true,
+          path: normalizePermissionPath(targetPathRaw),
+          permissions: { read, write },
+        }));
+      }
+
       if (!/^[a-zA-Z0-9_-]+$/.test(data.username)) {
         return sendJson(res, 400, { error: 'Invalid username format' });
       }

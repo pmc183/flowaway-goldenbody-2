@@ -24,16 +24,7 @@ async function exists(fullPath) {
   }
 }
 async function move(src, dest) {
-  try {
-    await fsp.rename(src, dest);
-  } catch (err) {
-    if (err.code === "EXDEV") {
-      await fsp.cp(src, dest, { recursive: true });
-      await fsp.rm(src, { recursive: true, force: true });
-    } else {
-      throw err;
-    }
-  }
+  await fsp.rename(src, dest);
 }
 function sendSafeError(res, err, fallbackStatus = 500) {
   if (res.headersSent) return;
@@ -251,10 +242,6 @@ async function getDirRealSizeBytes(root) {
   return walk(root);
 }
 
-async function getDirSizeBytes(root) {
-  return getEntryDiskSizeBytes(await getDirRealSizeBytes(root));
-}
-
 async function authenticateUser(username, providedPassword, authHeader) {
   if (!username) return false;
 
@@ -319,7 +306,7 @@ function isRootContainerPath(value) {
 function isExistingAppFolderPath(userRoot, normalizedPath) {
   if (!normalizedPath || typeof normalizedPath !== "string") return false;
 
-  const appsRoot = "/systemfiles/runtime/apps";
+  const appsRoot = "/systemfiles/runtime/apps/";
   if (!normalizedPath.startsWith(appsRoot)) return false;
 
   const relative = normalizedPath.slice(appsRoot.length).replace(/^\/+/, "");
@@ -340,9 +327,9 @@ function isExistingAppFolderPath(userRoot, normalizedPath) {
 
 function requiresPasswordForAppsWrite(userRoot, normalizedPath) {
   if (!normalizedPath || typeof normalizedPath !== "string") return false;
-  if (!normalizedPath.startsWith("/systemfiles/runtime/apps")) return false;
+  if (!normalizedPath.startsWith("/systemfiles/runtime/apps/")) return false;
 
-  const relative = normalizedPath.slice("/systemfiles/runtime/apps".length).replace(/^\/+/, "");
+  const relative = normalizedPath.slice("/systemfiles/runtime/apps/".length).replace(/^\/+/, "");
   if (!relative) return false;
 
   if (!relative.includes("/")) {
@@ -354,7 +341,7 @@ function requiresPasswordForAppsWrite(userRoot, normalizedPath) {
 
 function requiresPasswordForAppsFolderCreate(userRoot, normalizedPath) {
   if (!normalizedPath || typeof normalizedPath !== "string") return false;
-  if (!normalizedPath.startsWith("/systemfiles/runtime/apps")) return false;
+  if (!normalizedPath.startsWith("/systemfiles/runtime/apps/")) return false;
 
   return !isExistingAppFolderPath(userRoot, normalizedPath);
 }
@@ -367,8 +354,7 @@ function getPermissionForRelativePath(relPath, permissionEntries) {
   for (const row of permissionEntries || []) {
     const base = removeUnwantedStuffInPath(row && row.path);
 
-    const isMatch = normalizedTarget === base || normalizedTarget.startsWith(`${base}/`);
-
+    const isMatch = normalizedTarget === base || (base === "/" ? normalizedTarget.startsWith("/") : normalizedTarget.startsWith(`${base}/`));
     if (!isMatch) continue;
 
     if (!matched || base.length > matched.path.length) {
@@ -393,35 +379,34 @@ function getPermissionForRelativePath(relPath, permissionEntries) {
   return matched.perm;
 }
 
-// Server-side clipboard storage: persist clipboard per user across requests
-const userClipboards = new Map(); // username -> clipboard state
-
 // ─────────────────────────────
 // Helpers
 // ─────────────────────────────
 
-async function getRawBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let total = 0;
+function getRawBody(req) {
+  const { PassThrough } = require("stream");
+  const limited = new PassThrough();
+  let total = 0;
 
-    req.on("data", (chunk) => {
-      total += chunk.length;
-      if (total > MAX_BODY) {
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on("end", () => {
-      resolve(Buffer.concat(chunks));
-    });
-
-    req.on("aborted", () => {
-      reject(new Error("Request aborted by client"));
-    });
+  req.on("data", (chunk) => {
+    total += chunk.length;
+    if (total > MAX_BODY) {
+      req.destroy();
+      limited.destroy(new Error("Request body too large"));
+      return;
+    }
+    limited.write(chunk);
   });
+
+  req.on("end", () => {
+    limited.end();
+  });
+
+  req.on("aborted", () => {
+    limited.destroy(new Error("Request aborted by client"));
+  });
+
+  return limited;
 }
 
 async function handleRawFileUpload(req, res) {
@@ -452,28 +437,30 @@ async function handleRawFileUpload(req, res) {
   let authObj = null;
   try { authObj = JSON.parse(await fsp.readFile(authFilePath, 'utf8')); userPathPermissions = authObj.pathPermissions; } catch (e) { }
 
-  const permission = getPermissionForRelativePath(normalizedPath, userPathPermissions);
-  if (!permission.write) {
+  const parentRel = path.posix.dirname(normalizedPath);
+
+  const parentPermission = getPermissionForRelativePath(parentRel, userPathPermissions);
+  const filePermission = getPermissionForRelativePath(normalizedPath, userPathPermissions);
+
+  if (!parentPermission.write || !filePermission.write) {
     res.writeHead(403);
-    return res.end(
-      JSON.stringify({
-        error: "write permission denied",
-        path: `${normalizedPath}`,
-      }),
-    );
+    return res.end(JSON.stringify({
+      error: "write permission denied",
+      path: normalizedPath,
+    }));
   }
 
-  // Require explicit password (not token) when writing under /systemfiles/runtime/apps,
+  // Require explicit password (not token) when writing under /systemfiles/runtime/apps/,
   // except when the path is inside an already-created app folder.
   if (requiresPasswordForAppsWrite(userRoot, normalizedPath) && (!authObj || password !== authObj.password)) {
     res.writeHead(403);
-    return res.end(JSON.stringify({ error: "password required for folder writes to /systemfiles/runtime/apps" }));
+    return res.end(JSON.stringify({ error: "password required for folder writes to /systemfiles/runtime/apps/" }));
   }
 
   const replace = String(headers["x-file-replace"] || "true") !== "false";
   const filePath = safeResolve(userRoot, normalizedPath);
   
-  const rawBody = await getRawBody(req);
+  const rawBody = getRawBody(req);
 
   return withUserLock(username, async () => {
     const { loadTreeRequired } = await writeFileWithQuota(username, userRoot, filePath, rawBody, replace);
@@ -495,7 +482,7 @@ async function handleFetchfiles(req, res) {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Username, X-File-Path, X-File-Replace, X-File-Action");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Username, X-File-Path, X-File-Replace, X-File-Action, X-Password");
   res.setHeader("Access-Control-Expose-Headers", "X-File-Size,X-Chunk-Index,X-Is-Last-Chunk,X-Total-Chunks");
 
   // Support simple streaming download endpoint for large files.
@@ -516,7 +503,7 @@ async function handleFetchfiles(req, res) {
   let total = 0;
   req.on("data", (chunk) => { 
     total += chunk.length;
-    if (total > MAX_BODY) {
+    if (total > 1e6) {
       req.destroy();
       return;
     }
@@ -571,8 +558,7 @@ async function handleFetchfiles(req, res) {
     try {
       if (data.initFE) {
         const tree = await buildUserFileTree(userRoot);
-        const clipboard = userClipboards.get(username) || null;
-        return res.end(JSON.stringify({ tree, clipboard }));
+        return res.end(JSON.stringify({ tree }));
       }
 
       if (data.requestFile) {
@@ -727,8 +713,6 @@ async function handleFetchfiles(req, res) {
         const moveMode = Boolean(options && options.move);
         // result object used to return information back to the caller
         const result = {};
-        // Initialize clipboard from server storage or create new
-        let clipboard = userClipboards.get(username) || null;
 
         const normalizePathInput = (p = "") => {
           if (!p || p === "root") return "";
@@ -778,7 +762,6 @@ async function handleFetchfiles(req, res) {
           }
         };
 
-        try {
           for (const dir of directions) {
             if (dir.addFolder) {
               let parentPath;
@@ -789,7 +772,6 @@ async function handleFetchfiles(req, res) {
                 folderPath = safeResolve(parentPath, dir.name);
               } else {
                 const requestedPath = typeof dir.path === "string" ? dir.path : "";
-                const normalizedRequestedPath = removeUnwantedStuffInPath(requestedPath);
                 folderPath = resolvePath(requestedPath);
                 parentPath = path.dirname(folderPath);
               }
@@ -798,7 +780,7 @@ async function handleFetchfiles(req, res) {
               const folderRel = removeUnwantedStuffInPath(path.relative(rootPath, folderPath || rootPath).replace(/\\/g, "/"));
               assertNotImmediateRootChild(folderRel, "create");
               assertWriteAllowed(parentRel);
-
+              assertWriteAllowed(folderRel);
               await ensureDir(parentPath || rootPath);
 
               // If an entry exists at the target path, ensure it's a directory.
@@ -815,9 +797,6 @@ async function handleFetchfiles(req, res) {
               }
 
               continue;
-            }
-            if (dir.deleteFolder) {
-              dir.delete = true;
             }
             if (dir.checkFolder) {
               const folderPath = resolvePath(dir.path);
@@ -842,7 +821,9 @@ async function handleFetchfiles(req, res) {
             if (dir.addFile) {
               const fileRel = directionPathToRelative(dir.path || "");
               assertNotImmediateRootChild(fileRel, "create");
-              assertWriteAllowed(fileRel);
+              const parentRel = path.posix.dirname(fileRel);
+              assertWriteAllowed(parentRel);
+              assertWriteAllowed(fileRel);           
               const filePath = resolvePath(dir.path);
               await writeFileWithQuota(username, userRoot, filePath, "", true);
               continue;
@@ -880,26 +861,16 @@ async function handleFetchfiles(req, res) {
 
               const parentDir = path.dirname(oldPath);
               const newPath = safeResolve(parentDir, newName);
-
+              if (await exists(newPath)) {
+                success = false;
+                error = "Target name already exists";
+                continue;
+              }
               const newRel = path.join(path.dirname(oldRel), newName).replace(/\\/g, "/");
               assertNotImmediateRootChild(newRel, "rename to");
               assertWriteAllowed(removeUnwantedStuffInPath(newRel));
 
               await fsp.rename(oldPath, newPath);
-
-              // Update any server-side clipboard entries that reference the renamed path
-              try {
-                if (clipboard && typeof clipboard.path === "string") {
-                  // Update single-object clipboard path if it references the renamed item
-                  if (clipboard.path === oldRel) {
-                    clipboard = { ...clipboard, path: newRel, name: dir.newName };
-                  } else if (clipboard.path.startsWith(oldRel + "/")) {
-                    clipboard = { ...clipboard, path: newRel + clipboard.path.slice(oldRel.length) };
-                  }
-                }
-              } catch (e) {
-                // ignore clipboard update failures
-              }
               continue;
             }
 
@@ -925,6 +896,7 @@ async function handleFetchfiles(req, res) {
               }
               // Move to hidden .trash folder instead of permanently deleting
               // This should not count towards the user quota because the dir it's really small and if the user is out of quota they can still delete items.
+              // This does not mean the items inside the .trash folder are not counted towards quota, they are counted as normal.
               const trashDir = safeResolve(rootPath, ".trash");
               await fsp.mkdir(trashDir, { recursive: true });
               const itemName = path.basename(targetPath);
@@ -954,19 +926,6 @@ async function handleFetchfiles(req, res) {
                   continue;
                 }
               }
-
-              // Clean up server-side single-object clipboard if it references the deleted path
-              try {
-                const rel = dir.path.split("/").slice(1).join("/"); // remove leading "root"
-                if (clipboard && typeof clipboard.path === "string") {
-                  if (clipboard.path === rel || clipboard.path.startsWith(rel + "/")) {
-                    clipboard = null;
-                  }
-                }
-              } catch (e) {
-                // ignore cleanup failures
-              }
-
               continue;
             }
 
@@ -990,7 +949,6 @@ async function handleFetchfiles(req, res) {
 
             if (dir.restore) {
               const restoreRelPath = directionPathToRelative(dir.path || "");
-              assertWriteAllowed(restoreRelPath);
               const targetPath = resolvePath(dir.path);
               // Security: only restore items that are inside .trash
               const trashDir = safeResolve(rootPath, ".trash");
@@ -1003,6 +961,7 @@ async function handleFetchfiles(req, res) {
               }
               const itemName = path.basename(targetPath);
               let dest = safeResolve(rootPath, itemName);
+              assertWriteAllowed(`/${itemName}`);
               // Avoid overwriting by appending a numeric suffix
               if (await exists(dest)) {
                 let n = 1;
@@ -1013,32 +972,8 @@ async function handleFetchfiles(req, res) {
               continue;
             }
 
-            if (dir.copy) {
-              const entry = dir.directions;
-
-              if (typeof entry === "string") {
-                const copyRelPath = removeUnwantedStuffInPath(entry);
-                assertReadAllowed(copyRelPath);
-                clipboard = { path: copyRelPath, kind: "file", type: "file" };
-                continue;
-              }
-
-              if (!entry || Array.isArray(entry) || typeof entry !== "object") {
-                success = false;
-                error = "Invalid clipboard entry";
-                continue;
-              }
-
-              const copyRelPath = removeUnwantedStuffInPath(entry && entry.path ? entry.path : "");
-              assertReadAllowed(copyRelPath);
-              clipboard = entry;
-              continue;
-            }
-
-            if (dir.pasteFolder) {
-              dir.paste = true;
-            }
-            if (dir.paste && clipboard) {
+            if (dir.paste) {
+              const clipboard = dir.clipboard;
               if (isRootContainerPath(dir.path) || isRootContainerPath(clipboard.path)) {
                 success = false;
                 error = "Cannot replace \"/\" or use \"/\" as clipboard source";
@@ -1049,10 +984,7 @@ async function handleFetchfiles(req, res) {
               assertWriteAllowed(destinationRelPath);
 
               const destinationPath = resolvePath(dir.path || "root");
-              const destinationExists = await exists(destinationPath);
-              const destinationStat = destinationExists ? await fsp.stat(destinationPath).catch(() => null) : null;
 
-              const quota = await getUserQuotaBytes(userRoot);
               let currentUsed = await getUserUsage(username, userRoot);
 
               // Single-object clipboard paste
@@ -1073,29 +1005,16 @@ async function handleFetchfiles(req, res) {
                 continue;
               }
 
-              const itemKind = item && (item.kind || item.type || "file");
-              const originalDestPath = String(dir.path || "root");
-
               // New behavior: paste/move should place source at the destination path directly
               // and must fail if the destination already exists.
               let dest = destinationPath;
               const normalizedSrc = path.resolve(src);
               const normalizedDest = path.resolve(dest);
 
-              // A move like "mv . __pub2" is represented as a target nested under the source
-              // path (source/current-dir + new name). In that case, we must treat it as a
-              // rename of the source to its parent directory with the requested basename.
-              if (normalizedDest === normalizedSrc || normalizedDest.startsWith(normalizedSrc + path.sep)) {
-                const requestedName = path.basename(normalizedDest) || path.basename(normalizedSrc);
-                const renameTarget = path.resolve(path.dirname(normalizedSrc), requestedName);
-                if (renameTarget !== normalizedSrc && !renameTarget.startsWith(normalizedSrc + path.sep)) {
-                  dest = renameTarget;
-                }
-              }
-
               // Ensure parent directory exists
               const parentDir = path.dirname(dest);
-              await ensureDir(parentDir);
+              const parentRel = removeUnwantedStuffInPath( path.relative(userRoot, parentDir).replace(/\\/g, "/") ); 
+              assertWriteAllowed(parentRel);              
               if (await exists(dest)) {
                 success = false;
                 error = 'Destination already exists';
@@ -1107,6 +1026,7 @@ async function handleFetchfiles(req, res) {
 
               const moveFlag = Boolean(dir.move ?? moveMode);
               if (moveFlag) {
+                assertWriteAllowed(sourceRelPath);
                 try {
                   const normalizedSrcAfter = path.resolve(src);
                   const normalizedDestAfter = path.resolve(dest);
@@ -1115,7 +1035,7 @@ async function handleFetchfiles(req, res) {
                     error = "Cannot move an item into itself";
                     continue;
                   }
-
+                  await ensureDir(parentDir);
                   await move(src, dest);
                   continue;
                 } catch (e) {
@@ -1126,7 +1046,7 @@ async function handleFetchfiles(req, res) {
               }
 
               try {
-                currentUsed = await copyPathWithQuota(username, userRoot, src, dest, currentUsed);
+                await copyPathWithQuota(username, userRoot, src, dest);
               } catch (err) {
                 if (err?.code === "QUOTA_EXCEEDED") {
                   success = false;
@@ -1138,30 +1058,21 @@ async function handleFetchfiles(req, res) {
 
               continue;
             }
-          // Persist clipboard to server storage for this user
         }     
-        } finally {
-          // Include clipboard in result so client can sync it
-          if (clipboard) {
-            userClipboards.set(username, clipboard);
-          } else {
-            userClipboards.delete(username);
-          }
-        }
         result.success = success;
         result.error = error;
         return result;
       }
 
       if (data.saveSnapshot) {
-        // If any addFolder under /systemfiles/runtime/apps is present, require the user's password
+        // If any addFolder under /systemfiles/runtime/apps/ is present, require the user's password
         // unless the target is inside an already-created app folder.
         const dirs = Array.isArray(data.directions) ? data.directions : [];
         const needsPw = dirs.some((d) => {
           if (!d.addFolder && !d.paste && !d.addFile) return false;
 
           const baseTarget = removeUnwantedStuffInPath(d.path || '');
-          if (baseTarget.startsWith('/systemfiles/runtime/apps')) {
+          if (baseTarget.startsWith('/systemfiles/runtime/apps/')) {
             return requiresPasswordForAppsFolderCreate(userRoot, baseTarget);
           }
 
@@ -1169,12 +1080,12 @@ async function handleFetchfiles(req, res) {
             ? removeUnwantedStuffInPath(`${d.path || ''}/${d.name}`)
             : '';
 
-          return combinedTarget.startsWith('/systemfiles/runtime/apps') && requiresPasswordForAppsFolderCreate(userRoot, combinedTarget);
+          return combinedTarget.startsWith('/systemfiles/runtime/apps/') && requiresPasswordForAppsFolderCreate(userRoot, combinedTarget);
         });
 
         if (needsPw && (!authObj || data.password !== authObj.password)) {
           res.writeHead(403);
-          return res.end(JSON.stringify({ error: 'password required for creating folders in /systemfiles/runtime/apps' }));
+          return res.end(JSON.stringify({ error: 'password required for creating folders in /systemfiles/runtime/apps/' }));
         }
 
         const result = await withUserLock(username, () => applyDirections(userRoot, data.directions, username, userPathPermissions, { move: Boolean(data.move) }));

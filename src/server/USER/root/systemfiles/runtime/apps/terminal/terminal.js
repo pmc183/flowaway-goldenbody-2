@@ -1198,7 +1198,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
       // builtins
       if (cmd === "help") {
-        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm, rmdir, mkdir, mv, perm, apps, worker, threads, killthread, killallthreads, kill");
+        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm, rmdir, mkdir, mv, perm, getperm, apps, worker, threads, killthread, killallthreads, kill");
         // list custom app commands
         const appCmds = [];
         (window.protectedGlobals.apps || []).forEach(a => {
@@ -1439,14 +1439,31 @@ window.terminal = function (path, posX = 50, posY = 50) {
         const destPathCandidate = resolveTerminalPath(destArg, cwd);
         const finalDestPath = getEffectiveMoveTarget(srcPath, destPathCandidate);
         try {
-          const srcIsFile = await waitForFsResponse(window.protectedGlobals.FileExists ? window.protectedGlobals.FileExists(srcPath) : false);
-          const srcIsFolder = await waitForFsResponse(window.protectedGlobals.FolderExists ? window.protectedGlobals.FolderExists(srcPath) : false);
+          const srcIsFile = await waitForFsResponse(window.protectedGlobals.FileExists(srcPath));
+          const srcIsFolder = await waitForFsResponse(window.protectedGlobals.FolderExists(srcPath));
           if (!srcIsFile && !srcIsFolder) { printError('Source does not exist: ' + srcPath); return; }
           let result;
-          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPathCandidate, { path: srcPath, kind: 'file' }, { move: true }));
-          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPathCandidate, { path: srcPath, kind: 'directory' }, { move: true }));
+          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPathCandidate, { path: srcPath }, { move: true }));
+          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPathCandidate, { path: srcPath }, { move: true }));
           if (!result.success) { printError(result.error || 'Failed to move file: ' + srcPath); return; }
           printLine('Moved ' + toDisplayPath(srcPath, cwd) + ' -> ' + toDisplayPath(finalDestPath, cwd));
+        } catch (e) { printError(e.message || String(e)); }
+        return;
+      }
+
+      if (cmd === 'getperm') {
+        const path = parseQuotedPath(cmdline) || parts[1];
+        if (!path) { printError('Usage: getperm "<path>"'); return; }
+        try {
+          const targetPath = resolveTerminalPath(path, cwd);
+          const res = await window.protectedGlobals.zmcdpost({ getPerm: { path: targetPath } });
+          if (res && res.success) {
+            const perms = res.permissions || { read: true, write: true };
+            const mode = `${perms.read ? 'r' : ''}${perms.write ? 'w' : ''}` || 'none';
+            printLine(`${targetPath}: ${mode}`);
+          } else {
+            printError(res && res.error ? String(res.error) : 'Failed to get permission');
+          }
         } catch (e) { printError(e.message || String(e)); }
         return;
       }
@@ -1473,11 +1490,11 @@ window.terminal = function (path, posX = 50, posY = 50) {
           const srcPath = resolveTerminalPath(srcArg, cwd);
           const destPathCandidate = resolveTerminalPath(destArg, cwd);
           const finalDestPath = getEffectiveMoveTarget(srcPath, destPathCandidate);
-          const srcIsFile = await waitForFsResponse(window.protectedGlobals.FileExists ? window.protectedGlobals.FileExists(srcPath) : false);
-          const srcIsFolder = await waitForFsResponse(window.protectedGlobals.FolderExists ? window.protectedGlobals.FolderExists(srcPath) : false);
+          const srcIsFile = await waitForFsResponse(window.protectedGlobals.FileExists(srcPath));
+          const srcIsFolder = await waitForFsResponse(window.protectedGlobals.FolderExists(srcPath));
           let result;
-          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPathCandidate, { path: srcPath, kind: 'file' }));
-          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPathCandidate, { path: srcPath, kind: 'directory' }));
+          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPathCandidate, { path: srcPath }));
+          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPathCandidate, { path: srcPath }));
           if (!result.success) { printError(result.error || 'Failed to copy file: ' + srcPath); return; }
           printLine('Copied ' + toDisplayPath(srcPath, cwd) + ' -> ' + toDisplayPath(finalDestPath, cwd));
           return;

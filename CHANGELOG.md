@@ -267,3 +267,9 @@
 # V 2.7.5
 - Fixed recursive folder creation evading quota
 - Added more error handling in writefile
+- fixed the full buffering for uploading.
+- fixed zmcd.js accepting bodies without limit.
+- removed server clipboard persistance because its unneeded.
+- fixed more filesystem bugs.
+- added getperm cmd in terminal to get the path permission of the target path.
+- file explorer now refreshes every fs operation automatically

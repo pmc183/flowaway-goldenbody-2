@@ -2370,9 +2370,9 @@ await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true }
 <p>
     These APIs are used to copy or move clipboard-style payloads into a destination folder. Both API behave exactly the same, the naming difference is only in the function name, to keep code organized. The
     <code>clipboard</code> array contains objects like
-    <code>{ path: '/source/thing.txt', kind: 'file' }</code>. Example:
+    <code>{ path: '/source/thing.txt' }</code>. Example:
 </p>
-<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt', kind: 'file' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source', kind: 'folder' }, { move: false });</code></pre>
+<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source' }, { move: false });</code></pre>
 <h4>Permission note</h4>
 <p>
     Read-like operations such as <code>readFile</code>, <code>readFolder</code>, <code>fileExists</code>, and
@@ -2551,7 +2551,7 @@ console.log(listing);
 
 await window.__goldenbodyAPI.renameFolder(folderHandle, 'new-name');
 </code></pre>
-<pre><code>const targetFolder = '/demo'; const clipboard = { path: '/demo/template.txt', kind: 'file' };
+<pre><code>const targetFolder = '/demo'; const clipboard = { path: '/demo/template.txt' };
 
 await window.__goldenbodyAPI.pasteFile(
 targetFolder,
