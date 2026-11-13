@@ -576,6 +576,8 @@ const normalizePathInput = (pathOrHandle) => {
         if (typeof pathOrHandle.key === "string") {
             key = pathOrHandle.key;
         }
+    } else if (typeof pathOrHandle !== "string") {
+        throw new Error("Invalid path or handle. Must be a string or an object with a 'path' property.");
     }
     return { path, key };
 };
@@ -828,10 +830,10 @@ window.__goldenbodyAPI = {
         });
     },
 
-    closeWindow: async () => {
+    closeWindow: async (force = false) => {
         clearAllWatchers();
         let requestId = createRequestId();
-        window.parent.postMessage({closeWindow: true, requestId}, '*');
+        window.parent.postMessage({closeWindow: true, force, requestId}, '*');
         return new Promise((resolve, reject) => {
             const handleMessage = createRequestMessageHandler(requestId, resolve, reject);
             window.addEventListener('message', handleMessage);
@@ -859,7 +861,7 @@ window.__goldenbodyAPI = {
     },
 
     getCurInstanceNum: () => {
-        return window.__curInstanceNum__ || null;
+        return window.__curInstanceNum__;
     },
 
     getLiveInstanceIndex: async () => {

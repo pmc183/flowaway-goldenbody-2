@@ -273,3 +273,15 @@
 - fixed more filesystem bugs.
 - added getperm cmd in terminal to get the path permission of the target path.
 - file explorer now refreshes every fs operation automatically
+
+# V 2.7.6
+- fixed docs errors in settings.
+- fixed bugs that leads to hanging promises for fs operations for iframe apps.
+- added force arg for __goldenbodyAPI.closeWindow(force = true|false)
+- added server storage ranges in /zmcdfiles
+- updated dev docs for apps.
+- added askuserbeforeclose in terminal interface.
+- added account operation helpers
+- fixed a long time bug where autocomplete in terminal doesn't work when inputting args
+- fixed a bug where autocomplete in terminal inserts extra / in front of paths
+- updated behavior to allow readfolder/(file/folder)exists api to work under all conditions in terminal

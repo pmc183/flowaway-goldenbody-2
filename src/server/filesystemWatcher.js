@@ -3,7 +3,19 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const chokidar = require('chokidar');
+const crypto = require('crypto');
 
+function getUserShard(username) {
+  return crypto
+    .createHash('sha256')
+    .update(String(username))
+    .digest('hex')
+    .slice(0, 3);
+}
+
+function getUserDir(username) {
+  return path.join(DATA_ROOT, getUserShard(username), username);
+}
 const DATA_ROOT = path.resolve(__dirname, 'zmcdfiles');
 const MAX_WATCHERS_PER_ACCOUNT = 100;
 const WATCHER_INACTIVITY_MS = 15000;
@@ -22,7 +34,7 @@ function validateUsername(value) {
 }
 
 function getUserRoot(username) {
-  return path.join(DATA_ROOT, validateUsername(username), 'root');
+  return path.join(getUserDir(validateUsername(username)), 'root');
 }
 
 function normalizeRelativePath(rawPath) {
@@ -50,7 +62,7 @@ async function isValidToken(username, token) {
 
   try {
     username = validateUsername(username);
-    const authFile = path.join(DATA_ROOT, username, `${username}.txt`);
+    const authFile = path.join(getUserDir(username), `${username}.txt`);
     const auth = JSON.parse(await fsp.readFile(authFile, 'utf8'));
     const tokens = Array.isArray(auth.authTokens) ? auth.authTokens : [];
 

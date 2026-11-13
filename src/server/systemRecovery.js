@@ -5,6 +5,14 @@ const AdmZip = require('adm-zip');
 const { refreshUserUsage } = require('./storageQuota');
 const { defaultSystemPathPermissions } = require('./userFilesystemSetup');
 
+function getUserShard(username) {
+  return crypto
+    .createHash('sha256')
+    .update(String(username))
+    .digest('hex')
+    .slice(0, 3);
+}
+
 async function readJsonSafe(filePath) {
   try {
     return JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
@@ -515,18 +523,29 @@ function getUserPaths(username) {
   if (!validateUsername(username)) {
     throw new Error('invalid username');
   }
-  const safeUsername = String(username || '').trim();
+
+  const safeUsername = String(username).trim();
+  const shard = getUserShard(safeUsername);
 
   const baseDir = path.resolve(__dirname, 'zmcdfiles');
-  const userDir = path.resolve(baseDir, username);
+  const shardDir = path.resolve(baseDir, shard);
+  const userDir = path.resolve(shardDir, safeUsername);
 
-  if (!pathInside(baseDir, userDir)) {
+  if (!pathInside(baseDir, shardDir) || !pathInside(shardDir, userDir)) {
     throw new Error('path escape');
   }
 
   const userRoot = path.join(userDir, 'root');
   const authFile = path.join(userDir, `${safeUsername}.txt`);
-  return { safeUsername, userDir, userRoot, authFile };
+
+  return {
+    safeUsername,
+    shard,
+    shardDir,
+    userDir,
+    userRoot,
+    authFile,
+  };
 }
 
 async function readAuthRecord(userPaths) {

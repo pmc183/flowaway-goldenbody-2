@@ -3,6 +3,15 @@ const path = require("path");
 const fsp = require("fs/promises");
 const { getUserUsage, getUserQuotaBytes } = require("./storageQuota");
 const { withUserLock, writeFileWithQuota, createDirectoryWithQuota, deletePathWithQuota, copyPathWithQuota } = require("./quotaFs");
+const crypto = require("crypto");
+
+function getUserShard(username) {
+  return crypto
+    .createHash("sha256")
+    .update(String(username))
+    .digest("hex")
+    .slice(0, 3);
+}
 
 const MAX_BODY = 50 * 1024 * 1024;
 const MIN_ENTRY_SIZE_BYTES = 4 * 1024;
@@ -246,7 +255,8 @@ async function authenticateUser(username, providedPassword, authHeader) {
   if (!username) return false;
 
   try {
-    const userFile = safeResolve(directoryPath, `${username}/${username}.txt`);
+    const userDir = getUserDirectory(username);
+    const userFile = safeResolve(userDir, `${username}.txt`);
     const txt = await fsp.readFile(userFile, "utf8");
     const obj = JSON.parse(txt);
 
@@ -272,6 +282,17 @@ async function authenticateUser(username, providedPassword, authHeader) {
 }
 
 let directoryPath = path.resolve(__dirname, "./zmcdfiles");
+function getUserDirectory(username) {
+  const safeUsername = String(username || "").trim();
+
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(safeUsername)) {
+    throw new Error("Invalid username");
+  }
+
+  const shard = getUserShard(safeUsername);
+
+  return path.join(directoryPath, shard, safeUsername);
+}
 if (!fs.existsSync(directoryPath)) fs.mkdirSync(directoryPath, { recursive: true });
 
 function removeUnwantedStuffInPath(value) {
@@ -430,9 +451,10 @@ async function handleRawFileUpload(req, res) {
   }
 
   const normalizedPath = removeUnwantedStuffInPath(relPath);
-  const userRoot = safeResolve(directoryPath, `${username}/root`);
+  const userDir = getUserDirectory(username);
+  const userRoot = safeResolve(userDir, "root");
 
-  const authFilePath = safeResolve(directoryPath, `${username}/${username}.txt`);
+  const authFilePath = safeResolve(userDir, `${username}.txt`);
   let userPathPermissions = [];
   let authObj = null;
   try { authObj = JSON.parse(await fsp.readFile(authFilePath, 'utf8')); userPathPermissions = authObj.pathPermissions; } catch (e) { }
@@ -539,7 +561,8 @@ async function handleFetchfiles(req, res) {
       return res.end(JSON.stringify({ error: "unauthorized" }));
     }
 
-    const authFilePath = safeResolve(directoryPath, `${username}/${username}.txt`);
+    const userDir = getUserDirectory(username);
+    const authFilePath = safeResolve(userDir, `${username}.txt`);
 
     let userPathPermissions = [];
     let authObj = null;
@@ -552,7 +575,7 @@ async function handleFetchfiles(req, res) {
       authObj = null;
     }
 
-    const userRoot = path.join(directoryPath, username, "root");
+    const userRoot = path.join(userDir, "root");
     await fsp.mkdir(userRoot, { recursive: true });
 
     try {
@@ -607,16 +630,7 @@ async function handleFetchfiles(req, res) {
 
         const relForPerm = normalizedRequestPath || "";
 
-        const permission = getPermissionForRelativePath(relForPerm, userPathPermissions);
-        if (!permission.read) {
-          res.writeHead(403);
-          return res.end(
-            JSON.stringify({
-              error: "read permission denied",
-              path: `${relForPerm}`,
-            }),
-          );
-        }
+        // folder permissions only apply to the files under folders
 
         const fullPath = safeResolve(userRoot, normalizedRequestPath);
 

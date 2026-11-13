@@ -5,7 +5,17 @@ const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
 const { withUserLock, finalizeDownloadWithQuota } = require('./quotaFs');
+function getUserShard(username) {
+  return crypto
+    .createHash('sha256')
+    .update(String(username))
+    .digest('hex')
+    .slice(0, 3);
+}
 
+function getUserDir(username) {
+  return path.join(directoryPath, getUserShard(username), username);
+}
 let directoryPath = path.resolve(__dirname, './zmcdfiles');
 if (!fs.existsSync(directoryPath)) fs.mkdirSync(directoryPath, { recursive: true });
 
@@ -28,7 +38,7 @@ function sanitizeAuthRecord(raw, usernameHint) {
 async function authenticateUser(username, providedPassword, authHeader) {
   try {
     if (!username) return false;
-    const userDir = path.join(directoryPath, username);
+    const userDir = getUserDir(username);
     const userFile = path.join(userDir, `${username}.txt`);
     try {
       const txt = await fsp.readFile(userFile, 'utf8');
@@ -128,7 +138,10 @@ async function handleDownload(req, res) {
 
     if (!username) return respondJSON(res, 400, { error: 'missing username' });
     if (!data.href) return respondJSON(res, 400, { error: 'missing data.href' });
-    if (username.includes('/') || username.includes('\\') || username === '..') return respondJSON(res, 400, { error: 'invalid username' });
+    if (typeof username !== 'string' ||
+        !/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
+      return respondJSON(res, 400, { error: 'invalid username' });
+    }
     console.log('[download] username=', username, 'href=', data.href);
 
     const authHeader = req.headers && (req.headers.authorization || req.headers.Authorization) || '';
@@ -144,7 +157,7 @@ async function handleDownload(req, res) {
     // by password, issue a short-lived token and persist it to the user file.
     let tokenToReturn = null;
     try {
-      const userFile = path.join(directoryPath, username, `${username}.txt`);
+      const userFile = path.join(getUserDir(username), `${username}.txt`);
       const txt = await fsp.readFile(userFile, 'utf8');
       const obj = sanitizeAuthRecord(JSON.parse(txt), username);
       obj.authTokens = Array.isArray(obj.authTokens) ? obj.authTokens : [];
@@ -172,7 +185,7 @@ async function handleDownload(req, res) {
     }
 
     try {
-      const userRoot = path.join(directoryPath, username, 'root');
+      const userRoot = path.join(getUserDir(username), 'root');
       await fsp.mkdir(userRoot, { recursive: true });
       const downloadsDir = path.join(userRoot, 'downloads');
       await fsp.mkdir(downloadsDir, { recursive: true });

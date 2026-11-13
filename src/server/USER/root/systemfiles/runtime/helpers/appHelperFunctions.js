@@ -33,12 +33,12 @@ window.protectedGlobals.resolveApptoolsContext = function (appId, rootElement) {
 
 window.protectedGlobals.changeCursorToWait = function () {
     document.querySelectorAll('*').forEach((el) => {
-    if ((el.style.cursor !== "wait" && (el.style.cursor === "" || el.style.cursor === "default")) && !el.closest(".app-window-root")) el.style.cursor = "wait";
+    if ((el.style.cursor !== "progress" && (el.style.cursor === "" || el.style.cursor === "default")) && !el.closest(".app-window-root")) el.style.cursor = "progress";
   });
 };
 window.protectedGlobals.changeCursorToDefault = function () {
     document.querySelectorAll('*').forEach((el) => {
-    if (el.style.cursor === "wait") el.style.cursor = "default";
+    if (el.style.cursor === "progress") el.style.cursor = "default";
   });
 };
 
@@ -374,14 +374,9 @@ window.protectedGlobals.showUnifiedAppContextMenu = function (e, appOverride = n
   closeAll.style.cursor = "pointer";
   closeAll.addEventListener("click", () => {
     withInstances((instances) => {
-      const first = instances[0];
-      if (first && (first.closeAll)) {
-        first.closeAll();
-        return;
-      }
       for (const instance of [...instances]) {
         if (instance && (instance.closeWindow)) {
-          instance.closeWindow(true);
+          instance.closeWindow();
         }
       }
     });

@@ -436,7 +436,6 @@ window.protectedGlobals.showConfirmDialog = (title, message, okText, cancelText)
 // cleanup
 // required functions for the system cleanup
 window.protectedGlobals.rebuildhandler = function () {
-  window.alert = window.protectedGlobals.origAlert;
   delete window.softAlert;
   if (window.protectedGlobals.activeWebSockets) {
     for (const ws of Array.from(window.protectedGlobals.activeWebSockets)) {
@@ -498,28 +497,6 @@ window.protectedGlobals.rebuildhandler = function () {
     delete window.protectedGlobals.process;
   }
 
-  if ((window.protectedGlobals._processNativeSetTimeout)) {
-    window.setTimeout = window.protectedGlobals._processNativeSetTimeout;
-  }
-  if ((window.protectedGlobals._processNativeSetInterval)) {
-    window.setInterval = window.protectedGlobals._processNativeSetInterval;
-  }
-  if ((window.protectedGlobals._processNativeClearTimeout)) {
-    window.clearTimeout = window.protectedGlobals._processNativeClearTimeout;
-  }
-  if ((window.protectedGlobals._processNativeClearInterval)) {
-    window.clearInterval = window.protectedGlobals._processNativeClearInterval;
-  }
-  if ((window.protectedGlobals._processNativeRequestAnimationFrame)) {
-    window.requestAnimationFrame = window.protectedGlobals._processNativeRequestAnimationFrame;
-  }
-  if ((window.protectedGlobals._processNativeCancelAnimationFrame)) {
-    window.cancelAnimationFrame = window.protectedGlobals._processNativeCancelAnimationFrame;
-  }
-  if ((window.protectedGlobals._processNativeMutationObserver)) {
-    window.MutationObserver = window.protectedGlobals._processNativeMutationObserver;
-  }
-
   // remove all event listeners to refresh the environment.
   window.protectedGlobals.removeAllEventListenersInWindow();
   window.protectedGlobals.apps.forEach((app) => {
@@ -571,6 +548,7 @@ window.protectedGlobals.rebuildhandler = function () {
   oldHead.innerHTML = '';
   oldHead = null;         // Nullifies your primary variable reference
 })();
+  window.alert = window.protectedGlobals.origAlert;
 
   // Inject homepage loader
   var script = document.createElement("script");

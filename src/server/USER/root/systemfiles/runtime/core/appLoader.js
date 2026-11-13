@@ -810,7 +810,6 @@
       actionButton.onclick = () => finishPicker(resolve, reject);
 
       await renderEntries();
-      loadingIndicator.remove();
     });
   }
 
@@ -1143,7 +1142,7 @@
         iframe.style.height = !!entryObj.hiddenDragstrip ? "100%" : `calc(100% - ${defaultSystemDragstripHeight}px)`;
         iframe.style.border = "none";
         if (!window.protectedGlobals.appPerms[entryObj.id]) window.protectedGlobals.appPerms[entryObj.id] = { storage: "ask", notification: "ask", launch: "ask" };
-        let instanceNum = window[entryObj.globalVarObjectString][entryObj.allAppArrayString].length;
+        let instanceNum = window[entryObj.globalVarObjectString][entryObj.allAppArrayString].length + 1;
         instance.title = entryObj.label + " " + (instanceNum + 1);
         // Preserve an already-passed path or picker handle for the iframe. If the app was launched
         // with a target, the iframe can inspect window.__path__ and use that as its initial file/folder target.
@@ -1238,7 +1237,7 @@
           }
           if (e.data.closeWindow) {
             try {
-              instance.closeWindow();
+              e.data?.force ? instance.closeWindow(true) : instance.closeWindow();
               e.source.postMessage({ closeWindowResult: true, result: true, requestId: e.data.requestId }, "*");
             } catch (err) {
               e.source.postMessage({ error: err.message || String(err), requestId: e.data.requestId }, "*");
@@ -1460,8 +1459,9 @@
         });
         instance.iframe = iframe;
         instance.instanceNum = instanceNum;
-        let origClose = instance.closeWindow;
+        const origClose = instance.closeWindow;
         instance.closeWindow = async function (force = false) {
+          if (instance.windowClosed) return;
           let confirmed = true;
           if (instance.askUserBeforeClose && !force) {
             confirmed = await window.protectedGlobals.showConfirmDialog("Close App", "Are you sure you want to close this app instance? Changes may not be saved.", "Close", "Cancel");
@@ -1470,6 +1470,7 @@
           window.protectedGlobals.clearAppInstanceWatchers(iframe.contentWindow);
           origClose(force);
           appObj.allIframe.splice(appObj.allIframe.indexOf(iframe), 1);
+          instance.windowClosed = true;
         };
         window.protectedGlobals.apptools.api.trackInstance(instance, entryObj.id);
         return;

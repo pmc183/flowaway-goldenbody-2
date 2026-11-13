@@ -1,7 +1,14 @@
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
-
+const crypto = require('crypto');
+function getUserShard(username) {
+  return crypto
+    .createHash('sha256')
+    .update(String(username))
+    .digest('hex')
+    .slice(0, 3);
+}
 const USER_TEMPLATE_PATH = path.join(__dirname, 'USER', 'root');
 
 function defaultStartMenuConfig() {
@@ -180,7 +187,12 @@ async function updateUserSystemApps(username, forceUpdate = false) {
     return { ok: false, updated: false, reason: 'missing_template_systemfiles', username };
   }
 
-  const userRootPath = path.join(directoryPath, username, 'root');
+  if (!/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
+    return { ok: false, updated: false, reason: 'invalid_username' };
+  }
+
+  const shard = getUserShard(username);
+  const userRootPath = path.join(directoryPath, shard, username, 'root');
   const userSystemfilesPath = path.join(userRootPath, 'systemfiles');
   const userAppsPath = path.join(userSystemfilesPath, 'runtime', 'apps');
   const userProfilePath = path.join(userSystemfilesPath, 'userprofile');

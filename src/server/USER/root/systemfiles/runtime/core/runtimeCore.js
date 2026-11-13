@@ -120,7 +120,7 @@ window.protectedGlobals.WriteFolder = async function (relPath, options = {}) {
   return res;
 };
 window.protectedGlobals.FolderExists = async function (relPath) {
-  if (!relPath) throw new Error("No path");
+  if (!relPath) return false;
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
   const requestPath = normalizedPath === "root"
     ? ""
@@ -132,7 +132,7 @@ window.protectedGlobals.FolderExists = async function (relPath) {
   return Boolean(res.result.checkFolder.exists);
 };
 window.protectedGlobals.FileExists = async function (relPath) {
-  if (!relPath) throw new Error("No path");
+  if (!relPath) return false;
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
   const requestPath = normalizedPath;
   const res = await window.protectedGlobals.filePost({
@@ -152,7 +152,7 @@ window.protectedGlobals.ReadFile = async function (
   const isStream = !!options.stream;
   const modes = [isBuffer, isText, isStream].filter(Boolean).length;
   if (modes !== 1) {
-    throw new Error("Choose exactly one of text, buffer, or stream.");
+    return { error: "Exactly one of options.text, options.buffer, or options.stream must be true" };
   }
 
   const headers = {
@@ -191,9 +191,7 @@ window.protectedGlobals.ReadFile = async function (
       clearTimeout(timeout);
 
       if (attempt === MAX_RETRIES) {
-        throw err.name === "AbortError"
-          ? new Error("Request timed out after 8 attempts.")
-          : err;
+        return { error: "Request failed after multiple attempts: " + String(err) };
       }
 
       console.warn(
@@ -218,13 +216,11 @@ window.protectedGlobals.ReadFile = async function (
 
     if (payload.missing) return undefined;
 
-    throw new Error(
-      payload.error || payload.message || "Failed to read file"
-    );
+    return { error: payload.error || window.protectedGlobals.serverErrorMsg[response.status] || `Failed to read file: ${normalizedPath}` };
   }
 
   if (!response.ok) {
-    throw new Error(`Failed to read file: ${response.status} ${normalizedPath}`);
+    return { error: window.protectedGlobals.serverErrorMsg[response.status] || `Failed to read file: ${normalizedPath}` };
   }
 
   const fileSize = Number(response.headers.get("content-length") || 0);
@@ -259,7 +255,7 @@ window.protectedGlobals.ReadFolder = async function (relPath, options = { detail
 };
 window.protectedGlobals.WatchFile = function (relPath, callback, options = {}) {
   if (typeof callback !== "function") {
-    throw new TypeError("Callback must be a function");
+    return { error: "Callback must be a function", closed: true };
   }
 
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath, { allowRoot: true });
@@ -352,9 +348,7 @@ window.protectedGlobals.WatchFile = function (relPath, callback, options = {}) {
 
   return openSocket();
 };
-window.protectedGlobals.WatchFolder = function (relPath, callback, options = {}) {
-  return window.protectedGlobals.WatchFile(relPath, callback, { ...options, recursive: !!options.recursive });
-};
+window.protectedGlobals.WatchFolder = window.protectedGlobals.WatchFile;
 window.protectedGlobals.WriteFile = async function (
   relPath,
   contents,
@@ -452,7 +446,7 @@ window.protectedGlobals.WriteFile = async function (
         const timedOut = err.name === "AbortError";
 
         if (!timedOut || attempt === maxAttempts) {
-          throw err;
+          return { error: timedOut ? "Request timed out" : String(err) };
         }
       }
     }
@@ -467,8 +461,8 @@ window.protectedGlobals.WriteFile = async function (
       body = {};
     }
     if (!response.ok && response.status !== 401) {
-      body.error = body.error || window.protectedGlobals.serverErrorMsg[response.status] || `Request failed with status ${response.status}`;
-      alert(body.error);
+      body.error = body.error || window.protectedGlobals.serverErrorMsg[response.status] || 'invalid';
+      body.error !== 'invalid' ? alert(body.error) : null;
     }
 
     if (
@@ -843,7 +837,7 @@ window.protectedGlobals.getCurrentUsernameForRequests = function getCurrentUsern
   return window.protectedGlobals.data.username.trim();
 };
 
-window.protectedGlobals.filePost = async function filePost(data) {
+window.protectedGlobals.filePost = async function (data) {
   const headers = { "Content-Type": "application/json" };
   if (window.protectedGlobals.data.authToken)
     headers["Authorization"] = "Bearer " + window.protectedGlobals.data.authToken;
@@ -863,8 +857,8 @@ window.protectedGlobals.filePost = async function filePost(data) {
   }
   extractAuthTokenFromResponse(body);
   if (!res.ok && !(res.status === 401)) {
-    body.error = body.error || window.protectedGlobals.serverErrorMsg[res.status] || `Request failed with status ${res.status}`;
-    alert(body.error || "Request failed with code " + res.status);
+    body.error = body.error || window.protectedGlobals.serverErrorMsg[res.status] || "invalid";
+    body.error !== 'invalid' ? alert(body.error) : null;
   }
   var fileErrorMessage = body && body.error ? String(body.error) : "";
   if (res.status === 401 && !window.protectedGlobals.firstlogin) {

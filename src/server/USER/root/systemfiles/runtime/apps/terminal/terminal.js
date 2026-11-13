@@ -96,6 +96,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
     let terminalWorkerGracefulKillAttempts = 0;
     let awaitingPasswordPrompt = null;
     let workerPrompt = null;
+    let askUserBeforeClose = false;
+    instance.askUserBeforeClose = false;
     // current working directory for this terminal instance
     let cwd = (() => {
       const raw = path === undefined || path === null ? '' : String(path).trim();
@@ -217,9 +219,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
       if (!worker || worker.__terminalLifecycleBound) return worker;
       const trackedReason = (reason) => {
         try {
-          if (terminalWorker === worker && reason === 'done') {
-            printLine('Worker finished');
-          }
           finalizeTerminalWorker(worker, reason || 'worker-exit');
         } catch (e) {}
       };
@@ -270,7 +269,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
       return worker;
     }
 
-    function killActiveProcess({ graceful = false } = {}) {
+    async function killActiveProcess({ graceful = false } = {}) {
       if (!terminalWorker) {
         terminalBusy = false;
         terminalWorkerGracefulKill = false;
@@ -283,7 +282,17 @@ window.terminal = function (path, posX = 50, posY = 50) {
           terminalWorkerKillTimer = null;
         }
         updatePromptVisibility();
-        return;
+        return false;
+      }
+
+      if (askUserBeforeClose) {
+        const confirmed = await window.protectedGlobals.showConfirmDialog(
+          'Terminate Process',
+          'Are you sure you want to stop the active process?',
+          'Stop',
+          'Cancel',
+        );
+        if (!confirmed) return false;
       }
 
       const shouldGraceful = Boolean(graceful && terminalWorkerGracefulKill);
@@ -299,13 +308,12 @@ window.terminal = function (path, posX = 50, posY = 50) {
               if (terminalWorker && typeof terminalWorker.terminate === 'function') terminalWorker.terminate();
             } catch (e) {}
             finalizeTerminalWorker(terminalWorker, 'manual-terminate');
-            printLine('Worker terminated immediately');
-            return;
+            return true;
           }
           const remainingMs = Math.max(0, terminalWorkerGracefulKillDeadline - Date.now());
           const remainingSeconds = Math.min(3, Math.max(1, Math.ceil(remainingMs / 1000)));
           printLine(`terminating in ${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'}.`);
-          return;
+          return false;
         }
 
         terminalWorkerGracefulKillAttempts = 1;
@@ -316,9 +324,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
             if (terminalWorker && typeof terminalWorker.terminate === 'function') terminalWorker.terminate();
           } catch (e) {}
           finalizeTerminalWorker(terminalWorker, 'graceful-timeout');
-          printLine('Worker terminated');
         }, 3000);
-        return;
+        return true;
       }
 
       if (terminalWorkerKillTimer) {
@@ -331,7 +338,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
         if (terminalWorker && typeof terminalWorker.terminate === 'function') terminalWorker.terminate();
       } catch (e) {}
       finalizeTerminalWorker(terminalWorker, 'manual-terminate');
-      printLine('Worker terminated');
+      return true;
     }
 
     function createLineHandle(lineElement, initialText, initialStyle) {
@@ -532,28 +539,15 @@ window.terminal = function (path, posX = 50, posY = 50) {
           continue;
         }
 
-        // Allow a single literal like ["key":"value"] or {'key':'value'} to normalize into an object.
-        const raw = text.replace(/^\[|\]$/g, '').replace(/^\{|\}$/g, '').trim();
-        if (raw && /['"].+['"]\s*:\s*.+/.test(raw)) {
-          const re = /(?:['"]([^'"]+)['"]|([^\s:=,]+))\s*:\s*(?:['"]([^'"]*)['"]|([^,\]}]+))/g;
-          let m;
-          while ((m = re.exec(raw)) !== null) {
-            const key = (m[1] || m[2] || '').trim();
-            const value = (m[3] || m[4] || '').trim();
-            if (key) assign(key, value);
-          }
-          continue;
-        }
-
         const eq = text.indexOf('=');
         if (eq > 0) {
-          assign(text.slice(0, eq), text.slice(eq + 1));
+          assign(text.slice(0, eq).trim(), text.slice(eq + 1).trim());
           continue;
         }
 
-        const colon = text.indexOf(':');
-        if (colon > 0 && !text.startsWith('/') && !text.includes(' ')) {
-          assign(text.slice(0, colon), text.slice(colon + 1));
+        // Bare flags are treated as boolean true values for self.args.
+        if (!text.includes('=') && !text.includes(':') && !text.includes(' ')) {
+          assign(text, true);
         }
       }
       return out;
@@ -624,25 +618,17 @@ window.terminal = function (path, posX = 50, posY = 50) {
       return normalized;
     }
 
-    function isUserProfilePath(pathValue) {
+    function isSystemFilesAccessiblePath(pathValue) {
       const normalized = normalizeCloudPath(pathValue);
-      return normalized === '/systemfiles/userprofile' || normalized.startsWith('/systemfiles/userprofile/');
+      return normalized === '/systemfiles' || normalized.startsWith('/systemfiles/');
     }
 
-    function canAccessWorkerPath(target, appRoot) {
+    function canAccessWorkerPath(target, appRoot, op = 'readFolder') {
       const normalizedTarget = normalizeCloudPath(target);
-      const normalizedAppRoot = normalizeCloudPath(String(appRoot || '/'));
+      if (!isSystemFilesAccessiblePath(normalizedTarget)) return false;
 
-      if (isUserProfilePath(normalizedTarget)) return false;
-
-      if (normalizedTarget.startsWith('/systemfiles')) {
-        if (!normalizedAppRoot || normalizedAppRoot === '/' || !normalizedAppRoot.startsWith('/systemfiles/runtime/apps/')) {
-          return false;
-        }
-        return normalizedTarget === normalizedAppRoot || normalizedTarget.startsWith(normalizedAppRoot + '/');
-      }
-
-      return true;
+      const allowedOps = new Set(['readFolder', 'folderExists', 'fileExists']);
+      return allowedOps.has(op);
     }
 
     function isPathUnderRoot(path, root) {
@@ -861,6 +847,11 @@ window.terminal = function (path, posX = 50, posY = 50) {
               postMessage({ type: 'api', id: nextId(), op: 'clearAllWatchers' });
               return true;
             },
+            setAskUserBeforeClose: (value) => {
+              const enabled = !!value;
+              postMessage({ type: 'api', id: nextId(), op: 'setAskUserBeforeClose', value: enabled });
+              return enabled;
+            },
             writeline: function (...args) {
               const id = nextId();
               const spec = {
@@ -879,7 +870,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
             },
             getStartArgs: ()=>{ return self._startArgs || {}; },
             // provide cwd info for worker scripts (relative and full)
-            cwd: ()=>({ relative: (self.currentWorkingDir || ''), full: (self.currentWorkingDir || '') }),
+            cwd: ()=>(currentWorkingDir || ''),
           };
           self.addEventListener('message', (ev)=>{
             const d = ev.data;
@@ -1016,7 +1007,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
           return;
         }
         if (d.type === 'done') {
-          printLine('Worker finished');
           workerPrompt = null;
           try { worker.terminate(); } catch (e) {}
           if (terminalWorkerKillTimer) {
@@ -1034,6 +1024,13 @@ window.terminal = function (path, posX = 50, posY = 50) {
           const op = d.op;
           try {
             let result;
+            if (op === 'setAskUserBeforeClose') {
+              askUserBeforeClose = !!d.value;
+              instance.askUserBeforeClose = askUserBeforeClose;
+              result = { ok: true, value: askUserBeforeClose };
+              worker.postMessage({ type: 'apiResult', id, result, __fromRuntime: true });
+              return;
+            }
             if (op === 'watchFile' || op === 'watchFolder') {
               const rawPath = d.path || '';
               const target = typeof rawPath === 'string' ? rawPath : (rawPath && typeof rawPath === 'object' && typeof rawPath.path === 'string' ? rawPath.path : '');
@@ -1128,7 +1125,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
                 if (!skipAccessCheck) {
                   const normalizedResolved = normalizeCloudPath(resolved || '');
-                  if (!canAccessWorkerPath(normalizedResolved, appRoot)) {
+                  if (!canAccessWorkerPath(normalizedResolved, appRoot, op)) {
                     throw new Error('Path not allowed: ' + String(target));
                   }
 
@@ -1137,7 +1134,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
                       throw new Error('Invalid clipboard data');
                     }
                     const normalizedClipboard = normalizeCloudPath(String(resolvedClipboard || ''));
-                    if (!canAccessWorkerPath(normalizedClipboard, appRoot)) {
+                    if (!canAccessWorkerPath(normalizedClipboard, appRoot, op)) {
                       throw new Error('Path not allowed: ' + String(clipboardtarget));
                     }
                   }
@@ -1198,7 +1195,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
       // builtins
       if (cmd === "help") {
-        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm, rmdir, mkdir, mv, perm, getperm, apps, worker, threads, killthread, killallthreads, kill");
+        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm, rmdir, mkdir, mv, perm, getperm, apps, worker, procs, killproc, killall, kill");
         // list custom app commands
         const appCmds = [];
         (window.protectedGlobals.apps || []).forEach(a => {
@@ -1220,7 +1217,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
           return;
         }
         if (terminalWorker) {
-          killActiveProcess({ graceful: terminalWorkerGracefulKill });
+          await killActiveProcess({ graceful: terminalWorkerGracefulKill });
           return;
         }
         printError('Usage: kill <pid> or kill while a worker is active');
@@ -1245,10 +1242,10 @@ window.terminal = function (path, posX = 50, posY = 50) {
         return;
       }
 
-      if (cmd === 'threads' || cmd === 'thread' || cmd === 'ps') {
+      if (cmd === 'procs' || cmd === 'threads' || cmd === 'ps') {
         const rows = listActiveThreadRows();
         if (!rows.length) {
-          printLine('No active threads');
+          printLine('No active processes');
           return;
         }
         rows.forEach((row) => {
@@ -1261,27 +1258,27 @@ window.terminal = function (path, posX = 50, posY = 50) {
         return;
       }
 
-      if (cmd === 'killthread' || cmd === 'kill-thread') {
+      if (cmd === 'killproc' || cmd === 'killthread') {
         const targetPid = Number(parts[1]);
         if (!Number.isFinite(targetPid)) {
-          printError('Usage: killthread <pid>');
+          printError('Usage: killproc <pid>');
           return;
         }
         const ok = killThreadByPid(targetPid);
-        printLine(ok ? `Thread ${targetPid} terminated` : `No active thread with id ${targetPid}`);
+        printLine(ok ? `Process ${targetPid} terminated` : `No active process with id ${targetPid}`);
         return;
       }
 
-      if (cmd === 'killallthreads' || cmd === 'kill-all-threads') {
+      if (cmd === 'killall' || cmd === 'killallthreads') {
         const rows = listActiveThreadRows();
         if (!rows.length) {
-          printLine('No active threads to kill');
+          printLine('No active processes to kill');
           return;
         }
         // Only attempt to kill positive numeric PIDs (ignore sentinel or invalid pids)
         const pids = rows.map(r => Number(r.pid ?? r.processId ?? r.id)).filter(p => Number.isFinite(p) && p > 0);
         if (!pids.length) {
-          printLine('No active threads to kill');
+          printLine('No active processes to kill');
           return;
         }
         let count = 0;
@@ -1292,9 +1289,9 @@ window.terminal = function (path, posX = 50, posY = 50) {
           } catch (e) {}
         }
         if (!count) {
-          printLine('No active threads were terminated');
+          printLine('No active processes were terminated');
         } else {
-          printLine(`Terminated ${count} active thread${count === 1 ? '' : 's'}`);
+          printLine(`Terminated ${count} active process${count === 1 ? '' : 'es'}`);
         }
         return;
       }
@@ -1510,6 +1507,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
         const scriptPath = workerPath || null;
         if (!workerPath) { printError('Usage: worker "<scriptPath>"'); return; }
         try {
+          askUserBeforeClose = false;
+          instance.askUserBeforeClose = false;
           terminalBusy = true;
           updatePromptVisibility();
           let worker;
@@ -1523,7 +1522,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
           const trackedPid = getTrackedWorkerPid(worker);
           if (trackedPid) worker.__terminalWorkerPid = trackedPid;
           terminalWorker = worker;
-          printLine(`Worker started for ${workerPath}${trackedPid ? ` (pid ${trackedPid})` : ''}`);
           return;
         } catch (e) { printError(e.message || String(e)); terminalBusy = false; terminalWorker = null; updatePromptVisibility(); }
       }
@@ -1574,6 +1572,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
             if (scriptPath) {
               const content = await window.protectedGlobals.ReadFile(scriptPath, { text: true, direct: true });
               const isJs = String(scriptPath || '').toLowerCase().endsWith('.js') || String(content || '').trim().startsWith('(function') || String(content || '').includes('self.api') || String(content || '').includes('globalThis');
+              askUserBeforeClose = false;
+              instance.askUserBeforeClose = false;
               terminalBusy = true;
               updatePromptVisibility();
               terminalWorkerGracefulKill = Boolean(target.command.receive_onkill_handler);
@@ -1586,7 +1586,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
               const trackedPid = getTrackedWorkerPid(worker);
               if (trackedPid) worker.__terminalWorkerPid = trackedPid;
               terminalWorker = worker;
-              printLine(`Started worker for ${target.app.id} ${target.command.name}${trackedPid ? ` (pid ${trackedPid})` : ''}`);
               return;
             }
             if (target.command.src) {
@@ -1624,53 +1623,119 @@ window.terminal = function (path, posX = 50, posY = 50) {
     const history = [];
     let historyIndex = 0;
 
-    function setInputText(txt) {
-      input.innerText = txt || '';
-      // move caret to end
+    function getInputCaretIndex() {
+      try {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return String(input.textContent || '').length;
+        const range = sel.getRangeAt(0);
+        const preRange = document.createRange();
+        preRange.selectNodeContents(input);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        return preRange.toString().length;
+      } catch (e) {
+        return String(input.textContent || '').length;
+      }
+    }
+
+    function moveInputCaretToIndex(index) {
       try {
         const sel = window.getSelection();
         const range = document.createRange();
-        range.selectNodeContents(input);
-        range.collapse(false);
+        const textNode = input.firstChild || document.createTextNode('');
+        if (!input.firstChild) input.appendChild(textNode);
+        const maxPos = textNode.textContent ? textNode.textContent.length : 0;
+        const pos = Math.max(0, Math.min(Number(index) || 0, maxPos));
+        range.setStart(textNode, pos);
+        range.setEnd(textNode, pos);
         sel.removeAllRanges();
         sel.addRange(range);
+        input.focus({ preventScroll: true });
       } catch (e) {}
+    }
+
+    function setInputText(txt, caretPos = null) {
+      const text = txt === undefined || txt === null ? '' : String(txt);
+      input.textContent = text;
+      const target = caretPos === null ? text.length : caretPos;
+      requestAnimationFrame(() => {
+        moveInputCaretToIndex(target);
+      });
+    }
+
+    function escapeAutocompleteToken(value, quoteChar = null) {
+      let out = String(value ?? '');
+      if (quoteChar === "'") {
+        return out.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      }
+      if (quoteChar === '"') {
+        return out.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      }
+      return out
+        .replace(/\\/g, '\\\\')
+        .replace(/ /g, '\\ ')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"');
     }
 
     async function autocompletePath() {
       const full = String(input.textContent || "");
-      const match = full.match(/"((?:\\.|[^"\\])*)"?$/) || full.match(/(\S+)$/);
-      let token = '';
-      let isQuoted = false;
-      if (match) {
-        if (full.includes('"')) {
-          isQuoted = true;
-          token = match[1] || '';
-        } else {
-          token = match[1] || match[0] || '';
+      if (!full.trim()) return;
+
+      const caretIndex = getInputCaretIndex();
+      const beforeCaret = full.slice(0, caretIndex);
+      const afterCaret = full.slice(caretIndex);
+      const lastWhitespace = Math.max(beforeCaret.lastIndexOf(' '), beforeCaret.lastIndexOf('\n'), beforeCaret.lastIndexOf('\t'));
+      const activeToken = beforeCaret.slice(lastWhitespace + 1);
+      if (!activeToken) return;
+
+      const tokenStart = lastWhitespace + 1;
+      let valueText = activeToken;
+      let prefixText = '';
+      let quoteChar = null;
+      const eqIndex = valueText.lastIndexOf('=');
+      if (eqIndex >= 0) {
+        prefixText = valueText.slice(0, eqIndex + 1);
+        valueText = valueText.slice(eqIndex + 1);
+      }
+
+      if ((valueText.startsWith('"') || valueText.startsWith("'")) && valueText.length > 1) {
+        quoteChar = valueText[0];
+        valueText = valueText.slice(1);
+      }
+
+      if (!valueText) return;
+      if (quoteChar && valueText.includes(quoteChar)) return;
+
+      let parentText = '';
+      if (valueText.endsWith('/')) {
+        parentText = valueText;
+        valueText = '';
+      } else {
+        const lastSlash = valueText.lastIndexOf('/');
+        if (lastSlash >= 0) {
+          parentText = valueText.slice(0, lastSlash + 1);
+          valueText = valueText.slice(lastSlash + 1);
         }
       }
-      if (!token) return;
 
-      const absoluteToken = resolveTerminalPath(token, cwd);
-      const lastSlash = absoluteToken.lastIndexOf('/');
-      const parent = lastSlash >= 0 ? absoluteToken.slice(0, lastSlash) || '/' : '/';
-      const prefix = lastSlash >= 0 ? absoluteToken.slice(lastSlash + 1) : absoluteToken.replace(/^\//, '');
+      const parentPath = resolveTerminalPath(parentText || '.', cwd);
+      const prefix = valueText;
 
       try {
-        const listing = await window.protectedGlobals.ReadFolder(parent);
+        const listing = await window.protectedGlobals.ReadFolder(parentPath);
         if (!Array.isArray(listing)) return;
-        const matches = listing.filter(x => String(x).startsWith(prefix));
+        const matches = listing
+          .map((x) => typeof x === 'string' ? x : (x && (x.name || x.path || x.filename || '')))
+          .filter((name) => String(name).startsWith(prefix));
+
         if (matches.length === 1) {
-          const completedAbs = (parent === '/' ? '/' : parent) + '/' + matches[0];
-          const completed = token.startsWith('/') ? completedAbs : toDisplayPath(completedAbs, cwd);
-          if (isQuoted) {
-            const replaced = full.replace(/"((?:\\.|[^"\\])*)"?$/, '"' + completed + '"');
-            setInputText(replaced);
-          } else {
-            const replaced = full.replace(/(\S+)$/, completed);
-            setInputText(replaced);
-          }
+          const matchName = String(matches[0]);
+          const escapedMatchName = escapeAutocompleteToken(matchName, quoteChar);
+          const completed = (parentText || '') + escapedMatchName;
+          const replacement = prefixText + (quoteChar || '') + completed;
+          const rebuilt = beforeCaret.slice(0, tokenStart) + replacement + afterCaret;
+          const caretPos = beforeCaret.slice(0, tokenStart).length + replacement.length;
+          setInputText(rebuilt, caretPos);
         } else if (matches.length > 1) {
           printLine('Suggestions: ' + matches.join(' '));
         }
@@ -1681,7 +1746,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     input.addEventListener('keydown', async (ev) => {
       if ((ev.key === 'c' || ev.key === 'C') && (ev.ctrlKey) && terminalBusy) {
         ev.preventDefault();
-        killActiveProcess({ graceful: terminalWorkerGracefulKill });
+        await killActiveProcess({ graceful: terminalWorkerGracefulKill });
         input.innerText = '';
         return;
       }
@@ -1738,9 +1803,9 @@ window.terminal = function (path, posX = 50, posY = 50) {
       }
     });
 
-    const cleanupInstance = () => {
+    const cleanupInstance = async () => {
       if (terminalWorker) {
-        killActiveProcess({ graceful: terminalWorkerGracefulKill });
+        await killActiveProcess({ graceful: terminalWorkerGracefulKill });
       }
     };
 
@@ -1756,13 +1821,26 @@ window.terminal = function (path, posX = 50, posY = 50) {
     updatePromptVisibility();
 
     const originalCloseWindow = typeof instance.closeWindow === 'function' ? instance.closeWindow.bind(instance) : null;
-    instance.closeWindow = function () {
-      cleanupInstance();
-      if (originalCloseWindow) return originalCloseWindow();
+    instance.closeWindow = async function (force = false) {
+      if (instance.askUserBeforeClose && !force) {
+        const confirmed = await window.protectedGlobals.showConfirmDialog(
+          'Close Terminal',
+          'Are you sure you want to close this terminal window? Any active process will be terminated.',
+          'Close',
+          'Cancel',
+        );
+        if (!confirmed) return false;
+      }
+      if (force) {
+        instance.askUserBeforeClose = false;
+        askUserBeforeClose = false;
+      }
+      await cleanupInstance();
+      if (originalCloseWindow) return originalCloseWindow(force);
       if (root && root.remove) root.remove();
       return true;
     };
-    window.addEventListener('beforeunload', cleanupInstance, { once: true });
+    window.addEventListener('beforeunload', () => { cleanupInstance(); }, { once: true });
 
     // clicking in the output usually focuses the prompt, but avoid stealing
     // focus when the user is selecting text. Use preventScroll to avoid

@@ -20,12 +20,20 @@ const { updateUserSystemApps } = require('./updateSystem');
 const fsp = require('fs/promises');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-
+const userAccountsDir = path.resolve(__dirname, './zmcdfiles');
+function getUserDir(username) {
+    return path.join(userAccountsDir, getUserShard(username), username);
+}
 const EXPECTED_USER = 'ServerAdmin';
 let EXPECTED_PASS = '183115428'; // default password, will be overwritten if the file exists
 try {
-    EXPECTED_PASS = JSON.parse(fs.readFileSync(path.resolve(__dirname, './zmcdfiles', EXPECTED_USER, EXPECTED_USER + '.txt'))).password; 
+EXPECTED_PASS = JSON.parse(
+    fs.readFileSync(
+        path.join(getUserDir(EXPECTED_USER), `${EXPECTED_USER}.txt`)
+    )
+).password;
 } catch {
     // If the file doesn't exist or can't be read, we keep the default password
 }
@@ -34,7 +42,15 @@ const moderationDir = path.resolve(__dirname, '../../moderation');
 const knownIpsPath = path.join(moderationDir, 'known_ips.txt');
 const bannedIpsPath = path.join(moderationDir, 'banned_ips.json');
 const ipLogsPath = path.join(moderationDir, 'ip_logs.txt');
-const userAccountsDir = path.resolve(__dirname, './zmcdfiles');
+function getUserShard(username) {
+    return crypto
+        .createHash('sha256')
+        .update(String(username))
+        .digest('hex')
+        .slice(0, 3);
+}
+
+
 const readIpList = (filePath) => {
     try {
         return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
@@ -50,8 +66,12 @@ async function isValidUpdateUser(username, password) {
     const normalizedPassword = String(password || '').trim();
     if (!normalizedUsername || !normalizedPassword) return false;
 
-    const userDir = path.join(userAccountsDir, normalizedUsername);
+    if (!/^[a-zA-Z0-9_-]{3,20}$/.test(normalizedUsername)) {
+        return false;
+    }
+    const userDir = getUserDir(normalizedUsername);
     const authPath = path.join(userDir, `${normalizedUsername}.txt`);
+
 
     try {
         const data = JSON.parse(await fsp.readFile(authPath, 'utf8'));
@@ -484,13 +504,40 @@ if (!config.enableWorkers || !cluster.isMaster) {
                         }
 
                         logger.info(`Mailing everyone: ${message}`);
-                        const userDirs = fs.readdirSync(userAccountsDir, { withFileTypes: true }).filter(dirent => dirent.isDirectory()).map(dirent => dirent.name);
-                        for (const userDir of userDirs) {
-                            const inboxPath = path.join(userAccountsDir, userDir, 'root/systemfiles/userprofile/startupNotifications/');
-                            if (!fs.existsSync(inboxPath)) {
+                        const shardDirs = fs.readdirSync(userAccountsDir, {
+                            withFileTypes: true
+                        }).filter(entry => entry.isDirectory());
+
+                        for (const shard of shardDirs) {
+                            const shardPath = path.join(userAccountsDir, shard.name);
+
+                            const userDirs = fs.readdirSync(shardPath, {
+                                withFileTypes: true
+                            }).filter(entry => entry.isDirectory());
+
+                            for (const user of userDirs) {
+                                const username = user.name;
+
+                                // Verify that this directory belongs to the expected shard.
+                                if (getUserShard(username) !== shard.name) continue;
+
+                                const userDir = path.join(shardPath, username);
+
+                                const authFile = path.join(userDir, `${username}.txt`);
+                                if (!fs.existsSync(authFile)) continue;
+
+                                const inboxPath = path.join(
+                                    userDir,
+                                    'root/systemfiles/userprofile/startupNotifications'
+                                );
+
                                 fs.mkdirSync(inboxPath, { recursive: true });
+
+                                fs.writeFileSync(
+                                    path.join(inboxPath, `notification-${Date.now()}.txt`),
+                                    message
+                                );
                             }
-                            fs.writeFileSync(path.join(inboxPath, `notification-${Date.now()}.txt`), message);
                         }
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ success: true }));

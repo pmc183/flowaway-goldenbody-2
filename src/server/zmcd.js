@@ -5,7 +5,13 @@ const { defaultSystemPathPermissions, setupUserFilesystem } = require('./userFil
 
 let directoryPath = path.resolve(__dirname, './zmcdfiles');
 directoryPath += '/';
-
+function getUserShard(username) {
+  return crypto
+    .createHash('sha256')
+    .update(String(username))
+    .digest('hex')
+    .slice(0, 3);
+}
 async function pathExists(filePath) {
   try {
     await fs.promises.access(filePath);
@@ -28,14 +34,9 @@ async function writeJsonPretty(filePath, value) {
   await fs.promises.writeFile(filePath, JSON.stringify(value, null, 2));
 }
 
-function writeJsonPrettySync(filePath, value) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
-}
-
 function getUserPaths(username) {
   const safeUsername = String(username || '').trim();
-  const userDir = path.join(directoryPath, safeUsername);
+  const userDir = path.join(directoryPath, getUserShard(safeUsername), safeUsername);
   const userRoot = path.join(userDir, 'root');
   const authFile = path.join(userDir, `${safeUsername}.txt`);
   const systemfilesDir = path.join(userRoot, 'systemfiles');
@@ -115,12 +116,6 @@ async function writeAuthRecord(userPaths, authRecord) {
   return sanitized;
 }
 
-function writeAuthRecordSync(userPaths, authRecord) {
-  const sanitized = sanitizeAuthRecord(authRecord, userPaths.username);
-  writeJsonPrettySync(userPaths.authFile, sanitized);
-  return sanitized;
-}
-
 function pruneExpiredTokens(authRecord) {
   authRecord.authTokens = Array.isArray(authRecord.authTokens) ? authRecord.authTokens : [];
   const now = Date.now();
@@ -149,30 +144,25 @@ function isTokenAuthorized(authRecord, authHeader) {
 }
 
 async function resolveUserByToken(authHeader, usernameHint) {
-  const token = getAuthTokenFromHeader(authHeader);
-  if (!token) return null;
+    const token = getAuthTokenFromHeader(authHeader);
+    const username = typeof usernameHint === 'string'
+        ? usernameHint.trim()
+        : '';
 
-  const candidates = [];
-  const hintedUsername = typeof usernameHint === 'string' ? usernameHint.trim() : '';
-  if (hintedUsername) candidates.push(hintedUsername);
-
-  try {
-    const entries = await fs.promises.readdir(directoryPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry && entry.isDirectory()) candidates.push(entry.name);
+    if (!token || !/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
+        return null;
     }
-  } catch (e) {}
 
-  const seen = new Set();
-  for (const username of candidates) {
-    if (!username || seen.has(username)) continue;
-    seen.add(username);
     const userPaths = getUserPaths(username);
     const authResult = await readAuthRecord(userPaths);
-    if (authResult && isTokenAuthorized(authResult.auth, authHeader)) return authResult;
-  }
 
-  return null;
+    if (!authResult) return null;
+
+    if (!isTokenAuthorized(authResult.auth, authHeader)) {
+        return null;
+    }
+
+    return authResult;
 }
 
 function normalizePermissionPath(rawPath) {
@@ -306,20 +296,26 @@ function handleZMCd(req, res) {
         if (!/^[a-zA-Z0-9_-]+$/.test(data.username) || data.username.length < 3 || password.length < 3 || password.length > 20 || data.username.length > 20) {
           return sendJson(res, 403, { error: "Username or password don't meet server requirements" });
         }
-        if (fs.existsSync(userPaths.userDir) || fs.existsSync(userPaths.authFile)) {
-          responseContent = { error: 'user already exists' };
-        } else {
-          fs.mkdirSync(userPaths.userDir, { recursive: true });
-          const authRecord = sanitizeAuthRecord(null, userPaths.username, password);
-          const token = issueToken(authRecord);
-          writeAuthRecordSync(userPaths, authRecord);
-          try {
-            await setupUserFilesystem(userPaths);
-          } catch (e) {
-            console.error('setupUserFilesystem failed', e && e.message ? e.message : String(e));
+
+        try {
+          await fs.promises.mkdir(path.dirname(userPaths.userDir), { recursive: true });
+          await fs.promises.mkdir(userPaths.userDir, { recursive: false });
+        } catch (err) {
+          if (err && err.code === 'EEXIST') {
+            return sendJson(res, 409, { error: 'user already exists' });
           }
-          responseContent = buildLoginResponse(authRecord, token);
+          throw err;
         }
+
+        const authRecord = sanitizeAuthRecord(null, userPaths.username, password);
+        const token = issueToken(authRecord);
+        await writeAuthRecord(userPaths, authRecord);
+        try {
+          await setupUserFilesystem(userPaths);
+        } catch (e) {
+          console.error('setupUserFilesystem failed', e && e.message ? e.message : String(e));
+        }
+        responseContent = buildLoginResponse(authRecord, token);
       } else {
         const authResult = await readAuthRecord(userPaths);
         if (!authResult) {

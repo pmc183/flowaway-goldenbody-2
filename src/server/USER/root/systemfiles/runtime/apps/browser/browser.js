@@ -2299,7 +2299,15 @@ setTimeout(() => {
         const filename = computeName(url);
         try {
           alert("Download request sent");
-          await window.protectedGlobals.downloadPost({ href: url, filename });
+          const downloadPromise = window.protectedGlobals.downloadPost({ href: url, filename });
+          let needAlert = true;
+          setTimeout(() => {
+            if (needAlert) {
+              alert("Download took longer than expected. It might because the file is large or the server is slow. Or also this link may not be valid or the download may have failed.");
+            }
+          }, 5000);
+          await downloadPromise;
+          needAlert = false;
         } catch (e) {
           console.error("download error", e);
           alert("Download failed to start");

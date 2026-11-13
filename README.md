@@ -8,6 +8,8 @@ This is copied directly from the dev docs in the settings app
 <p>
     Apps live under <code>/systemfiles/runtime/apps/&lt;app-folder&gt;</code>. Every app must include an
     <code>entry.json</code> file and an executable JS file named by <code>jsFile</code>.
+    It is not your responsibility to create the app folder, the runtime will create it for you when you install the app using the built in app installer, after packaging the app using the built in zip tool.
+    To delete an app, you can do so in settings. Where you can also set permissions for the app, and force stop the app.
 </p>
 <h3><code>entry.json</code> fields</h3>
 <ul>
@@ -192,7 +194,7 @@ let dragTarget = instance.titlebarElement;
 </p>
 <h3>Custom commands in <code>entry.json</code></h3>
 <p>
-    App commands are declared in the <code>cmd</code> array or the <code>commands</code> array. The runtime normalizes
+    App commands are declared in the <code>cmd</code> array or the <code>commands</code> array. They are interchangeable, if both are present, the <code>commands</code> array takes precedence. The runtime normalizes
     them to lowercase letters only and strips anything else, so a name like <code>WorkerTest</code> becomes
     <code>workertest</code>. The terminal command runner reads those entries and launches the matching script as a
     worker.
@@ -215,9 +217,7 @@ let dragTarget = instance.titlebarElement;
 <p>Two new runtime APIs are available to worker scripts:</p>
 <h4><code>api.cwd()</code></h4>
 <p>
-    Returns an object with two string properties: <code>relative</code> and <code>full</code>. Use
-    <code>relative</code> when showing paths to the user (preserves app-relative view). Use <code>full</code> when
-    resolving or writing files in the VFS.
+    Returns an string representing the current working directory of the worker. This is useful for resolving relative paths in the VFS.
 </p>
 <pre
     style="
@@ -227,7 +227,7 @@ let dragTarget = instance.titlebarElement;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
     "
 >
-const cwd = api.cwd(); // cwd.relative -> './data' (user-facing) // cwd.full -> '/systemfiles/runtime/apps/myapp/data' (absolute VFS path)</pre
+const cwd = api.cwd(); // cwd = '/path/to/navigated/cwd' </pre
 >
 <h4><code>api.prompt(message, options)</code> (prefill + multiline)</h4>
 <p>Workers can prompt the user inline via the terminal. The <code>options</code> object supports:</p>
@@ -278,8 +278,8 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
         <code>self.api.pasteFolder(destination, clipboard, options)</code> - copy or move items.
     </li>
     <li><code>self.api.launchApp(appId, args)</code> - launch another app from the worker.</li>
-    <li><code>self.api.watchFile(path, callback, options)</code> - watch a file for changes, renames, and deletes.</li>
-    <li><code>self.api.watchFolder(path, callback, options)</code> - watch a folder tree and receive change events.</li>
+    <li><code>self.api.watchFile(path, callback, options = {recursive: true|false})</code> - watch a file for changes, renames, and deletes.</li>
+    <li><code>self.api.watchFolder(path, callback, options = {recursive: true|false})</code> - watch a folder tree and receive change events.</li>
     <li><code>self.api.closeWatch(watchId)</code> - stop a specific watcher created by this worker.</li>
     <li><code>self.api.clearAllWatchers()</code> - stop every watcher registered by this worker instance.</li>
     <li>
@@ -310,17 +310,11 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     current Wi-Fi/user network policy via <code>networkToggle</code> / <code>allowNetwork</code> and the worker updates
     its local policy from the broadcast state.
 </p>
-<p>
-    Incoming runtime messages include <code>start</code>, <code>networkToggle</code>, <code>allowNetwork</code>,
-    <code>onkill</code>, <code>promptResponse</code>, and <code>apiResult</code>. Outgoing messages can use
-    <code>postMessage({ type: 'log' })</code>, <code>postMessage({ type: 'done' })</code>,
-    <code>postMessage({ type: 'api' })</code>, and the terminal line helpers to render output or request file actions.
-</p>
 <h2>Iframe App API</h2>
 <h3>Iframe API reference</h3>
 <p>
     Sandboxed apps should call <code>window.__goldenbodyAPI</code>. Every method returns a promise, so await it in async
-    code.
+    code. (note: some methods have options objects that are for later use, methods such as renameFile/renameFolder and deleteFile/deleteFolder, have options objects that are not used yet but may be used in the future)
 </p>
 <p>API summary:</p>
 <ul>
@@ -343,7 +337,7 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>watchFolder(pathOrHandle, callback, options)</code> - watch a folder tree and receive change events.</li>
     <li><code>closeWatch(watchId)</code> - stop a specific watcher by the id returned when it was created.</li>
     <li><code>clearAllWatchers()</code> - stop every watcher owned by this iframe app instance.</li>
-    <li><code>closeWindow()</code> - request the runtime to close the current instance window.</li>
+    <li><code>closeWindow(force)</code> - request the runtime to close the current instance window. force (boolean): if true, close without confirmation.</li>
     <li><code>getBounds()</code> - get the current app window bounds as an object with x, y, width, and height.</li>
     <li><code>setBounds(bounds)</code> - resize or reposition the current app window, including maximize/minimize states.</li>
     <li><code>setInstanceTitle(title)</code> - update the title of the current instance.</li>
@@ -352,8 +346,8 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>setDragstripVisibility(visible)</code> - show or hide the dragstrip for the current instance.</li>
     <li><code>getAvaliableAppsToLaunch()</code> - get a list of apps that can be launched from this instance.</li>
     <li><code>setTitlebarVisibility(visible)</code> - show or hide the titlebar for the current instance.</li>
-    <li><code>message(message, toInstance)</code> - send a message to another instance or broadcast to all instances.</li>
-    <li><code>messageToWorker(message)</code> - relay a message to the app worker for this instance.</li>
+    <li><code>message(message, toInstance)</code> - send a message to another instance or '*' to broadcast to all instances. toInstance is an integer representing the instance index.</li>
+    <li><code>messageToWorker(message)</code> - relay a message to the app worker for this instance. If any</li>
     <li><code>getCurInstanceNum()</code> - get the current instance index.</li>
     <li><code>getLiveInstanceIndex()</code> - get the number of active instances for this app.</li>
     <li><code>getInstanceTitle(instanceIndex)</code> - read the title of a specific app instance.</li>
@@ -361,7 +355,7 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>getTheme()</code> - return the current UI theme as <code>dark</code> or <code>light</code>.</li>
     <li><code>setTheme(theme)</code> - change the current app theme to <code>dark</code> or <code>light</code> or <code>auto</code>.</li>
     <li><code>setAskUserBeforeClose(value)</code> - enable or disable the close-confirmation prompt for this app.</li>
-    <li><code>Observer(callback, type)</code> - watch runtime postMessages of a given type.</li>
+    <li><code>Observer(callback, type)</code> - watch runtime messages of a given type.</li>
     <li><code>observer.disconnect()</code> - stop an existing message observer.</li>
     <li><code>FShandle({ path, key })</code> - lightweight handle wrapper used to reuse a permissioned VFS path/key pair.</li>
 </ul>
@@ -435,6 +429,24 @@ const workerWatch = self.api.watchFolder('./data', (event) => {
 });
 // close the watcher
 workerWatch.close();
+
+// send/listen to message from other instances
+const observer = window.__goldenbodyAPI.Observer((msg) => {
+    console.log('received message', msg);
+}, 'message');
+
+// send a message to all instances
+window.__goldenbodyAPI.message({ type: 'hello', payload: 42 }, '*');
+
+// send a message to a specific instance
+window.__goldenbodyAPI.message({ type: 'hello', payload: 42 }, 1);
+
+// stop listening for messages
+observer.disconnect();
+
+// send notification to the user
+alert('Hello, this is a notification!');
+// it will only show if the user has granted permission for notifications to this app
 </code></pre>
 <p>
     The runtime strips the internal app-root prefix from callback payloads so app code receives a stable,
@@ -584,9 +596,9 @@ await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true }
 <p>
     These APIs are used to copy or move clipboard-style payloads into a destination folder. Both API behave exactly the same, the naming difference is only in the function name, to keep code organized. The
     <code>clipboard</code> array contains objects like
-    <code>{ path: '/source/thing.txt', kind: 'file' }</code>. Example:
+    <code>{ path: '/source/thing.txt' }</code>. Example:
 </p>
-<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt', kind: 'file' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source' }, { move: false });</code></pre>
+<pre><code>await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/template.txt' }); // use options: { move: true } to move instead of copy await window.__goldenbodyAPI.pasteFolder(destHandle, { path: '/source' }, { move: false });</code></pre>
 <h4>Permission note</h4>
 <p>
     Read-like operations such as <code>readFile</code>, <code>readFolder</code>, <code>fileExists</code>, and
@@ -765,7 +777,7 @@ console.log(listing);
 
 await window.__goldenbodyAPI.renameFolder(folderHandle, 'new-name');
 </code></pre>
-<pre><code>const targetFolder = '/demo'; const clipboard = { path: '/demo/template.txt', kind: 'file' };
+<pre><code>const targetFolder = '/demo'; const clipboard = { path: '/demo/template.txt' };
 
 await window.__goldenbodyAPI.pasteFile(
 targetFolder,
