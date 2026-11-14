@@ -541,14 +541,15 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
         const eq = text.indexOf('=');
         if (eq > 0) {
-          assign(text.slice(0, eq).trim(), text.slice(eq + 1).trim());
+          const key = text.slice(0, eq).trim();
+          const value = text.slice(eq + 1).trim();
+          assign(key, value);
           continue;
         }
 
-        // Bare flags are treated as boolean true values for self.args.
-        if (!text.includes('=') && !text.includes(':') && !text.includes(' ')) {
-          assign(text, true);
-        }
+        // Bare arguments are exposed as boolean true in self.args, even when the
+        // original token contains escaped whitespace or quote characters.
+        assign(text, true);
       }
       return out;
     }
@@ -1514,7 +1515,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
           let worker;
           const resolvedScriptPath = scriptPath ? resolveTerminalPath(scriptPath, cwd) : null;
           const txt = await window.protectedGlobals.ReadFile(resolvedScriptPath, { text: true, direct: true });
-          const workerStartArgs = workerArgs.slice(1);
+          const workerStartArgs = parseJsonOrKvArgs(workerArgs.slice(1));
           // record explicit source for process listing
           try { instance.options = instance.options || {}; instance.options.source = workerPath || resolvedScriptPath; instance.options._sourceInferred = false; } catch (e) {}
           try { worker = await spawnWorkerFromScript(String(txt || ''), null, workerStartArgs); } catch (e) { printError('Failed to spawn worker: ' + String(e)); terminalBusy = false; updatePromptVisibility(); return; }

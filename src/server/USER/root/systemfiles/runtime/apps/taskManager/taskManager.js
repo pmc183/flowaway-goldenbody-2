@@ -306,8 +306,8 @@ window.taskManager = function (posX = 50, posY = 50) {
 
     (function makeResizable() {
       const BW = 8;
-      const minW = 720;
-      const minH = 420;
+      const minW = 500;
+      const minH = 400;
       active = null;
 
       function hitTest(e) {

@@ -487,11 +487,6 @@
         if (isProtectedSensitiveFilePath(filePath)) return app.requestAdminPerm === true;
         return true;
       })
-      .map((app) => ({
-        id: app.id || app.functionName || app.label,
-        label: app.label || app.functionName || app.id || "App",
-        functionName: app.functionName || app.id,
-      }))
       .filter((app) => app.functionName);
   }
 
@@ -909,7 +904,8 @@
               direct: true,
             });
 
-            window[app.functionName](effectiveShortcut.path, verify);
+            if (!app.requestAdminPerm) window[app.functionName](effectiveShortcut.path, verify);
+            else window[app.functionName](effectiveShortcut.path);
           });
 
           submenu.appendChild(appRow);

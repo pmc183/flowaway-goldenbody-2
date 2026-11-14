@@ -153,12 +153,12 @@ window.protectedGlobals.buildPersistableUserProfile = async function (overrides 
       ? Math.max(1, Math.min(64, Math.round(Number(overrides.taskbarRevealEdgePx))))
       : Number.isFinite(Number(runtime.taskbarRevealEdgePx))
         ? Math.max(1, Math.min(64, Math.round(Number(runtime.taskbarRevealEdgePx))))
-        : 6,
+        : 60,
     taskbarRevealHoldDelayMs: Number.isFinite(Number(overrides.taskbarRevealHoldDelayMs))
       ? Math.max(0, Math.min(5000, Math.round(Number(overrides.taskbarRevealHoldDelayMs))))
       : Number.isFinite(Number(runtime.taskbarRevealHoldDelayMs))
         ? Math.max(0, Math.min(5000, Math.round(Number(runtime.taskbarRevealHoldDelayMs))))
-        : 450,
+        : 1,
     autoupdate:
       typeof overrides.autoupdate === "boolean"
         ? overrides.autoupdate
@@ -492,6 +492,9 @@ window.protectedGlobals.rebuildhandler = function () {
     delete window.protectedGlobals.systemAPIs.processTrackerSyncTimer;
   }
 
+  // remove all observers
+  window.protectedGlobals.appObserver.disconnect();
+  window.protectedGlobals.cursorObserver.disconnect();
 
   if (window.protectedGlobals.process && window.protectedGlobals.FlowawayProcess && window.protectedGlobals.process === window.protectedGlobals.FlowawayProcess) {
     delete window.protectedGlobals.process;
