@@ -1695,20 +1695,31 @@ window.settings = function (posX = 50, posY = 50) {
 
   const aboutRow = document.createElement("div");
   aboutRow.style.display = "flex";
-  aboutRow.style.alignItems = "center";
-  aboutRow.style.justifyContent = "space-between";
+  aboutRow.style.flexDirection = "column";
+  aboutRow.style.alignItems = "flex-start";
+  aboutRow.style.gap = "8px";
   aboutRow.style.marginTop = "8px";
 
   const aboutText = document.createElement("div");
   aboutText.textContent = "About Flowaway Goldenbody";
   aboutText.style.fontSize = "13px";
 
+  const aboutButtonsRow = document.createElement("div");
+  aboutButtonsRow.style.display = "flex";
+  aboutButtonsRow.style.flexWrap = "wrap";
+  aboutButtonsRow.style.gap = "8px";
+  aboutButtonsRow.style.alignItems = "center";
+
   const aboutBtn = document.createElement("button");
   aboutBtn.textContent = "Developer Docs";
   aboutBtn.className = "settings-action-button";
-  aboutBtn.style.marginLeft = "8px";
 
-  aboutRow.append(aboutText, aboutBtn);
+  const userGuideBtn = document.createElement("button");
+  userGuideBtn.textContent = "User Guide";
+  userGuideBtn.className = "settings-action-button";
+
+  aboutButtonsRow.append(aboutBtn, userGuideBtn);
+  aboutRow.append(aboutText, aboutButtonsRow);
   mainContainer.appendChild(aboutRow);
 
   function showAboutDialog() {
@@ -2643,7 +2654,221 @@ clipboard
     })();
   }
 
+  function showUserGuideDialog() {
+    const existing = document.getElementById("settings-user-guide-dialog");
+    if (existing) {
+      existing.style.display = "flex";
+      return;
+    }
+
+    const dlg = document.createElement("div");
+    dlg.id = "settings-user-guide-dialog";
+    Object.assign(dlg.style, {
+      position: "fixed",
+      left: "calc(50% - 300px)",
+      top: "calc(50% - 90px)",
+      width: "50vw",
+      height: "60vh",
+      minHeight: "220px",
+      minWidth: "420px",
+      background: window.protectedGlobals.data.dark ? "#222" : "#fff",
+      color: window.protectedGlobals.data.dark ? "#fff" : "#000",
+      borderRadius: "8px",
+      boxShadow: "0 8px 30px rgba(0,0,0,0.3)",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      zIndex: 3000,
+      resize: "both",
+    });
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.justifyContent = "flex-start";
+    header.style.padding = "8px 10px";
+    header.style.cursor = "move";
+    header.style.background = window.protectedGlobals.data.dark ? "#111" : "#f1f1f1";
+    header.style.flexShrink = "0";
+    header.style.position = "relative";
+
+    const htitle = document.createElement("div");
+    htitle.textContent = "User Guide";
+    htitle.style.fontWeight = "600";
+
+    const closeX = document.createElement("button");
+    closeX.setAttribute("aria-label", "Close dialog");
+    closeX.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M6 6L18 18" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M18 6L6 18" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+      </svg>
+    `;
+    Object.assign(closeX.style, {
+      border: "none",
+      background: "red",
+      cursor: "pointer",
+      width: "35px",
+      height: "23px",
+      padding: "0",
+      display: "grid",
+      placeItems: "center",
+      lineHeight: "0",
+      position: "absolute",
+      right: "8px",
+      top: "8px",
+    });
+
+    header.append(htitle);
+    dlg.appendChild(header);
+    dlg.appendChild(closeX);
+
+    const content = document.createElement("div");
+    content.style.padding = "12px";
+    content.style.fontSize = "13px";
+    content.style.flex = "1";
+    content.style.overflow = "auto";
+    content.innerHTML = `
+<h2>Flowaway Goldenbody User Guide</h2>
+<p>Flowaway Goldenbody is a desktop-style interface, built to feel familiar: you launch apps, organize windows, personalize your workspace, and move between tools without leaving the desktop.</p>
+
+<h3>Start here: the desktop</h3>
+<ul>
+  <li>Open apps from the Start menu, desktop shortcuts, or the taskbar.</li>
+  <li>Use the desktop like a normal workspace: place shortcuts where you want them and keep your most-used apps close at hand.</li>
+  <li>Drag windows around the screen, resize them, and use the window controls to minimize, maximize, restore, or close apps.</li>
+  <li>Switch between open apps from the taskbar or by using keyboard shortcuts like Ctrl+Tab or Alt+Tab. Use Shift+Tab instead of Tab to moves backward.</li>
+</ul>
+
+<h3>Start menu, taskbar, and pinned apps</h3>
+<p>The Start menu is your main launcher. The taskbar helps you stay organized while working across multiple apps.</p>
+<ul>
+  <li>Pin your favorite apps so they are always easy to open.</li>
+  <li>Use the Recent list to jump back to things you used recently.</li>
+  <li>Browse all installed apps from the All Apps tab when you want a complete list.</li>
+  <li>Use the Shortcuts tab for quick system actions like taking screenshots and changing brightness.</li>
+  <li>If the taskbar is set to auto-hide, move your pointer to the edge of the screen to bring it back.</li>
+</ul>
+
+<h3>Desktop shortcuts and app launchers</h3>
+<p>Shortcuts make it easier to open apps without hunting through menus every time.</p>
+<ul>
+  <li>Create desktop shortcuts for apps you use often.</li>
+  <li>Move shortcuts around the desktop to build a layout that suits your workflow.</li>
+  <li>Pin apps to the taskbar or Start menu for even faster access.</li>
+  <li>If an app freezes, use the system settings to force it closed or review its status from the app manager.</li>
+</ul>
+
+<h3>Files and folders</h3>
+<p>Flowaway Goldenbody includes a file system you can browse and manage from the file explorer. It is designed for organizing files, opening documents, and using apps that work with local content.</p>
+<ul>
+  <li>Open files from the file explorer.</li>
+  <li>Use the built-in open-with flow when opening a file with an app.</li>
+  <li>Keep important work organized in a few folders instead of scattering files across the desktop.</li>
+  <li>Use file explorer to check app data, documents, and saved content.</li>
+</ul>
+
+<h3>App management and everyday tools</h3>
+<p>You can manage full app experiences, inspect system state, and use helper tools for common tasks.</p>
+<ul>
+  <li>Use the Task Manager to see running apps. Not every app is listed there because most apps live on the main process; They are system apps.</li>
+  <li>Open apps from the Start menu.</li>
+  <li>Take screenshots and capture what is on screen when you need to share or save something quickly.</li>
+</ul>
+
+<h3>Customize the look and feel</h3>
+<p>Settings lets you personalize the environment so it is easier to use for long sessions and everything feels comfortable.</p>
+<ul>
+  <li>Adjust brightness and dark mode.</li>
+  <li>Change the wallpaper and desktop appearance.</li>
+  <li>Set how the taskbar behaves, including auto-hide timing and location.</li>
+  <li>Control notifications and other visual settings.</li>
+  <li>Review installed apps and update or manage them from one place.</li>
+</ul>
+
+<h3>Notifications, accounts, and security</h3>
+<p>Most desktop environments need some control over what apps can do. Flowaway Goldenbody gives you a central place to manage that without making it confusing.</p>
+<ul>
+  <li>Review app requests before allowing access to files, notifications, or other features.</li>
+  <li>Turn non-system notifications off if you want fewer distractions.</li>
+  <li>Change account settings or delete your account from Settings when needed.</li>
+  <li>Use the app list and system controls to keep your workspace clean and stable.</li>
+</ul>
+
+<h3>Best practices</h3>
+<ul>
+  <li>Keep your most-used apps pinned so they are always one click away.</li>
+  <li>Close apps you are done with to keep the taskbar and desktop tidy.</li>
+  <li>Review permissions when an app asks for access, especially for file or notification features.</li>
+  <li>Use the Start menu, shortcuts, and file explorer instead of digging through the system manually for regular tasks.</li>
+  <li>If an app stops responding, try the Task Manager or the Settings app before removing anything important.</li>
+</ul>
+
+<h3>When to use the Developer Docs</h3>
+<p>The Developer Docs are for people building or modifying apps, runtime features, or system internals. The User Guide is meant for everyday use: launching apps, organizing files, customizing the desktop, and getting work done.</p>
+
+<h3>Quick summary</h3>
+<p>Flowaway Goldenbody is a full desktop-style operating environment that allows you to launch apps, move between windows, browse files, personalize the experience, and manage the system from a central settings panel. Of course not every feature is listed here, the rest is for you to explore!</p>
+
+<h3>OS version</h3>
+<p>v2.7.7</p>
+`;
+
+    dlg.appendChild(content);
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.padding = "8px 12px 12px";
+    footer.style.borderTop = "1px solid rgba(255,255,255,0.08)";
+
+    const closeFooterBtn = document.createElement("button");
+    closeFooterBtn.textContent = "Close";
+    closeFooterBtn.className = "settings-primary-button";
+    closeFooterBtn.onclick = () => dlg.remove();
+
+    footer.appendChild(closeFooterBtn);
+    dlg.appendChild(footer);
+
+    document.body.appendChild(dlg);
+    closeX.onclick = () => dlg.remove();
+
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let origLeft = 0;
+    let origTop = 0;
+
+    header.addEventListener("pointerdown", (ev) => {
+      dragging = true;
+      startX = ev.clientX;
+      startY = ev.clientY;
+      origLeft = dlg.offsetLeft;
+      origTop = dlg.offsetTop;
+      header.setPointerCapture(ev.pointerId);
+      document.body.style.userSelect = "none";
+    });
+
+    window.addEventListener("pointermove", (ev) => {
+      if (!dragging) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      dlg.style.left = (origLeft + dx) + "px";
+      dlg.style.top = Math.max(0, origTop + dy) + "px";
+    });
+
+    window.addEventListener("pointerup", (ev) => {
+      if (!dragging) return;
+      dragging = false;
+      try {
+        header.releasePointerCapture(ev.pointerId);
+      } catch (e) {}
+      document.body.style.userSelect = "";
+    });
+  }
+
   aboutBtn.addEventListener("click", showAboutDialog);
+  userGuideBtn.addEventListener("click", showUserGuideDialog);
 
   window.settingsGlobals.allSettings.push({
     rootElement: root,

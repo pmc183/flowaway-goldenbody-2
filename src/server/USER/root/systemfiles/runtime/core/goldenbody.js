@@ -1092,12 +1092,12 @@ await (async function () {
   var autohideEnabled = !!(window.protectedGlobals.data.autohidetaskbar);
   function getTaskbarRevealEdgePx() {
     var v = Number(window.protectedGlobals.data.taskbarRevealEdgePx);
-    if (!Number.isFinite(v)) return 6;
+    if (!Number.isFinite(v)) return 60;
     return Math.max(1, Math.min(64, Math.round(v)));
   }
   function getTaskbarRevealHoldDelayMs() {
     var v = Number(window.protectedGlobals.data.taskbarRevealHoldDelayMs);
-    if (!Number.isFinite(v)) return 450;
+    if (!Number.isFinite(v)) return 1;
     return Math.max(0, Math.min(5000, Math.round(v)));
   }
   // Ensure global handler registry exists and clean any previous autohide listeners
@@ -1612,13 +1612,7 @@ await (async function () {
     btn.style.width = "60px";
     btn.style.fontSize = "30px"; // Ensures
     btn.addEventListener("click", () => {
-      console.log("Task clicked:", btn.value);
       onclickFunc();
-      if (name == '⤢' || name == "▶") return;
-      var aid = (btn.dataset && btn.dataset.appId) ? btn.dataset.appId : (btn.value && String(btn.value).trim());
-      if (aid && (window.protectedGlobals.addToRecents)) {
-        window.protectedGlobals.addToRecents(aid);
-      }
     });
     if (appId) {
       btn.dataset.appId = appId;
@@ -1834,6 +1828,7 @@ await (async function () {
     });
   });
   appObserver.observe(document.body, { childList: true, subtree: true });
+  window.protectedGlobals.appObserver = appObserver;
 })();
 window.protectedGlobals.goldenbodyInitialized = true;
 })();

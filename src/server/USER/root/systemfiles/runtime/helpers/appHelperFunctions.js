@@ -31,15 +31,62 @@ window.protectedGlobals.resolveApptoolsContext = function (appId, rootElement) {
   };
 };
 
-window.protectedGlobals.changeCursorToWait = function () {
-    document.querySelectorAll('*').forEach((el) => {
-    if ((el.style.cursor !== "progress" && (el.style.cursor === "" || el.style.cursor === "default")) && !el.closest(".app-window-root")) el.style.cursor = "progress";
-  });
+window.protectedGlobals.activeOperations = 0;
+window.protectedGlobals.originalCursors = new Map();
+
+window.protectedGlobals.applyWaitCursor = function (el) {
+    if (
+        ["", "default", "pointer"].includes(el.style.cursor)
+    ) {
+        window.protectedGlobals.originalCursors.set(el, el.style.cursor);
+        el.style.cursor = "progress";
+    }
 };
+
+window.protectedGlobals.cursorObserver = new MutationObserver((mutations) => {
+    if (window.protectedGlobals.activeOperations <= 0) return;
+
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+            window.protectedGlobals.applyWaitCursor(node);
+
+            node.querySelectorAll("*").forEach((el) => {
+                window.protectedGlobals.applyWaitCursor(el);
+            });
+        });
+    });
+});
+
+window.protectedGlobals.cursorObserver.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+window.protectedGlobals.changeCursorToWait = function () {
+    window.protectedGlobals.activeOperations++;
+
+    if (window.protectedGlobals.activeOperations > 1) return;
+
+    document.querySelectorAll("*").forEach((el) => {
+        window.protectedGlobals.applyWaitCursor(el);
+    });
+};
+
 window.protectedGlobals.changeCursorToDefault = function () {
-    document.querySelectorAll('*').forEach((el) => {
-    if (el.style.cursor === "progress") el.style.cursor = "default";
-  });
+    window.protectedGlobals.activeOperations = Math.max(
+        0,
+        window.protectedGlobals.activeOperations - 1
+    );
+
+    if (window.protectedGlobals.activeOperations > 0) return;
+
+    window.protectedGlobals.originalCursors.forEach((cursor, el) => {
+        el.style.cursor = cursor;
+    });
+
+    window.protectedGlobals.originalCursors.clear();
 };
 
 window.protectedGlobals.launchApp = async function (appId, args) {
@@ -55,6 +102,7 @@ window.protectedGlobals.launchApp = async function (appId, args) {
   let result = null;
   // change cursor shape to wait while the app is loading
   window.protectedGlobals.changeCursorToWait();
+  let success = true;
   try {
     if (app.requestAdminPerm) {
       result = await window[app.functionName](...window.protectedGlobals._launchContext.args);
@@ -62,10 +110,14 @@ window.protectedGlobals.launchApp = async function (appId, args) {
       result = await window[app.functionName](undefined, undefined, args);
     }
   } catch (err) {
+    success = false;
     alert(err);
   }
   // change it back
   window.protectedGlobals.changeCursorToDefault();
+  if (success) {
+    window.protectedGlobals.addToRecents(appId);
+  }
   return result;
 };
 

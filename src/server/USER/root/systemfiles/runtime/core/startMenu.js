@@ -60,7 +60,7 @@ const ensureStartMenuConfig = async function () {
   return window.protectedGlobals._startMenuConfig;
 }
 
-const addToRecents = window.protectedGlobals.addToRecents = async function (appId) {
+window.protectedGlobals.addToRecents = async function (appId) {
   await ensureStartMenuConfig();
   const recents = window.protectedGlobals._startMenuConfig.recents || [];
   const index = recents.indexOf(appId);
@@ -683,7 +683,6 @@ div.innerHTML = ` ${app.pngEnabled ? `<img src="data:image/[FORMAT];base64,${app
 
   // Click to launch
   div.addEventListener('click', () => {
-    addToRecents(div.dataset.appId);
     window.protectedGlobals.launchApp(div.dataset.appId);
     startMenu.style.display = 'none';
   });
@@ -846,7 +845,7 @@ window.protectedGlobals.starthandler = () => {
 };
 
 // Note: App launching is now handled by createAppTile click handler
-// which includes addToRecents and closes the menu
+// which closes the menu
 
 
 // ----------------- CLOSE MENU ON OUTSIDE CLICK -----------------

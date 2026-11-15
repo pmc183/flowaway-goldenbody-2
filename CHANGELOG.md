@@ -285,3 +285,10 @@
 - fixed a long time bug where autocomplete in terminal doesn't work when inputting args
 - fixed a bug where autocomplete in terminal inserts extra / in front of paths
 - updated behavior to allow readfolder/(file/folder)exists api to work under all conditions in terminal
+
+# V 2.7.7
+- added user guide in settings app.
+- fixed path only arguments in terminal breaks the tokenizer
+- change taskbar reveal ms to default 1 ms
+- cursor to wait should apply to all thats not a normal pointer, fixed some performance issues regarding looping all DOM elements when setting cursor.
+- fixed arguments given to terminal workers is not object

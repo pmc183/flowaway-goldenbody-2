@@ -2877,8 +2877,9 @@ setTimeout(() => {
         // console.log(root);
         window.protectedGlobals.changeCursorToWait();
         try {
+          const draggedTabId = window.browserGlobals.draggedtab.id;
           await __promise;
-          window.browserGlobals.dragstartwindow.closeTab(window.browserGlobals.draggedtab.id);
+          window.browserGlobals.dragstartwindow.closeTab(draggedTabId);
         } catch {}
         finally {
           window.protectedGlobals.changeCursorToDefault();

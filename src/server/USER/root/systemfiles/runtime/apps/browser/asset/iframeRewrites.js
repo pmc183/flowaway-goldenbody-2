@@ -329,11 +329,24 @@ async function iframePatches() {
 
       if (hasImage) {
         const imageUrl = normalizeContextMenuUrl(imageElement.src);
-        addContextMenuItem("Open image in new tab", () => {
-          addTab(imageUrl, "Image");
+        addContextMenuItem("Back", () => {
+          historyNavigate(tab, -1);
+          hideMenu();
         });
-        addContextMenuItem("Open image in new window", () => {
-          window.browser(imageUrl);
+        addContextMenuItem("Forward", () => {
+          historyNavigate(tab, 1);
+          hideMenu();
+        });
+        addContextMenuItem("Reload", () => {
+          let tmp = window.browserGlobals.unshuffleURL(
+            patchedTab.iframe.contentWindow.location.href,
+          );
+          if (looksLikeLocalFilePath(tmp)) {
+            openUrlInActiveTab(tmp);
+          } else {
+            patchedTab.iframe.contentWindow.location.reload();
+          }
+          hideMenu();
         });
         addContextMenuItem("Copy image address", async () => {
           await navigator.clipboard.writeText(imageUrl);
