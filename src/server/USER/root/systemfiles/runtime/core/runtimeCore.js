@@ -1261,7 +1261,7 @@ window.protectedGlobals.installApp = async function (folderName, options = {}) {
   
   const appFolders = await window.protectedGlobals.ReadFolder("/systemfiles/runtime/apps").catch(() => []);
   for (const f of appFolders) {
-    if (f[0] === folderName) {
+    if (f === folderName) {
       let appData = await window.protectedGlobals.extractAppData(f);
       window.protectedGlobals.apps.sort((a, b) => a.label.localeCompare(b.label));
       window.protectedGlobals.initAppRuntimeState(appData);

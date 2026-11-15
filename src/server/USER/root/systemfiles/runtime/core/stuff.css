@@ -24,6 +24,148 @@
     padding-right: 2px;
 }
 
+.startMenuToolbar {
+    margin: 0 0 10px;
+    padding: 0;
+}
+
+.startMenuToolbarRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.startMenuSearchWrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.startMenuSearchIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.75;
+}
+
+#allAppsSearchInput {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    outline: none;
+    font-size: 13px;
+}
+
+#allAppsSearchInput::placeholder {
+    color: inherit;
+    opacity: 0.7;
+}
+
+.startMenuFilterGroup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.startMenuFilterBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: inherit;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.startMenuToggleIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.startMenuToggleIcon svg {
+    display: block;
+}
+
+.startMenuFilterBtn.active {
+    background: #4A90E2;
+    border-color: #4A90E2;
+    color: #ffffff;
+}
+
+.startMenuFilterBtn:hover {
+    transform: translateY(-1px);
+}
+
+.startMenuAppGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.tabSection.active.grid-view > .startMenuAppGroup {
+    grid-column: 1 / -1;
+}
+
+.startMenuAppGroupHeader {
+    margin: 0 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.72;
+}
+
+.startMenuAppGroupGrid,
+.startMenuAppList,
+.startMenuAppGroupList {
+    display: grid;
+    gap: 8px;
+}
+
+.startMenuAppGroupGrid,
+.startMenuAppGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-content: start;
+}
+
+.startMenuAppList,
+.startMenuAppGroupList {
+    grid-template-columns: 1fr;
+}
+
+.tabSection.list-view .app {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    text-align: left;
+}
+
+.tabSection.list-view .app img {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
 .startMenuBody::-webkit-scrollbar {
     display: none;
     width: 0;

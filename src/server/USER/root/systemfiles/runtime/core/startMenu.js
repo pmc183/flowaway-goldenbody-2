@@ -57,6 +57,15 @@ const ensureStartMenuConfig = async function () {
   if (!Array.isArray(window.protectedGlobals._startMenuConfig.recents)) {
     window.protectedGlobals._startMenuConfig.recents = [];
   }
+  if (!window.protectedGlobals._startMenuConfig.displayMode) {
+    window.protectedGlobals._startMenuConfig.displayMode = startMenuDefaults.displayMode;
+  }
+  if (!window.protectedGlobals._startMenuConfig.sortOrder) {
+    window.protectedGlobals._startMenuConfig.sortOrder = startMenuDefaults.sortOrder;
+  }
+  if (typeof window.protectedGlobals._startMenuConfig.sortSections !== 'boolean') {
+    window.protectedGlobals._startMenuConfig.sortSections = startMenuDefaults.sortSections;
+  }
   return window.protectedGlobals._startMenuConfig;
 }
 
@@ -93,6 +102,73 @@ startMenu.id = "startMenu";
 startMenu.className = "startMenu";
 startMenu.style.zIndex = 100001; // maximum z-index to ensure it appears on top of everything
 
+const startMenuDefaults = {
+  displayMode: "tile",
+  sortOrder: "asc",
+  sortSections: false,
+};
+
+const normalizeStartMenuConfigValue = function (value, fallback, allowedValues) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (allowedValues && allowedValues.indexOf(normalized) === -1) {
+    return fallback;
+  }
+  return normalized;
+};
+
+const getConfiguredDisplayMode = function () {
+  const config = window.protectedGlobals._startMenuConfig || {};
+  const mode = normalizeStartMenuConfigValue(config.displayMode, startMenuDefaults.displayMode, ["tile", "list"]);
+  return mode === "list" ? "list" : "tile";
+};
+
+const getConfiguredSortOrder = function () {
+  const config = window.protectedGlobals._startMenuConfig || {};
+  return normalizeStartMenuConfigValue(config.sortOrder, startMenuDefaults.sortOrder, ["asc", "desc"]);
+};
+
+const getConfiguredSortSections = function () {
+  const config = window.protectedGlobals._startMenuConfig || {};
+  if (typeof config.sortSections === "boolean") return config.sortSections;
+  const value = String(config.sortSections || "").trim().toLowerCase();
+  return value === "true" || value === "yes" || value === "1";
+};
+
+const getAppSortLabel = function (app) {
+  const label = app && (app.label || app.id || app.name || "");
+  return String(label || "").trim();
+};
+
+const compareAppLabels = function (a, b, order) {
+  const left = getAppSortLabel(a).toLocaleLowerCase();
+  const right = getAppSortLabel(b).toLocaleLowerCase();
+  if (left === right) return 0;
+  if (order === "desc") {
+    return left > right ? -1 : 1;
+  }
+  return left < right ? -1 : 1;
+};
+
+const getAllAppsSearchQuery = function () {
+  const input = document.getElementById("allAppsSearchInput");
+  if (!input) return "";
+  return String(input.value || "").trim().toLowerCase();
+};
+
+const updateStartMenuBodyPosition = function () {
+  const body = document.querySelector(".startMenuBody");
+  const toolbar = document.getElementById("startMenuToolbar");
+  if (!body) return;
+  if (toolbar && toolbar.style.display !== "none") {
+    body.style.top = "134px";
+    return;
+  }
+  body.style.top = "90px";
+};
+
 const signOutSvg = `
 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -124,13 +200,16 @@ const syncStartMenuTheme = function () {
   const isDark = !!(window.protectedGlobals && window.protectedGlobals.data && window.protectedGlobals.data.dark);
   startMenu.classList.toggle('dark', isDark);
   startMenu.classList.toggle('light', !isDark);
+
+  const theme = isDark;
+  const baseBg = theme ? '#1f1f1f' : '#ffffff';
+  const inputBg = theme ? '#161616' : '#f8fafc';
+  const hoverBg = theme ? '#2a2a2a' : '#f3f4f6';
+  const border = theme ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(15,23,42,0.08)';
+  const color = theme ? '#f5f5f5' : '#1f2937';
+  const shadow = theme ? '0 0 0 1px rgba(255,255,255,0.02)' : '0 0 0 1px rgba(15,23,42,0.04)';
+
   startMenu.querySelectorAll('.start-menu-shortcut').forEach((btn) => {
-    const theme = isDark;
-    const baseBg = theme ? '#1f1f1f' : '#ffffff';
-    const hoverBg = theme ? '#2a2a2a' : '#f3f4f6';
-    const border = theme ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(15,23,42,0.08)';
-    const color = theme ? '#f5f5f5' : '#1f2937';
-    const shadow = theme ? '0 0 0 1px rgba(255,255,255,0.02)' : '0 0 0 1px rgba(15,23,42,0.04)';
     btn.style.background = baseBg;
     btn.style.border = border;
     btn.style.color = color;
@@ -139,6 +218,29 @@ const syncStartMenuTheme = function () {
     btn.dataset.hoverBg = hoverBg;
     btn.style.transform = 'translateY(0)';
   });
+
+  startMenu.querySelectorAll('.startMenuFilterBtn, .startMenuSearchWrap, .startMenuToolbar').forEach((node) => {
+    if (!node) return;
+    if (node.classList && node.classList.contains('startMenuSearchWrap')) {
+      node.style.background = inputBg;
+      node.style.border = border;
+      node.style.boxShadow = shadow;
+    } else if (node.classList && node.classList.contains('startMenuToolbar')) {
+      node.style.background = theme ? 'rgba(255,255,255,0.02)' : 'rgba(15,23,42,0.02)';
+      node.style.borderBottom = theme ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(15,23,42,0.05)';
+    } else {
+      node.style.background = baseBg;
+      node.style.border = border;
+      node.style.color = color;
+      node.style.boxShadow = shadow;
+    }
+  });
+
+  const searchInput = document.getElementById('allAppsSearchInput');
+  if (searchInput) {
+    searchInput.style.color = color;
+    searchInput.style.background = 'transparent';
+  }
 };
 
 startMenu.innerHTML = `
@@ -150,6 +252,43 @@ startMenu.innerHTML = `
   <button class="startMenuTab" data-tab="recents">Recent</button>
   <button class="startMenuTab" data-tab="all">All Apps</button>
   <button class="startMenuTab" data-tab="shortcuts">Shortcuts</button>
+</div>
+
+<div id="startMenuToolbar" class="startMenuToolbar" style="display:none;">
+  <div class="startMenuToolbarRow">
+    <label class="startMenuSearchWrap" aria-label="Search apps">
+      <span class="startMenuSearchIcon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="6"></circle>
+          <path d="M16 16l5 5"></path>
+        </svg>
+      </span>
+      <input id="allAppsSearchInput" type="search" placeholder="Search apps" autocomplete="off" />
+    </label>
+    <div class="startMenuFilterGroup">
+      <button type="button" class="startMenuFilterBtn startMenuDisplayToggle" data-display-mode="tile" aria-label="Toggle app layout">
+        <span class="startMenuToggleIcon">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+            <rect x="14" y="3" width="7" height="3.2" rx="1"></rect>
+            <rect x="14" y="8.2" width="7" height="12.8" rx="1"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+          </svg>
+        </span>
+        <span>Tiles</span>
+      </button>
+      <button type="button" class="startMenuFilterBtn startMenuSortToggle" data-sort-order="asc" aria-label="Toggle sort order">
+        <span class="startMenuToggleIcon">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 5v14"></path>
+            <path d="M8 9l4-4 4 4"></path>
+          </svg>
+        </span>
+        <span>A→Z</span>
+      </button>
+      <button type="button" class="startMenuFilterBtn startMenuGroupBtn" data-group-mode="off">No groups</button>
+    </div>
+  </div>
 </div>
 
 <div class="startMenuBody">
@@ -187,8 +326,115 @@ document.body.appendChild(startMenu);
 window.protectedGlobals.tabButtons = startMenu.querySelectorAll('.startMenuTab');
 window.protectedGlobals.tabSections = startMenu.querySelectorAll('.tabSection');
 
+const syncStartMenuToolbar = function () {
+  const toolbar = document.getElementById('startMenuToolbar');
+  if (!toolbar) return;
+
+  const activeTab = window.protectedGlobals.activeStartTab || 'pinned';
+  const isAllAppsTab = activeTab === 'all';
+  toolbar.style.display = isAllAppsTab ? 'block' : 'none';
+  updateStartMenuBodyPosition();
+
+  const displayMode = getConfiguredDisplayMode();
+  const sortOrder = getConfiguredSortOrder();
+  const grouped = getConfiguredSortSections();
+
+  const displayButton = toolbar.querySelector('[data-display-mode]');
+  if (displayButton) {
+    displayButton.dataset.displayMode = displayMode;
+    displayButton.classList.toggle('active', true);
+    displayButton.setAttribute('aria-pressed', String(displayMode === 'list'));
+    const displayIcon = displayMode === 'list'
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="3.2" rx="1"></rect><rect x="14" y="8.2" width="7" height="12.8" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>';
+    displayButton.innerHTML = `<span class="startMenuToggleIcon">${displayIcon}</span><span>${displayMode === 'list' ? 'List' : 'Tiles'}</span>`;
+  }
+
+  const sortButton = toolbar.querySelector('[data-sort-order]');
+  if (sortButton) {
+    sortButton.dataset.sortOrder = sortOrder;
+    sortButton.classList.toggle('active', true);
+    sortButton.setAttribute('aria-pressed', String(sortOrder === 'desc'));
+    const sortIcon = sortOrder === 'desc'
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M16 15l-4 4-4-4"></path></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M8 9l4-4 4 4"></path></svg>';
+    sortButton.innerHTML = `<span class="startMenuToggleIcon">${sortIcon}</span><span>${sortOrder === 'desc' ? 'Z→A' : 'A→Z'}</span>`;
+  }
+
+  const groupButton = toolbar.querySelector('[data-group-mode]');
+  if (groupButton) {
+    groupButton.dataset.groupMode = grouped ? 'on' : 'off';
+    groupButton.textContent = grouped ? 'Grouped' : 'No groups';
+    groupButton.classList.toggle('active', grouped);
+  }
+
+  const allSection = startMenu.querySelector('.tabSection[data-tab="all"]');
+  if (allSection) {
+    allSection.classList.toggle('list-view', displayMode === 'list');
+    allSection.classList.toggle('grid-view', displayMode !== 'list');
+  }
+};
+
+const bindStartMenuToolbar = function () {
+  const toolbar = document.getElementById('startMenuToolbar');
+  if (!toolbar || toolbar.dataset.bound === 'true') return;
+  toolbar.dataset.bound = 'true';
+
+  const searchInput = document.getElementById('allAppsSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      if (window.protectedGlobals.activeStartTab === 'all') {
+        renderAllAppsGrid();
+      }
+    });
+  }
+
+  const displayButton = toolbar.querySelector('[data-display-mode]');
+  if (displayButton) {
+    displayButton.addEventListener('click', async () => {
+      await ensureStartMenuConfig();
+      const nextMode = displayButton.dataset.displayMode === 'list' ? 'tile' : 'list';
+      window.protectedGlobals._startMenuConfig.displayMode = nextMode;
+      await saveStartMenuConfig();
+      syncStartMenuToolbar();
+      if (window.protectedGlobals.activeStartTab === 'all') {
+        renderAllAppsGrid();
+      }
+    });
+  }
+
+  const sortButton = toolbar.querySelector('[data-sort-order]');
+  if (sortButton) {
+    sortButton.addEventListener('click', async () => {
+      await ensureStartMenuConfig();
+      const nextOrder = sortButton.dataset.sortOrder === 'desc' ? 'asc' : 'desc';
+      window.protectedGlobals._startMenuConfig.sortOrder = nextOrder;
+      await saveStartMenuConfig();
+      syncStartMenuToolbar();
+      if (window.protectedGlobals.activeStartTab === 'all') {
+        renderAllAppsGrid();
+      }
+    });
+  }
+
+  const groupButton = toolbar.querySelector('[data-group-mode]');
+  if (groupButton) {
+    groupButton.addEventListener('click', async () => {
+      await ensureStartMenuConfig();
+      const shouldGroup = groupButton.dataset.groupMode !== 'on';
+      window.protectedGlobals._startMenuConfig.sortSections = shouldGroup;
+      await saveStartMenuConfig();
+      syncStartMenuToolbar();
+      if (window.protectedGlobals.activeStartTab === 'all') {
+        renderAllAppsGrid();
+      }
+    });
+  }
+};
+
 const switchTab = window.protectedGlobals.switchTab = function switchTab(tabName) {
   if (!tabName) return;
+  window.protectedGlobals.activeStartTab = tabName;
   document
     .querySelectorAll('.app-context-menu, .app-menu')
     .forEach(function (menuNode) {
@@ -208,14 +454,16 @@ const switchTab = window.protectedGlobals.switchTab = function switchTab(tabName
   var section = startMenu.querySelector(`.tabSection[data-tab="${tabName}"]`);
   if (section) {
     section.classList.add('active');
-    section.style.display = section.classList.contains('list-view')
-      ? 'flex'
-      : 'grid';
+    const isListView = section.classList.contains('list-view') || (tabName === 'all' && getConfiguredDisplayMode() === 'list');
+    section.style.display = isListView ? 'flex' : 'grid';
   }
 
   // Activate selected tab
   var btn = startMenu.querySelector(`.startMenuTab[data-tab="${tabName}"]`);
   if (btn) btn.classList.add('active');
+
+  bindStartMenuToolbar();
+  syncStartMenuToolbar();
 
   // Render appropriate grid
   if (tabName === 'pinned') renderPinnedAppsGrid();
@@ -605,26 +853,98 @@ const renderAllAppsGrid = async function () {
   container.innerHTML = '';
 
   if (!window.protectedGlobals.apps) return;
-  for (const app of window.protectedGlobals.apps) {
-    if (app.headless) continue;
-    createAppTile(app, container, false);
+  const query = getAllAppsSearchQuery();
+  const order = getConfiguredSortOrder();
+  const grouped = getConfiguredSortSections();
+  const displayMode = getConfiguredDisplayMode();
+
+  const filteredApps = window.protectedGlobals.apps.filter((app) => {
+    if (app.headless) return false;
+    if (!query) return true;
+    const haystack = `${app.label || app.id || ''} ${app.id || ''}`.toLowerCase();
+    return haystack.includes(query);
+  });
+
+  filteredApps.sort((a, b) => compareAppLabels(a, b, order));
+
+  const appendGroup = function (groupKey, apps) {
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'startMenuAppGroup';
+
+    const heading = document.createElement('div');
+    heading.className = 'startMenuAppGroupHeader';
+    heading.textContent = groupKey;
+    groupWrap.appendChild(heading);
+
+    const inner = document.createElement('div');
+    inner.className = displayMode === 'list' ? 'startMenuAppGroupList' : 'startMenuAppGroupGrid';
+    for (const app of apps) {
+      inner.appendChild(createAppTile(app, inner, false, displayMode === 'list'));
+    }
+    groupWrap.appendChild(inner);
+    container.appendChild(groupWrap);
+  };
+
+  if (grouped) {
+    const groups = new Map();
+    for (const app of filteredApps) {
+      const label = getAppSortLabel(app);
+      const firstLetter = label ? label.trim()[0].toUpperCase() : '#';
+      const groupKey = /[A-Z]/.test(firstLetter) ? firstLetter : '#';
+      if (!groups.has(groupKey)) groups.set(groupKey, []);
+      groups.get(groupKey).push(app);
+    }
+
+    const keys = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    const orderedKeys = order === 'desc' ? keys.reverse() : keys;
+
+    if (!orderedKeys.length) {
+      container.innerHTML = '<p style="text-align:center;opacity:0.6;font-size:13px;">No apps found</p>';
+      return;
+    }
+
+    for (const key of orderedKeys) {
+      appendGroup(key, groups.get(key));
+    }
+    return;
+  }
+
+  if (!filteredApps.length) {
+    container.innerHTML = '<p style="text-align:center;opacity:0.6;font-size:13px;">No apps found</p>';
+    return;
+  }
+
+  for (const app of filteredApps) {
+    createAppTile(app, container, false, displayMode === 'list');
   }
 }
-const createAppTile = function (app, container, draggable) {
+
+const createAppTile = function (app, container, draggable, listMode = false) {
   const div = document.createElement('div');
-  div.className = 'app';
+  div.className = 'app' + (listMode ? ' app-list-item' : ' app-tile-item');
   div.dataset.appId = app.id;
   div.id = app.id + 'app';
-  div.style.padding = '10px';
-  div.style.borderRadius = '6px';
-  div.style.textAlign = 'center';
-  div.style.minHeight = '35px';
-  div.style.maxHeight = '35px';
+  div.style.padding = listMode ? '10px 12px' : '10px';
+  div.style.borderRadius = listMode ? '10px' : '6px';
+  div.style.textAlign = listMode ? 'left' : 'center';
+  div.style.minHeight = listMode ? '42px' : '35px';
+  div.style.maxHeight = listMode ? 'auto' : '35px';
   div.style.cursor = 'pointer';
   if (draggable) {
     div.draggable = true;
   }
-div.innerHTML = ` ${app.pngEnabled ? `<img src="data:image/[FORMAT];base64,${app.icon}" style="width:25%;height:50%;margin-bottom:4px;">` : app.icon} <br> <span style="font-size:11px;">${app.label}</span> `;  // Drag events for reordering pinned apps
+
+  if (listMode) {
+    const iconMarkup = app.pngEnabled ? `<img src="data:image/[FORMAT];base64,${app.icon}" style="width:18px;height:18px;flex-shrink:0;">` : app.icon;
+    div.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;">${iconMarkup}</span><span style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${app.label}</span>`;
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.gap = '8px';
+    div.style.justifyContent = 'flex-start';
+  } else {
+    div.innerHTML = ` ${app.pngEnabled ? `<img src="data:image/[FORMAT];base64,${app.icon}" style="width:25%;height:50%;margin-bottom:4px;">` : app.icon} <br> <span style="font-size:11px;">${app.label}</span> `;
+  }
+
   if (draggable) {
     div.addEventListener('dragstart', (e) => {
       div.classList.add('dragging');
@@ -673,7 +993,6 @@ div.innerHTML = ` ${app.pngEnabled ? `<img src="data:image/[FORMAT];base64,${app
     }
   }
 
-  // Context menu
   div.addEventListener('contextmenu', (e) => {
     e.preventDefault();
 
@@ -681,13 +1000,15 @@ div.innerHTML = ` ${app.pngEnabled ? `<img src="data:image/[FORMAT];base64,${app
     showAppContextMenu(e.clientX, e.clientY, app, draggable).catch(() => {});
   });
 
-  // Click to launch
   div.addEventListener('click', () => {
     window.protectedGlobals.launchApp(div.dataset.appId);
     startMenu.style.display = 'none';
   });
 
-  container.appendChild(div);
+  if (container) {
+    container.appendChild(div);
+  }
+  return div;
 }
 
 const showAppContextMenu = async function (x, y, app, canPin) {

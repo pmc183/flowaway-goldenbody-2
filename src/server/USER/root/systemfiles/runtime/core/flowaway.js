@@ -1,5 +1,6 @@
 "use strict";
 (function () {
+  window.protectedGlobals.osVersion = "v2.7.8";
   window.protectedGlobals.origAlert = window.alert;
   if (window.protectedGlobals.__booted__) return;
   window.protectedGlobals.__booted__ = true;

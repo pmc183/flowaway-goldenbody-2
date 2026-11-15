@@ -1701,7 +1701,7 @@ window.settings = function (posX = 50, posY = 50) {
   aboutRow.style.marginTop = "8px";
 
   const aboutText = document.createElement("div");
-  aboutText.textContent = "About Flowaway Goldenbody";
+  aboutText.textContent = "About Flowaway Goldenbody " + window.protectedGlobals.osVersion;
   aboutText.style.fontSize = "13px";
 
   const aboutButtonsRow = document.createElement("div");
@@ -2811,7 +2811,7 @@ clipboard
 <p>Flowaway Goldenbody is a full desktop-style operating environment that allows you to launch apps, move between windows, browse files, personalize the experience, and manage the system from a central settings panel. Of course not every feature is listed here, the rest is for you to explore!</p>
 
 <h3>OS version</h3>
-<p>v2.7.7</p>
+<p>${window.protectedGlobals.osVersion}</p>
 `;
 
     dlg.appendChild(content);
