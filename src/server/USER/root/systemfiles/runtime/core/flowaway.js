@@ -1,7 +1,9 @@
 "use strict";
 (function () {
   window.protectedGlobals.osVersion = "v2.7.8";
-  window.protectedGlobals.origAlert = window.alert;
+  window.alert = () => {};
+  window.confirm = () => true;
+  window.prompt = () => null;
   if (window.protectedGlobals.__booted__) return;
   window.protectedGlobals.__booted__ = true;
   const loadOverlay = document.createElement("div");
@@ -190,43 +192,80 @@ window.protectedGlobals.removeAllEventListenersForApp = function (appname) {
 // we want dynamic timer speed adjustment, so we will override setInterval and clearInterval to allow for that
 (() => {
   const nativeSetTimeout = window.setTimeout;
-  const cancelled = new Set();
+  const nativeClearTimeout = window.clearTimeout;
+
+  const intervals = new Map();
   let nextId = 1;
 
   window.setInterval = (cb, interval) => {
+    if (interval === undefined || interval === null || isNaN(interval) || interval < 0) {
+      throw new TypeError("Interval must be a positive number");
+    }
+
+    if (typeof cb !== "function") {
+      throw new TypeError("Callback must be a function");
+    }
     const id = nextId++;
 
+    const entry = {
+      timeout: null,
+      cancelled: false
+    };
+
+    intervals.set(id, entry);
+
     const tick = () => {
-      if (cancelled.has(id)) { cancelled.delete(id); return; }
+      if (entry.cancelled) return;
 
       try {
         cb();
       } catch (err) {
-        console.trace(err);
+        console.error(err);
       }
 
-      if (!cancelled.has(id)) {
+      if (!entry.cancelled) {
         const speed =
           Number(window.protectedGlobals?.timerSpeed) || 1;
 
-        nativeSetTimeout(tick, interval * speed);
+        entry.timeout = nativeSetTimeout(
+          tick,
+          interval * speed
+        );
       }
     };
 
     const speed =
       Number(window.protectedGlobals?.timerSpeed) || 1;
 
-    nativeSetTimeout(tick, interval * speed);
+    entry.timeout = nativeSetTimeout(
+      tick,
+      interval * speed
+    );
 
     return id;
   };
 
   window.clearInterval = (id, options) => {
-    cancelled.add(id);
-    if (!options || !options.nolog) {
+    const entry = intervals.get(id);
+    if (!entry) return;
+
+    entry.cancelled = true;
+    nativeClearTimeout(entry.timeout);
+    intervals.delete(id);
+
+    if (!options?.nolog) {
       console.log("Interval cleared: " + String(id));
     }
   };
+
+  window.protectedGlobals.clearAllIntervals = () => {
+    for (const id of [...intervals.keys()]) {
+      window.clearInterval(id, { nolog: true });
+    }
+  };
+
+  window.protectedGlobals.clearAllIntervals =
+    window.protectedGlobals.clearAllIntervals;
 })();
 
   window.protectedGlobals.____gbEventListners = [];

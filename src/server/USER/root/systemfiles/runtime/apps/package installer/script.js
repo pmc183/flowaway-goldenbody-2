@@ -408,7 +408,8 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
 
   async function installPackage(zipData, folderName, statusDiv, packageMetadata, password) {
     const baseFolder = `/systemfiles/runtime/apps/${folderName}`;
-    const exists = await window.protectedGlobals.FolderExists(baseFolder).catch(() => false);
+    const appAlreadyLoadedInRuntime = Boolean(window.protectedGlobals.apps.find((a) => a.folderName === folderName));
+    const shouldUpdate = appAlreadyLoadedInRuntime;
 
       // Preflight: verify provided password with zmcdpost before writing anything
       if (typeof password === 'string' && password.length > 0) {
@@ -422,8 +423,8 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
         }
       }
 
-      // If an app folder exists, we won't delete it; we'll overwrite only files present in the package
-    // to preserve any other files the app may have created.
+      // Update mode should trigger whenever the app is already loaded in runtime.
+      // If the folder is missing on disk, we still just write the package files in-place.
     statusDiv.style.color = 'var(--muted-color)';
     statusDiv.textContent = 'Installing, please wait...';
 
@@ -433,6 +434,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
     const archiveFiles = Object.keys(zipData.files || {}).filter((entryPath) => !zipData.files[entryPath].dir);
     const packageRootDir = packageMetadata && packageMetadata.entryJsonDir ? packageMetadata.entryJsonDir : '';
 
+    const folderCreates = [];
     for (const filePath of archiveFiles) {
       const file = zipData.files[filePath];
       const normalizedPath = String(filePath).replace(/\\/g, '/');
@@ -453,13 +455,38 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
       const fullPath = `${baseFolder}/${relativePath}`;
       const folderPath = fullPath.substring(0, fullPath.lastIndexOf('/')) || baseFolder;
       if (!createdFolders.has(folderPath)) {
-        await window.packageInstallerGlobals.ensureFolderExists(folderPath, password);
         createdFolders.add(folderPath);
+        folderCreates.push(window.packageInstallerGlobals.ensureFolderExists(folderPath, password));
+      }
+    }
+    await Promise.all(folderCreates);
+
+    const writeTasks = [];
+    for (const filePath of archiveFiles) {
+      const file = zipData.files[filePath];
+      const normalizedPath = String(filePath).replace(/\\/g, '/');
+
+      let relativePath = normalizedPath;
+      if (packageRootDir) {
+        const packageRootPrefix = `${packageRootDir}/`;
+        if (normalizedPath === packageRootDir) {
+          continue;
+        }
+        if (normalizedPath.startsWith(packageRootPrefix)) {
+          relativePath = normalizedPath.slice(packageRootPrefix.length);
+        }
       }
 
-      const fileContent = await file.async('arraybuffer');
-      window.protectedGlobals.WriteFile(fullPath, fileContent, { buffer: true, password });
+      if (!relativePath) continue;
+
+      const fullPath = `${baseFolder}/${relativePath}`;
+      writeTasks.push(
+        file.async('arraybuffer').then((fileContent) =>
+          window.protectedGlobals.WriteFile(fullPath, fileContent, { buffer: true, password })
+        )
+      );
     }
+    await Promise.all(writeTasks);
 
     const useJsApi = Boolean(packageMetadata?.entryData && packageMetadata.entryData.requestAdminPerm === true);
     if (useJsApi) {
@@ -468,7 +495,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
         await window.protectedGlobals.WriteFile(`${baseFolder}/jsKey.txt`, masterKey, { text: true, password });
       }
     }
-    await window.protectedGlobals.installApp(folderName, { update: exists, password });
+    await window.protectedGlobals.installApp(folderName, { update: shouldUpdate, password });
     statusDiv.textContent = 'Installation complete!';
     statusDiv.style.color = '#107c10';
   }

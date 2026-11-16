@@ -1440,31 +1440,6 @@ window.settings = function (posX = 50, posY = 50) {
     taskbarRevealHold,
   );
 
-  /* =========================================================
-   ⚙️ AUTO-UPDATE SYSTEM APPS
-========================================================= */
-
-  const autoupdateRow = document.createElement("div");
-  autoupdateRow.style.alignItems = "center";
-  autoupdateRow.style.marginTop = "8px";
-
-  const autoupdateLabel = document.createElement("div");
-  autoupdateLabel.textContent = "Auto-Update System/System Apps";
-  autoupdateLabel.style.fontSize = "13px";
-
-  const autoupdateToggle = document.createElement("input");
-  autoupdateToggle.type = "checkbox";
-  autoupdateToggle.checked = !!window.protectedGlobals.data.autoupdate;
-
-  /* Toggle handler */
-  autoupdateToggle.onchange = async () => {
-    window.protectedGlobals.data.autoupdate = autoupdateToggle.checked;
-    await window.settingsGlobals.persistSettingsProfilePatch({ autoupdate: !!window.protectedGlobals.data.autoupdate });
-  };
-
-  autoupdateRow.append(autoupdateLabel, autoupdateToggle);
-  mainContainer.appendChild(autoupdateRow);
-
   mainContainer.appendChild(sectionTitle("Windowing"));
 
   const dragThresholdLabel = document.createElement("div");
@@ -1489,7 +1464,28 @@ window.settings = function (posX = 50, posY = 50) {
 
   mainContainer.append(dragThresholdLabel, dragThresholdInput);
 
-  // disableNotifications
+  mainContainer.appendChild(sectionTitle("Misc"));
+
+  const autoupdateRow = document.createElement("div");
+  autoupdateRow.style.alignItems = "center";
+  autoupdateRow.style.marginTop = "8px";
+
+  const autoupdateLabel = document.createElement("div");
+  autoupdateLabel.textContent = "Auto-Update System/System Apps";
+  autoupdateLabel.style.fontSize = "13px";
+
+  const autoupdateToggle = document.createElement("input");
+  autoupdateToggle.type = "checkbox";
+  autoupdateToggle.checked = !!window.protectedGlobals.data.autoupdate;
+
+  autoupdateToggle.onchange = async () => {
+    window.protectedGlobals.data.autoupdate = autoupdateToggle.checked;
+    await window.settingsGlobals.persistSettingsProfilePatch({ autoupdate: !!window.protectedGlobals.data.autoupdate });
+  };
+
+  autoupdateRow.append(autoupdateLabel, autoupdateToggle);
+  mainContainer.appendChild(autoupdateRow);
+
   const disableNotificationsRow = document.createElement("div");
   disableNotificationsRow.style.alignItems = "center";
   disableNotificationsRow.style.marginTop = "8px";
@@ -1502,7 +1498,6 @@ window.settings = function (posX = 50, posY = 50) {
   disableNotificationsToggle.type = "checkbox";
   disableNotificationsToggle.checked = !!window.protectedGlobals.data.disableNotifications;
 
-  /* Toggle handler */
   disableNotificationsToggle.onchange = async () => {
     window.protectedGlobals.data.disableNotifications = disableNotificationsToggle.checked;
     await window.settingsGlobals.persistSettingsProfilePatch({ disableNotifications: !!window.protectedGlobals.data.disableNotifications });

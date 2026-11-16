@@ -293,11 +293,12 @@
 - cursor to wait should apply to all thats not a normal pointer, fixed some performance issues regarding looping all DOM elements when setting cursor.
 - fixed arguments given to terminal workers is not object
 
-# V 2.8.8
+# V 2.7.8
 - added version number in settings.
 - added search feature in startmenu.
-- fixed sorting in startmenu bug for newly installed apps.
 - added tile/list support for startmenu app display.
-- changed image for startmenu button.
-- added images in user guide.
 - fixed app installation.
+- fixed sorting in startmenu bug for newly installed apps.
+- moved Auto-Update System/System Apps/Disable Non-System Notifications to Misc section of settings.
+- changed the UI for login screen.
+- added clearSystemInterval to flowaway.js, fixed some interval bugs.

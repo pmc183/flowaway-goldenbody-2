@@ -446,9 +446,8 @@ window.protectedGlobals.rebuildhandler = function () {
     window.protectedGlobals.activeWebSockets.clear();
   }
 
-  for (let i = 0; i < 10000; i++) {
-    clearInterval(i, { nolog: true });
-  }
+  // clear all intervals
+  window.protectedGlobals.clearAllIntervals();
   delete window.protectedGlobals.brightnessOverlayEl;
   delete window.protectedGlobals.brightnessOverlayLabel;
   delete window.protectedGlobals.brightnessOverlaySlider;
@@ -551,7 +550,8 @@ window.protectedGlobals.rebuildhandler = function () {
   oldHead.innerHTML = '';
   oldHead = null;         // Nullifies your primary variable reference
 })();
-  window.alert = window.protectedGlobals.origAlert;
+  window.alert = () => {};
+  window.softAlert = () => {};
 
   // Inject homepage loader
   var script = document.createElement("script");

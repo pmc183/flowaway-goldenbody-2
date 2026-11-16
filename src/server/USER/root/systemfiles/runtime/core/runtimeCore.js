@@ -1250,23 +1250,23 @@ window.protectedGlobals.forceStopApp = async function (obj) {
 };
 
 window.protectedGlobals.installApp = async function (folderName, options = {}) {
-  if (options.update) {
-    let targetApp = window.protectedGlobals.apps.find((a) => a.folderName === folderName);
-    if (!targetApp) {
-      alert("Could not find the app to update. A common reason is you renamed the folder manually. To fix this, do not delete the app, install after restarting the system. Otherwise please try reinstalling it.");
-      throw new Error("Could not find the app to update. A common reason is you renamed the folder manually. To fix this, do not delete the app, install after restarting the system. Otherwise please try reinstalling it.");
+  const installOptions = { ...options };
+
+  if (installOptions.update) {
+    const targetApp = window.protectedGlobals.apps.find((a) => a.folderName === folderName);
+    if (targetApp) {
+      await window.protectedGlobals.deleteApp(targetApp, true);
     }
-    window.protectedGlobals.deleteApp(targetApp, true);
   }
-  
+
   const appFolders = await window.protectedGlobals.ReadFolder("/systemfiles/runtime/apps").catch(() => []);
   for (const f of appFolders) {
     if (f === folderName) {
-      let appData = await window.protectedGlobals.extractAppData(f);
+      const appData = await window.protectedGlobals.extractAppData(f);
       window.protectedGlobals.apps.sort((a, b) => a.label.localeCompare(b.label));
       window.protectedGlobals.initAppRuntimeState(appData);
       window.protectedGlobals.apps.push(appData);
-      if (appData.createShortcutUponInstallation && !options.update) {
+      if (appData.createShortcutUponInstallation && !installOptions.update) {
         await window.protectedGlobals.createDesktopShortcutForApp(appData);
       }
     }

@@ -49,53 +49,74 @@ window.protectedGlobals.firstlogin = false;
   document.body.style.color = '#fff';
   document.body.style.fontFamily = 'Arial, sans-serif';
 
-  const box = document.createElement('div');
-  box.style.width = '360px';
-  box.style.margin = '100px auto';
-  box.style.padding = '20px';
-  box.style.background = '#1b1b1b';
-  box.style.borderRadius = '10px';
-  box.style.boxShadow = '0 0 20px rgba(0,0,0,.6)';
+  let box = document.createElement('div');
+  box.style.width = 'min(440px, calc(100vw - 22px))';
+  box.style.margin = '10px auto 12px';
+  box.style.padding = '12px 14px 10px';
+  box.style.background = '#2c2f33';
+  box.style.borderRadius = '16px';
+  box.style.border = '2px solid rgba(255,255,255,0.06)';
+  box.style.boxShadow = '0 0 0 1px rgba(255,255,255,0.03), 0 12px 28px rgba(0,0,0,0.35)';
   box.style.display = 'flex';
   box.style.flexDirection = 'column';
-  box.style.alignItems = 'center';
+  box.style.alignItems = 'stretch';
+  box.style.color = '#f3f6f8';
 
   box.innerHTML = `
-    <h2 style="text-align:center;margin-bottom:10px">Login / Register</h2>
+    <div style="text-align:center; margin-bottom:6px;">
+      <h1 style="margin:0; font-size:clamp(1.45rem, 2.2vw, 2.1rem); line-height:1.15; font-weight:500; letter-spacing:-0.04em; color:#f2f3f5;">Welcome Back</h1>
+      <div style="margin-top:6px; font-size:clamp(0.82rem, 1vw, 0.96rem); line-height:1.25; font-weight:400; color:#e7ebef; opacity:0.92;">Log in to access your account</div>
+    </div>
 
-    <input id="zmc-user" placeholder="Username" style="width:100%;padding:8px;margin:6px 0;box-sizing:border-box;">
-    <input id="zmc-pass" type="password" placeholder="Password" style="width:100%;padding:8px;margin:6px 0;box-sizing:border-box;">
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+      <div>
+        <label for="zmc-user" style="display:block; margin:0 0 4px; font-size:clamp(0.72rem, 1vw, 0.86rem); font-weight:700; color:#f5f7fa;">Username</label>
+        <input id="zmc-user" placeholder="Enter username" style="width:100%;height:38px;padding:0 10px;box-sizing:border-box;border:none;border-radius:9px;background:#dfe3e8;color:#2d3034;font-size:clamp(0.82rem, 0.9vw, 0.96rem);outline:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04);">
+      </div>
 
-    <button id="zmc-login" style="width:100%;margin-top:10px">Login</button>
-    <button id="zmc-register" style="width:100%;margin-top:6px">Create Account</button>
+      <div>
+        <label for="zmc-pass" style="display:block; margin:0 0 4px; font-size:clamp(0.72rem, 1vw, 0.86rem); font-weight:700; color:#f5f7fa;">Password</label>
+        <input id="zmc-pass" type="password" placeholder="Enter password" style="width:100%;height:38px;padding:0 10px;box-sizing:border-box;border:none;border-radius:9px;background:#dfe3e8;color:#2d3034;font-size:clamp(0.82rem, 0.9vw, 0.96rem);outline:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04);">
+      </div>
+    </div>
+
+    <button id="zmc-login" style="width:100%;margin-top:10px;height:40px;border:none;border-radius:9px;background:#2f7fe8;color:#f5f7fa;font-size:clamp(0.9rem, 1.2vw, 1.05rem);font-weight:800;letter-spacing:0.02em;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,0.15);">LOG IN</button>
 
     <label style="display:flex;align-items:flex-start;gap:8px;width:100%;margin-top:10px;font-size:13px;line-height:1.4;color:#dfe7f1;">
       <input id="zmc-consent" type="checkbox" style="margin-top:2px;flex-shrink:0;">
       <span>By continuing, I agree the <a href="termsofservice.html" target="_blank" rel="noreferrer" style="color:#7dd3fc;">Terms of Service</a> and <a href="privacypolicy.html" target="_blank" rel="noreferrer" style="color:#7dd3fc;">Privacy Policy</a>.</span>
     </label>
 
-    <div id="zmc-msg" style="margin-top:10px;font-size:14px;text-align:center"></div>
+    <div id="zmc-msg" style="margin-top:6px;font-size:12px;text-align:center;min-height:16px;color:#f4f7fa;"></div>
 
-    <div style="margin-top:18px;width:100%;padding-top:12px;border-top:1px solid #333;">
-      <h3 style="margin:0 0 8px;text-align:center">Account Repair</h3>
-      <button id="recovery-load" style="width:100%;margin-top:6px">
+    <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08);">
+      <div style="text-align:center; font-size:clamp(0.8rem, 0.9vw, 0.9rem); color:#f0f4f7; margin-bottom:8px;">Don't have an account yet?</div>
+      <button id="zmc-register" style="width:100%;height:40px;border:none;border-radius:9px;background:#3b9f59;color:#f5f7fa;font-size:clamp(0.9rem, 1.2vw, 1.05rem);font-weight:800;letter-spacing:0.02em;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,0.15);">CREATE YOUR ACCOUNT</button>
+    </div>
+
+    <div style="margin-top:10px; text-align:center; font-size:clamp(0.8rem, 0.9vw, 0.9rem); line-height:1.35; color:#f4f7fa; opacity:0.9;">
+      Account recovery options are available below.
+    </div>
+
+    <div style="margin-top:10px;width:100%;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+      <h3 style="margin:0 0 6px;text-align:center;font-size:clamp(0.9rem, 1vw, 1.02rem);color:#f2f6f8;">Account Repair</h3>
+      <button id="recovery-load" style="width:100%;margin-top:5px; height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">
         Load Recovery Options
       </button>
-      <button id="update-system" style="width:100%;margin-top:6px">Update System</button>
-      <select id="recovery-app-select" style="width:100%;padding:8px;margin:6px 0;box-sizing:border-box;display:block">
+      <button id="update-system" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Update System</button>
+      <select id="recovery-app-select" style="width:100%;padding:7px 8px;margin:5px 0;box-sizing:border-box;display:block;border-radius:7px;border:1px solid rgba(255,255,255,0.08);background:#f3f5f7;color:#1d2024;font-size:0.75rem;">
         <option value="" disabled selected>Enter recovery credentials to load system apps</option>
       </select>
-      <button id="recovery-reset" style="width:100%;margin-top:6px">Reset selected system app</button>
-      <select id="recovery-delete-app-select" style="width:100%;padding:8px;margin:6px 0;box-sizing:border-box;display:block">
+      <button id="recovery-reset" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Reset selected system app</button>
+      <select id="recovery-delete-app-select" style="width:100%;padding:7px 8px;margin:5px 0;box-sizing:border-box;display:block;border-radius:7px;border:1px solid rgba(255,255,255,0.08);background:#f3f5f7;color:#1d2024;font-size:0.75rem;">
         <option value="" disabled selected>Enter recovery credentials to load non-system apps</option>
       </select>
-      <button id="recovery-delete-app" style="width:100%;margin-top:6px">Delete selected non-system app</button>
-      <button id="recovery-reset-systemfiles" style="width:100%;margin-top:6px">Reset /systemfiles</button>
-      <button id="recovery-reset-pathperm" style="width:100%;margin-top:6px">Reset path permissions</button>
-      <button id="recovery-repair-system" style="width:100%;margin-top:6px">Repair system files</button>
-      <button id="recovery-jskeys" style="width:100%;margin-top:6px">Restore all JS keys</button>
-      <button id="recovery-delete" style="width:100%;margin-top:6px">Delete account</button>
-      <div id="recovery-msg" style="margin-top:10px;font-size:14px;text-align:center"></div>
+      <button id="recovery-delete-app" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Delete selected non-system app</button>
+      <button id="recovery-reset-systemfiles" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Reset /systemfiles</button>
+      <button id="recovery-reset-pathperm" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Reset path permissions</button>
+      <button id="recovery-repair-system" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Repair system files</button>
+      <button id="recovery-jskeys" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Restore all JS keys</button>
+      <button id="recovery-delete" style="width:100%;margin-top:5px;height:28px;border:none;border-radius:7px;background:#f1f5f9;color:#1a1d22;font-size:0.78rem;font-weight:600;cursor:pointer;">Delete account</button>
     </div>
   `;
 
@@ -103,12 +124,22 @@ window.protectedGlobals.firstlogin = false;
   document.body.appendChild(box);
 
   const msg = document.getElementById('zmc-msg');
-  const recoveryMsg = document.getElementById('recovery-msg');
   const recoveryAppSelect = document.getElementById('recovery-app-select');
   const recoveryDeleteAppSelect = document.getElementById('recovery-delete-app-select');
   const recoveryUserInput = document.getElementById('zmc-user');
   const recoveryPassInput = document.getElementById('zmc-pass');
   const consentCheckbox = document.getElementById('zmc-consent');
+
+  function setStatusMessage(el, text, color = '#f4f7fa') {
+    el.textContent = text;
+    el.style.color = color;
+    el.style.fontSize = '12px';
+    el.style.fontWeight = '600';
+    el.style.lineHeight = '1.5';
+    el.style.textAlign = 'center';
+    el.style.minHeight = '18px';
+    el.style.display = 'block';
+  }
 
   function resetSelectPlaceholder(select, message) {
     select.innerHTML = `<option value="" disabled selected>${message}</option>`;
@@ -130,14 +161,12 @@ window.protectedGlobals.firstlogin = false;
   }
 
   document.getElementById('recovery-load').onclick = async () => {
-    recoveryMsg.textContent = 'Loading available apps...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Loading available apps...', '#ffd166');
 
     await ensureRecoveryCatalog(true);
   };
   document.getElementById('update-system').onclick = async () => {
-    recoveryMsg.textContent = 'Updating system...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Updating system...', '#ffd166');
     const username = document.getElementById('zmc-user').value;
     const password = document.getElementById('zmc-pass').value;
 
@@ -162,8 +191,7 @@ window.protectedGlobals.firstlogin = false;
       return result.reason || 'Failed to update system';
     })();
 
-    recoveryMsg.textContent = message;
-    recoveryMsg.style.color = result && result.ok && result.updated ? 'lime' : result && result.ok ? '#ffd166' : 'red';
+    setStatusMessage(msg, message, result && result.ok && result.updated ? 'lime' : result && result.ok ? '#ffd166' : 'red');
   };
   function populateSelect(select, items, emptyMessage) {
     if (!items || !items.length) {
@@ -189,8 +217,7 @@ window.protectedGlobals.firstlogin = false;
     const password = document.getElementById('zmc-pass').value;
 
     if (!username || !password) {
-      recoveryMsg.textContent = 'Fill recovery username and password';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, 'Fill recovery username and password', 'red');
       return null;
     }
 
@@ -220,8 +247,7 @@ window.protectedGlobals.firstlogin = false;
     resetSelectPlaceholder(recoveryDeleteAppSelect, 'Loading available non-system apps...');
     const result = await sendRecoveryRequest('list');
     if (!result || result.error) {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Unable to load recovery options';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Unable to load recovery options', 'red');
       resetSelectPlaceholder(recoveryAppSelect, 'Unable to load system apps');
       resetSelectPlaceholder(recoveryDeleteAppSelect, 'Unable to load non-system apps');
       return;
@@ -230,7 +256,7 @@ window.protectedGlobals.firstlogin = false;
     populateSelect(recoveryAppSelect, result.systemApps, 'No system apps found');
     populateSelect(recoveryDeleteAppSelect, result.nonSystemApps, 'No non-system apps found');
     if (result.systemApps.length || result.nonSystemApps.length) {
-      recoveryMsg.textContent = '';
+      setStatusMessage(msg, '', '#f4f7fa');
     }
   }
   function startUp() {
@@ -359,138 +385,99 @@ window.protectedGlobals.firstlogin = false;
     }
   };
 
-  const tryLoadRecoveryCatalog = async () => {
-    if (recoveryUserInput.value.trim() && recoveryPassInput.value.trim()) {
-      recoveryMsg.textContent = 'Loading available apps...';
-      recoveryMsg.style.color = '#ffd166';
-      await ensureRecoveryCatalog(true);
-      if (!recoveryAppSelect.disabled) {
-        recoveryMsg.textContent = '';
-      }
-    } else {
-      resetSelectPlaceholder(recoveryAppSelect, 'Enter recovery username/password to load apps');
-      resetSelectPlaceholder(recoveryDeleteAppSelect, 'Enter recovery username/password to load apps');
-    }
-  };
-
   document.getElementById('recovery-delete').onclick = async () => {
-    recoveryMsg.textContent = 'Sending recovery request...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Sending recovery request...', '#ffd166');
     const result = await sendRecoveryRequest('deleteAccount');
     if (result && result.success) {
-      recoveryMsg.textContent = 'Account deleted.';
-      recoveryMsg.style.color = 'lime';
+      setStatusMessage(msg, 'Account deleted.', 'lime');
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to delete account';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to delete account', 'red');
     }
   };
 
   document.getElementById('recovery-jskeys').onclick = async () => {
-    recoveryMsg.textContent = 'Restoring JS keys...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Restoring JS keys...', '#ffd166');
     const result = await sendRecoveryRequest('restoreSystemJsKeys');
     if (result && result.success) {
-      recoveryMsg.textContent = `Restored ${result.restoredCount || 0} system app JS keys.`;
-      recoveryMsg.style.color = 'lime';
+      setStatusMessage(msg, `Restored ${result.restoredCount || 0} system app JS keys.`, 'lime');
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to restore JS keys';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to restore JS keys', 'red');
     }
   };
 
   document.getElementById('recovery-reset').onclick = async () => {
     if (!recoveryAppSelect.value) {
-      recoveryMsg.textContent = 'No system app selected';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, 'No system app selected', 'red');
       return;
     }
     const selectedAppId = recoveryAppSelect.value;
-    recoveryMsg.textContent = 'Resetting system app...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Resetting system app...', '#ffd166');
     const result = await sendRecoveryRequest('resetSystemApp', { appIdentifier: selectedAppId });
     if (result && result.success) {
       if (result.backupData) {
         downloadBase64Zip(result.backupData, result.backupFileName || `${selectedAppId}.zip`);
       }
-      recoveryMsg.textContent = result.backupData
+      setStatusMessage(msg, result.backupData
         ? `${result.app && result.app.label ? result.app.label : selectedAppId} was reset. Backup downloaded.`
-        : `${result.app && result.app.label ? result.app.label : selectedAppId} was reset.`;
-      recoveryMsg.style.color = 'lime';
+        : `${result.app && result.app.label ? result.app.label : selectedAppId} was reset.`, 'lime');
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to reset system app';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to reset system app', 'red');
     }
   };
 
   document.getElementById('recovery-delete-app').onclick = async () => {
     if (!recoveryDeleteAppSelect.value) {
-      recoveryMsg.textContent = 'No non-system app selected';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, 'No non-system app selected', 'red');
       return;
     }
     const selectedAppId = recoveryDeleteAppSelect.value;
-    recoveryMsg.textContent = 'Deleting selected app...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Deleting selected app...', '#ffd166');
     const result = await sendRecoveryRequest('deleteUserApp', { appIdentifier: selectedAppId });
     if (result && result.success) {
-      recoveryMsg.textContent = `${result.app && result.app.label ? result.app.label : selectedAppId} was deleted.`;
-      recoveryMsg.style.color = 'lime';
+      setStatusMessage(msg, `${result.app && result.app.label ? result.app.label : selectedAppId} was deleted.`, 'lime');
       await ensureRecoveryCatalog(true);
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to delete app';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to delete app', 'red');
     }
   };
 
   document.getElementById('recovery-repair-system').onclick = async () => {
-    recoveryMsg.textContent = 'Repairing system files...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Repairing system files...', '#ffd166');
     const result = await sendRecoveryRequest('repairSystemFiles');
     if (result && result.success) {
       if (result.backupData) {
         downloadBase64Zip(result.backupData, result.backupFileName || 'systemfiles-repair-backup.zip');
       }
-      recoveryMsg.textContent = result.backupData
+      setStatusMessage(msg, result.backupData
         ? 'System files repaired. Backup downloaded.'
-        : 'System files repaired.';
-      recoveryMsg.style.color = 'lime';
+        : 'System files repaired.', 'lime');
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to repair system files';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to repair system files', 'red');
     }
   };
 
   document.getElementById('recovery-reset-systemfiles').onclick = async () => {
-    if (!confirm('This will back up and replace the user\'s /systemfiles directory. Continue?')) return;
-    recoveryMsg.textContent = 'Resetting /systemfiles...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Resetting /systemfiles...', '#ffd166');
     const result = await sendRecoveryRequest('resetSystemFiles');
     if (result && result.success) {
       if (result.backupData) {
         downloadBase64Zip(result.backupData, result.backupFileName || 'systemfiles-backup.zip');
       }
-      recoveryMsg.textContent = result.backupData
+      setStatusMessage(msg, result.backupData
         ? 'System files reset. Backup downloaded as ZIP.'
-        : 'System files reset.';
-      recoveryMsg.style.color = 'lime';
+        : 'System files reset.', 'lime');
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to reset system files';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to reset system files', 'red');
     }
   };
 
   document.getElementById('recovery-reset-pathperm').onclick = async () => {
-    if (!confirm('This will reset your path permissions to defaults. Continue?')) return;
-    recoveryMsg.textContent = 'Resetting path permissions...';
-    recoveryMsg.style.color = '#ffd166';
+    setStatusMessage(msg, 'Resetting path permissions...', '#ffd166');
     const result = await sendRecoveryRequest('resetPathPermissions');
     if (result && result.success) {
-      recoveryMsg.textContent = 'Path permissions reset.';
-      recoveryMsg.style.color = 'lime';
+      setStatusMessage(msg, 'Path permissions reset.', 'lime');
     } else {
-      recoveryMsg.textContent = result && result.error ? result.error : 'Failed to reset path permissions';
-      recoveryMsg.style.color = 'red';
+      setStatusMessage(msg, result && result.error ? result.error : 'Failed to reset path permissions', 'red');
     }
   };
 })();

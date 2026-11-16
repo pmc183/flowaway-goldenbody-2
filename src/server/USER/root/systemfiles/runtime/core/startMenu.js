@@ -1,9 +1,8 @@
 "use strict";
 // global const/let is banned in non (()=>{})() wrappers
 (async function () {
-window.protectedGlobals.css = await window.protectedGlobals.ReadFile("systemfiles/runtime/core/stuff.css", {text: true, direct: true});
 const styleTag = window.protectedGlobals.styleTag = document.createElement("style");
-styleTag.textContent = window.protectedGlobals.css;
+styleTag.textContent = await window.protectedGlobals.ReadFile("systemfiles/runtime/core/stuff.css", {text: true, direct: true});
 document.head.appendChild(styleTag);
 window.protectedGlobals.renderAppsGrid = async function () {
   if (!window.protectedGlobals._startMenuConfig) await window.protectedGlobals.loadStartMenuConfig();
@@ -70,7 +69,6 @@ const ensureStartMenuConfig = async function () {
 }
 
 window.protectedGlobals.addToRecents = async function (appId) {
-  await ensureStartMenuConfig();
   const recents = window.protectedGlobals._startMenuConfig.recents || [];
   const index = recents.indexOf(appId);
   if (index > -1) recents.splice(index, 1);
@@ -79,11 +77,10 @@ window.protectedGlobals.addToRecents = async function (appId) {
     recents.pop();
   }
   window.protectedGlobals._startMenuConfig.recents = recents;
-  await saveStartMenuConfig();
+  saveStartMenuConfig();
 }
 
 const removeFromStartMenu = async function (appId) {
-  await ensureStartMenuConfig();
   const pinnedApps = window.protectedGlobals._startMenuConfig.pinnedApps || [];
   const index = pinnedApps.indexOf(appId);
   if (index > -1) {
@@ -107,6 +104,7 @@ const startMenuDefaults = {
   sortOrder: "asc",
   sortSections: false,
 };
+await ensureStartMenuConfig();
 
 const normalizeStartMenuConfigValue = function (value, fallback, allowedValues) {
   if (value === undefined || value === null || value === "") {
@@ -269,13 +267,12 @@ startMenu.innerHTML = `
       <button type="button" class="startMenuFilterBtn startMenuDisplayToggle" data-display-mode="tile" aria-label="Toggle app layout">
         <span class="startMenuToggleIcon">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-            <rect x="14" y="3" width="7" height="3.2" rx="1"></rect>
-            <rect x="14" y="8.2" width="7" height="12.8" rx="1"></rect>
-            <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+            <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
           </svg>
         </span>
-        <span>Tiles</span>
       </button>
       <button type="button" class="startMenuFilterBtn startMenuSortToggle" data-sort-order="asc" aria-label="Toggle sort order">
         <span class="startMenuToggleIcon">
@@ -284,9 +281,17 @@ startMenu.innerHTML = `
             <path d="M8 9l4-4 4 4"></path>
           </svg>
         </span>
-        <span>A→Z</span>
       </button>
-      <button type="button" class="startMenuFilterBtn startMenuGroupBtn" data-group-mode="off">No groups</button>
+      <button type="button" class="startMenuFilterBtn startMenuGroupBtn" data-group-mode="off" aria-label="Group apps">
+        <span class="startMenuToggleIcon">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="4" y="4" width="6" height="6" rx="1.2"></rect>
+            <rect x="14" y="4" width="6" height="6" rx="1.2"></rect>
+            <rect x="4" y="14" width="6" height="6" rx="1.2"></rect>
+            <rect x="14" y="14" width="6" height="6" rx="1.2"></rect>
+          </svg>
+        </span>
+      </button>
     </div>
   </div>
 </div>
@@ -346,8 +351,8 @@ const syncStartMenuToolbar = function () {
     displayButton.setAttribute('aria-pressed', String(displayMode === 'list'));
     const displayIcon = displayMode === 'list'
       ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>'
-      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="3.2" rx="1"></rect><rect x="14" y="8.2" width="7" height="12.8" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>';
-    displayButton.innerHTML = `<span class="startMenuToggleIcon">${displayIcon}</span><span>${displayMode === 'list' ? 'List' : 'Tiles'}</span>`;
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>';
+    displayButton.innerHTML = `<span class="startMenuToggleIcon">${displayIcon}</span>`;
   }
 
   const sortButton = toolbar.querySelector('[data-sort-order]');
@@ -358,14 +363,19 @@ const syncStartMenuToolbar = function () {
     const sortIcon = sortOrder === 'desc'
       ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M16 15l-4 4-4-4"></path></svg>'
       : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M8 9l4-4 4 4"></path></svg>';
-    sortButton.innerHTML = `<span class="startMenuToggleIcon">${sortIcon}</span><span>${sortOrder === 'desc' ? 'Z→A' : 'A→Z'}</span>`;
+    sortButton.innerHTML = `<span class="startMenuToggleIcon">${sortIcon}</span>`;
   }
 
   const groupButton = toolbar.querySelector('[data-group-mode]');
   if (groupButton) {
     groupButton.dataset.groupMode = grouped ? 'on' : 'off';
-    groupButton.textContent = grouped ? 'Grouped' : 'No groups';
     groupButton.classList.toggle('active', grouped);
+    groupButton.setAttribute('aria-label', grouped ? 'Ungroup apps' : 'Group apps');
+    groupButton.setAttribute('aria-pressed', String(grouped));
+    const groupIcon = grouped
+      ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.2"></rect><rect x="14" y="4" width="6" height="6" rx="1.2"></rect><rect x="4" y="14" width="6" height="6" rx="1.2"></rect><rect x="14" y="14" width="6" height="6" rx="1.2"></rect><path d="M10.5 3.5v17"></path><path d="M13.5 3.5v17"></path></svg>'
+      : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.2"></rect><rect x="14" y="4" width="6" height="6" rx="1.2"></rect><rect x="4" y="14" width="6" height="6" rx="1.2"></rect><rect x="14" y="14" width="6" height="6" rx="1.2"></rect><path d="M8 2.5v19"></path><path d="M16 2.5v19"></path></svg>';
+    groupButton.innerHTML = `<span class="startMenuToggleIcon">${groupIcon}</span>`;
   }
 
   const allSection = startMenu.querySelector('.tabSection[data-tab="all"]');
@@ -392,42 +402,45 @@ const bindStartMenuToolbar = function () {
   const displayButton = toolbar.querySelector('[data-display-mode]');
   if (displayButton) {
     displayButton.addEventListener('click', async () => {
-      await ensureStartMenuConfig();
       const nextMode = displayButton.dataset.displayMode === 'list' ? 'tile' : 'list';
       window.protectedGlobals._startMenuConfig.displayMode = nextMode;
-      await saveStartMenuConfig();
-      syncStartMenuToolbar();
-      if (window.protectedGlobals.activeStartTab === 'all') {
-        renderAllAppsGrid();
-      }
+      saveStartMenuConfig();
+      setTimeout(() => {
+        syncStartMenuToolbar();
+        if (window.protectedGlobals.activeStartTab === 'all') {
+          renderAllAppsGrid();
+        }
+      }, 0);
     });
   }
 
   const sortButton = toolbar.querySelector('[data-sort-order]');
   if (sortButton) {
     sortButton.addEventListener('click', async () => {
-      await ensureStartMenuConfig();
       const nextOrder = sortButton.dataset.sortOrder === 'desc' ? 'asc' : 'desc';
       window.protectedGlobals._startMenuConfig.sortOrder = nextOrder;
-      await saveStartMenuConfig();
-      syncStartMenuToolbar();
-      if (window.protectedGlobals.activeStartTab === 'all') {
-        renderAllAppsGrid();
-      }
+      saveStartMenuConfig();
+      setTimeout(() => {
+        syncStartMenuToolbar();
+        if (window.protectedGlobals.activeStartTab === 'all') {
+          renderAllAppsGrid();
+        }
+      }, 0);
     });
   }
 
   const groupButton = toolbar.querySelector('[data-group-mode]');
   if (groupButton) {
     groupButton.addEventListener('click', async () => {
-      await ensureStartMenuConfig();
       const shouldGroup = groupButton.dataset.groupMode !== 'on';
       window.protectedGlobals._startMenuConfig.sortSections = shouldGroup;
-      await saveStartMenuConfig();
-      syncStartMenuToolbar();
-      if (window.protectedGlobals.activeStartTab === 'all') {
-        renderAllAppsGrid();
-      }
+      saveStartMenuConfig();
+      setTimeout(() => {
+        syncStartMenuToolbar();
+        if (window.protectedGlobals.activeStartTab === 'all') {
+          renderAllAppsGrid();
+        }
+      }, 0);
     });
   }
 };
@@ -455,7 +468,9 @@ const switchTab = window.protectedGlobals.switchTab = function switchTab(tabName
   if (section) {
     section.classList.add('active');
     const isListView = section.classList.contains('list-view') || (tabName === 'all' && getConfiguredDisplayMode() === 'list');
-    section.style.display = isListView ? 'flex' : 'grid';
+    section.classList.toggle('list-view', isListView);
+    section.classList.toggle('grid-view', !isListView);
+    section.style.display = '';
   }
 
   // Activate selected tab
@@ -927,7 +942,7 @@ const createAppTile = function (app, container, draggable, listMode = false) {
   div.style.padding = listMode ? '10px 12px' : '10px';
   div.style.borderRadius = listMode ? '10px' : '6px';
   div.style.textAlign = listMode ? 'left' : 'center';
-  div.style.minHeight = listMode ? '42px' : '35px';
+  div.style.minHeight = listMode ? '20px' : '35px';
   div.style.maxHeight = listMode ? 'auto' : '35px';
   div.style.cursor = 'pointer';
   if (draggable) {
@@ -978,7 +993,7 @@ const createAppTile = function (app, container, draggable, listMode = false) {
         pinnedApps.splice(fromIndex, 1);
         pinnedApps.splice(toIndex, 0, appId);
         window.protectedGlobals._startMenuConfig.pinnedApps = pinnedApps;
-        await saveStartMenuConfig();
+        saveStartMenuConfig();
         renderPinnedAppsGrid();
       }
     });
@@ -1012,7 +1027,6 @@ const createAppTile = function (app, container, draggable, listMode = false) {
 }
 
 const showAppContextMenu = async function (x, y, app, canPin) {
-  await ensureStartMenuConfig();
 
   const existing = document.querySelector('.app-context-menu');
   if (existing) existing.remove();

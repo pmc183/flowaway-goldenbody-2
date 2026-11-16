@@ -73,25 +73,43 @@
             margin-bottom: 28px;
         }
 
+        .launch-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            width: 100%;
+        }
+
+        .music-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            width: 100%;
+            margin-top: 4px;
+        }
+
         .action-btn {
             appearance: none;
             border: 0;
-            border-radius: 14px;
+            border-radius: 16px;
             padding: 16px 22px;
             font-size: 1rem;
-            font-weight: 700;
+            font-weight: 800;
+            letter-spacing: 0.01em;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
             box-shadow: 0 12px 30px rgba(14, 165, 233, 0.22);
         }
 
         .action-btn:hover {
             transform: translateY(-1px);
+            filter: brightness(1.04);
         }
 
         .action-btn.primary {
             background: linear-gradient(135deg, var(--primary), var(--primary-strong));
             color: #06131d;
+            box-shadow: 0 16px 36px rgba(14, 165, 233, 0.35);
         }
 
         .action-btn.secondary {
@@ -99,6 +117,16 @@
             color: var(--text);
             border: 1px solid rgba(148, 163, 184, 0.2);
             box-shadow: none;
+        }
+
+        .action-btn .cta-arrow {
+            display: inline-block;
+            margin-left: 0.45rem;
+            transition: transform 0.2s ease;
+        }
+
+        .action-btn:hover .cta-arrow {
+            transform: translateX(2px);
         }
 
         .links {
@@ -427,26 +455,37 @@
 
     const actions = document.getElementById('actions');
 
+    const launchRow = document.createElement('div');
+    launchRow.className = 'launch-actions';
+
+    const musicRow = document.createElement('div');
+    musicRow.className = 'music-actions';
+
     const a = document.createElement('button');
 
     a.type = 'button';
-    a.textContent = 'Open homepage in new tab';
+    a.innerHTML = 'Click me to launch <span class="cta-arrow">→</span>';
     a.className = 'action-btn primary';
+    a.setAttribute('aria-label', 'Click me to launch the homepage in a new tab');
     a.onclick = () => launchHomepage(false);
 
-    actions.appendChild(a);
+    launchRow.appendChild(a);
 
     const b = document.createElement('button');
 
     b.type = 'button';
-    b.textContent = 'Open homepage in new window';
+    b.innerHTML = 'Open in a new window <span class="cta-arrow">→</span>';
     b.className = 'action-btn secondary';
+    b.setAttribute('aria-label', 'Open the homepage in a new window');
     b.onclick = () => launchHomepage(true);
 
-    actions.appendChild(b);
+    launchRow.appendChild(b);
 
-    actions.appendChild(musicToggle);
-    actions.appendChild(music2);
+    musicRow.appendChild(musicToggle);
+    musicRow.appendChild(music2);
+
+    actions.appendChild(launchRow);
+    actions.appendChild(musicRow);
 
 </script>
 
