@@ -198,6 +198,15 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
         return String(path).replace(/\/+/g, "/").replace(/^\//, "");
     }
 
+    function isDownloadsPath(path) {
+    if (typeof path !== "string") return false;
+
+    const normalized = normalizeVfsPath(path);
+
+    return normalized === "downloads" ||
+            normalized.startsWith("downloads/");
+    }
+
     function isPathUnderRoot(path, root) {
         if (typeof path !== "string" || typeof root !== "string") return false;
         const normalizedPath = normalizeVfsPath(path);
@@ -402,7 +411,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             }
 
             let watchPath = watchPathValue;
-            const isPublicOrApproved = watchPath.startsWith("/__public") || watchPath.startsWith("__public") || externalKeyAllowed;
+            const isPublicOrApproved = isDownloadsPath(watchPath) || externalKeyAllowed;
             if (!isPublicOrApproved) {
                 watchPath = "systemfiles/runtime/apps/" + e.detail.from + "/" + watchPath.replace(/^\/+/, "");
             }
@@ -441,7 +450,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             }
 
             let watchPath = watchPathValue;
-            const isPublicOrApproved = watchPath.startsWith("/__public") || watchPath.startsWith("__public") || externalKeyAllowed;
+            const isPublicOrApproved = isDownloadsPath(watchPath) || externalKeyAllowed;
             if (!isPublicOrApproved) {
                 watchPath = "systemfiles/runtime/apps/" + e.detail.from + "/" + watchPath.replace(/^\/+/, "");
             }
@@ -506,7 +515,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             }
 
             if (e.detail.data.readFile) {
-                if (externalKeyAllowed || path.startsWith("/__public") || path.startsWith("__public")) {
+                if (externalKeyAllowed || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.ReadFile(path, options);
                     source.postMessage({ readFileResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -515,7 +524,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.ReadFile(path, options);
                 source.postMessage({ readFileResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.readFolder) {
-                if (externalKeyAllowed || path.startsWith("/__public") || path.startsWith("__public")) {
+                if (externalKeyAllowed || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.ReadFolder(path, options);
                     source.postMessage({ readFolderResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -524,7 +533,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.ReadFolder(path, options);
                 source.postMessage({ readFolderResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.folderExists) {
-                if (externalKeyAllowed || path.startsWith("/__public") || path.startsWith("__public")) {
+                if (externalKeyAllowed || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.FolderExists(path, options);
                     source.postMessage({ folderExistsResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -533,7 +542,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.FolderExists(path, options);
                 source.postMessage({ folderExistsResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.fileExists) {
-                if (externalKeyAllowed || path.startsWith("/__public") || path.startsWith("__public")) {
+                if (externalKeyAllowed || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.FileExists(path, options);
                     source.postMessage({ fileExistsResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -565,7 +574,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
         async function sendProtectedResponse(externalAllowed) {
             const externalKey = e.detail.data.key;
             if (e.detail.data.writeFile) {
-                if (externalAllowed || path.startsWith("/__public") || path.startsWith("__public")) {
+                if (externalAllowed || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.WriteFile(path, e.detail.data.content, options);
                     source.postMessage({ writeFileResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -574,7 +583,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.WriteFile(internalPath, e.detail.data.content, options);
                 source.postMessage({ writeFileResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.writeFolder) {
-                if (externalAllowed || path.startsWith("/__public") || path.startsWith("__public")) {
+                if (externalAllowed || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.WriteFolder(path, options);
                     source.postMessage({ writeFolderResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -583,7 +592,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.WriteFolder(internalPath, options);
                 source.postMessage({ writeFolderResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.deleteFile) {
-                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
+                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.DeleteFile(path, options);
                     source.postMessage({ deleteFileResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -592,7 +601,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.DeleteFile(path, options);
                 source.postMessage({ deleteFileResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.deleteFolder) {
-                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
+                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.DeleteFolder(path, options);
                     source.postMessage({ deleteFolderResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -601,7 +610,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.DeleteFolder(path, options);
                 source.postMessage({ deleteFolderResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.renameFile) {
-                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
+                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.RenameFile(path, e.detail.data.newName);
                     source.postMessage({ renameFileResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -610,7 +619,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
                 result = await window.protectedGlobals.RenameFile(internalPath, e.detail.data.newName);
                 source.postMessage({ renameFileResult: true, result: result, requestId: requestId }, "*");
             } else if (e.detail.data.renameFolder) {
-                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
+                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.RenameFolder(path, e.detail.data.newName);
                     source.postMessage({ renameFolderResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -621,14 +630,14 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             } else if (e.detail.data.pasteFile) {
                 let clipboardData = e.detail.data.clipboard?.path;
                 try {
-                    if (!(clipboardData.startsWith("__public") || clipboardData.startsWith("/__public"))) {
+                    if (!isDownloadsPath(clipboardData)) {
                         clipboardData = "systemfiles/runtime/apps/" + e.detail.from + "/" + clipboardData;
                     }
                 } catch {
                     source.postMessage({ error: "Invalid clipboard data", requestId: requestId }, "*");
                     return;
                 }
-                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
+                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.PasteFile(path, { path: clipboardData, type: e.detail.data.clipboard?.type });
                     source.postMessage({ pasteFileResult: true, result: result, requestId: requestId }, "*");
                     return;
@@ -639,14 +648,14 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
             } else if (e.detail.data.pasteFolder) {
                 let clipboardData = e.detail.data.clipboard?.path;
                 try {
-                    if (!(clipboardData.startsWith("__public") || clipboardData.startsWith("/__public"))) {
+                    if (!isDownloadsPath(clipboardData)) {
                         clipboardData = "systemfiles/runtime/apps/" + e.detail.from + "/" + clipboardData;
                     }
                 } catch {
                     source.postMessage({ error: "Invalid clipboard data", requestId: requestId }, "*");
                     return;
                 }
-                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || path.startsWith("/__public") || path.startsWith("__public")) {
+                if ((externalKey && isExternalKeyAllowed(path, externalKey, appName)) || isDownloadsPath(path)) {
                     result = await window.protectedGlobals.PasteFolder(path, { path: clipboardData, type: e.detail.data.clipboard?.type });
                     source.postMessage({ pasteFolderResult: true, result: result, requestId: requestId }, "*");
                     return;

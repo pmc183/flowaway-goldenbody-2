@@ -134,7 +134,15 @@ This is copied directly from the dev docs in the settings app
     Pass structured input via <code>argObj</code>. The loader injects <code>window.__args</code> into the iframe, so the app can read it. For example, if you launch an app with:
 </p>
 <pre><code>// launch an app and pass args await __goldenbodyAPI.launchApp('myApp', [{ view: 'recent', id: 42 }, { obj2: 'favorites' }]);
-
+// it can also be used to launch package installer to update your app
+await __goldenbodyAPI.launchApp('App Installer', "/downloads/yourpackage.zip");
+you can also compute your own dir path and pass it to the app, like this:
+const apps = await __goldenbodyAPI.getAvaliableAppsToLaunch();
+const myApp = apps.find(app => app.id === 'myApp');
+if (myApp) {
+  const appPath = \`/systemfiles/runtime/apps/\${myApp.id}\`;
+  await __goldenbodyAPI.launchApp("App Installer", appPath + '/yourpackage.zip');
+}
 // inside iframe script
 const args = window.__args; // [{ view: 'recent', id: 42 }, { obj2: 'favorites' }]
 </code></pre>
@@ -739,10 +747,10 @@ window.userPickedFileHandle,
 // if you need the raw path or key you can also inspect:
 // window.path (string) and window.filehandle (permission key)
 </code></pre>
-<h3>/__public — shared space</h3>
+<h3>/downloads — shared space</h3>
 <p>
-    The runtime exposes a special shared path prefix <code>/__public</code>. Sandboxed apps and workers are allowed to
-    access paths under <code>/__public</code> without a picker key (the runtime treats <code>/__public</code> as an
+    The runtime exposes a special shared path prefix <code>/downloads</code>. Sandboxed apps and workers are allowed to
+    access paths under <code>/downloads</code> without a picker key (the runtime treats <code>/downloads</code> as an
     application-visible shared area). Use it for non-sensitive shared assets, caches, or inter-app data; avoid storing
     secrets or personal data there.
 </p>
@@ -812,6 +820,7 @@ clipboard
     how the client behaves. If you break it, you can restore the system tree from the login page and remove broken
     non-system apps there. A copy of broken files will also be stored in your cloud storage.
 </p>
+
 ## BACKEND SERVER ADMIN SETUP
 
 - Requirements: Node.js (latest recommended, v24+). IDK if bun works... prob not.

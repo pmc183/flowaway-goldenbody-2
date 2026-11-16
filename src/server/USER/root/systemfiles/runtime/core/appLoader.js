@@ -1143,7 +1143,7 @@
         iframe.style.border = "none";
         if (!window.protectedGlobals.appPerms[entryObj.id]) window.protectedGlobals.appPerms[entryObj.id] = { storage: "ask", notification: "ask", launch: "ask" };
         let instanceNum = window[entryObj.globalVarObjectString][entryObj.allAppArrayString].length + 1;
-        instance.title = entryObj.label + " " + (instanceNum + 1);
+        instance.title = entryObj.label + " " + instanceNum;
         // Preserve an already-passed path or picker handle for the iframe. If the app was launched
         // with a target, the iframe can inspect window.__path__ and use that as its initial file/folder target.
         const launchTarget = path || null;

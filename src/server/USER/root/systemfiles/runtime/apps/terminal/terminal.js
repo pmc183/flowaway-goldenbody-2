@@ -626,10 +626,9 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
     function canAccessWorkerPath(target, appRoot, op = 'readFolder') {
       const normalizedTarget = normalizeCloudPath(target);
-      if (!isSystemFilesAccessiblePath(normalizedTarget)) return false;
-
       const allowedOps = new Set(['readFolder', 'folderExists', 'fileExists']);
-      return allowedOps.has(op);
+      if (isSystemFilesAccessiblePath(normalizedTarget) && !allowedOps.has(op)) return false;
+      return true;
     }
 
     function isPathUnderRoot(path, root) {

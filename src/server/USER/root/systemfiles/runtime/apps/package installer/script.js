@@ -1035,5 +1035,4 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
     btnMax: topbar ? topbar.querySelector(".btnMaxColor") : null,
   });
   window.protectedGlobals.apptools.api.trackInstance(instance, "App Installer");
-  return instance;
 };

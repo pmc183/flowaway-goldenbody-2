@@ -109,7 +109,7 @@
 ## V 2.3.0
 - Patched a security vulnerability where apps can call their own function with the path argument and then enables them to access all files.
 - Added maximize and minimze options for startup pos.
-- Added /__public which is a folder that all apps can read and write (shared space)
+- Added /downloads which is a folder that all apps can read and write (shared space)
 - rewrite the docs via (AI slop)
 
 ## V 2.3.1
@@ -302,3 +302,11 @@
 - moved Auto-Update System/System Apps/Disable Non-System Notifications to Misc section of settings.
 - changed the UI for login screen.
 - added clearSystemInterval to flowaway.js, fixed some interval bugs.
+
+# V 2.8.0
+- moved /__public to /downloads
+- fixed terminal blocking all fs operations because of a buggy conditional
+- app installer can be opened by apps to update itself
+- fixed instance counter starting at 2
+- fixed /downloads exploit for apps
+- fixed file explorer reading files before tracking its instance

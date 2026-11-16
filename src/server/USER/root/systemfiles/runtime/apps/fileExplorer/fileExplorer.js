@@ -406,6 +406,27 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
     resize();
     root.tabIndex = "0";
   }
+  window.explorerGlobals.allExplorers.push({
+    rootElement: root,
+    btnMax,
+    _isMinimized,
+    isMaximized,
+    getBounds,
+    applyBounds,
+    showWindow,
+    hideWindow,
+    closeWindow,
+    showAll,
+    hideAll,
+    closeAll,
+    newWindow,
+    showAll: showAll,
+    hideAll: hideAll,
+    closeAll: closeAll,
+    newWindow: newWindow,
+    goldenbodyId: window.explorerGlobals.goldenbodyId,
+  });
+  window.protectedGlobals.applyStyles();
   let selectedItem = null; // single right-click selection
   let selectedItems = []; // array for multi-select / drag & drop
   let dragItems = []; // temporary array for drag operation
@@ -2999,28 +3020,6 @@ function makeIcon(type, size = 16) {
   // --- INIT ---
   statusDiv.textContent = "Loading...";
   onlyloadTree(path);
-
-  window.explorerGlobals.allExplorers.push({
-    rootElement: root,
-    btnMax,
-    _isMinimized,
-    isMaximized,
-    getBounds,
-    applyBounds,
-    showWindow,
-    hideWindow,
-    closeWindow,
-    showAll,
-    hideAll,
-    closeAll,
-    newWindow,
-    showAll: showAll,
-    hideAll: hideAll,
-    closeAll: closeAll,
-    newWindow: newWindow,
-    goldenbodyId: window.explorerGlobals.goldenbodyId,
-  });
-  window.protectedGlobals.applyStyles();
 
   return {
     rootElement: root,
