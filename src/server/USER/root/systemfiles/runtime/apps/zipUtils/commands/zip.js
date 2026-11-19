@@ -11,7 +11,7 @@
     const firstNonEmpty = (...values) => {
       for (const value of values) {
         if (value === undefined || value === null) continue;
-        const text = String(value).trim();
+        const text = String(value);
         if (text) return text;
       }
       return '';
@@ -67,7 +67,7 @@
     const cwd = normalizeCloudPath(cwdInfo?.full || '/');
 
     const resolvePath = (value, fallback) => {
-      const raw = String(value ?? '').trim() || fallback;
+      const raw = String(value ?? '') || fallback;
       if (raw.startsWith('/')) return normalizeCloudPath(raw);
       return joinPath(cwd, raw);
     };

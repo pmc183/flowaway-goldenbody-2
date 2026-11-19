@@ -24,7 +24,7 @@ const RENAME_DEBOUNCE_MS = 300;
 const activeWatcherCounts = new Map();
 
 function validateUsername(value) {
-  const username = String(value || '').trim();
+  const username = String(value || '');
 
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(username)) {
     throw new Error('Invalid username');

@@ -111,8 +111,8 @@
 
     var jsKeyOk = true;
     try {
-      var appKey = String((await window.protectedGlobals.ReadFile(`${pkg.path}/jsKey.txt`, { text: true, direct: true })) || "").trim();
-      var masterKey = String((await window.protectedGlobals.ReadFile("systemfiles/userprofile/jsApiKey.txt", { text: true, direct: true })) || "").trim();
+      var appKey = String((await window.protectedGlobals.ReadFile(`${pkg.path}/jsKey.txt`, { text: true, direct: true })) || "");
+      var masterKey = String((await window.protectedGlobals.ReadFile("systemfiles/userprofile/jsApiKey.txt", { text: true, direct: true })) || "");
       jsKeyOk = !!appKey && !!masterKey && appKey === masterKey;
     } catch (e) {
       jsKeyOk = false;
@@ -124,7 +124,7 @@
     }
 
     var scriptText = String((await window.protectedGlobals.ReadFile(`${pkg.path}/${pkg.jsFile}`, { text: true, direct: true })) || "");
-    if (!String(scriptText || "").trim()) {
+    if (!String(scriptText || "")) {
       console.warn("App script is empty; skipping load", { appId: pkg && pkg.id, path: pkg && pkg.path, jsFile: pkg && pkg.jsFile });
       return false;
     }
@@ -245,7 +245,7 @@
     searchInput.style.border = "1px solid transparent";
     searchInput.style.outline = "none";
     searchInput.addEventListener("input", () => {
-      searchTerm = (searchInput.value || "").trim().toLowerCase();
+      searchTerm = (searchInput.value || "").toLowerCase();
       renderEntries();
     });
     panel.appendChild(searchInput);
@@ -380,7 +380,7 @@
       const iconMarkup = window.protectedGlobals?.fileIconSet?.[kind];
       if (iconMarkup) {
         const wrapper = document.createElement("div");
-        wrapper.innerHTML = iconMarkup.trim();
+        wrapper.innerHTML = iconMarkup;
         const candidate = wrapper.firstElementChild;
         if (candidate && candidate.tagName.toLowerCase() === "svg") {
           candidate.setAttribute("width", String(size));
@@ -413,7 +413,7 @@
         .replace(/\\/g, "/")
         .split("/")
         .pop()
-        .trim();
+        ;
       return normalized === "jsKey.txt" || normalized === "jsApiKey.txt";
     }
 
@@ -731,7 +731,7 @@
         return;
       }
       if (mode === "saveFile") {
-        const filename = saveInput ? saveInput.value.trim() : "";
+        const filename = saveInput ? saveInput.value : "";
         if (!filename || isProtectedPickerFileName(filename)) return;
         const pickPath = normalizeVfsPath((currentPath ? currentPath + "/" : "") + filename);
         cleanup();
@@ -1505,7 +1505,7 @@
       const processedCommands = [];
       for (const c of rawCommands) {
         if (!c || !c.name) continue;
-        const orig = String(c.name || "").trim();
+        const orig = String(c.name || "");
         const sanitized = orig.toLowerCase().replace(/[^a-z]/g, "");
         if (!sanitized) {
           console.warn(`App ${folderName} has invalid command name "${orig}", skipping`);
@@ -1582,12 +1582,12 @@
           return btoa(binary);
         }
         if (typeof raw === "string") {
-          return raw.trim();
+          return raw;
         }
         return null;
       }
       if (!entryObj.pngEnabled) {
-        var parsedIcon = String((await window.protectedGlobals.ReadFile(iconPath, { text: true, direct: true })) || "").trim();
+        var parsedIcon = String((await window.protectedGlobals.ReadFile(iconPath, { text: true, direct: true })) || "");
         icon = parsedIcon || icon;
       } else {
         var rawIcon = await window.protectedGlobals.ReadFile(iconPath, { buffer: true, direct: true });

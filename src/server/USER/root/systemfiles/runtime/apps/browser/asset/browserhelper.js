@@ -255,7 +255,7 @@ window.browserGlobals.profileState = {
 };
 
 window.browserGlobals.looksLikeSessionId = function (value) {
-  const s = String(value || "").trim();
+  const s = String(value || "");
   return /^[A-Za-z0-9._-]{8,}$/.test(s);
 };
 
@@ -614,7 +614,7 @@ window.browserGlobals.convertCookiesForBrowserUse = function (object) {
 window.browserGlobals.convertlooseCookieStringToObject = function (cookieString) {
   if (!cookieString || typeof cookieString !== "string") return {};
 
-  const parts = cookieString.split(";").map(p => p.trim()).filter(Boolean);
+  const parts = cookieString.split(";").map(p => p).filter(Boolean);
   if (parts.length === 0) return {};
 
   // First part = actual cookie
@@ -623,8 +623,8 @@ window.browserGlobals.convertlooseCookieStringToObject = function (cookieString)
 
   if (eqIndex === -1) return {};
 
-  const name = nameValue.slice(0, eqIndex).trim();
-  const value = nameValue.slice(eqIndex + 1).trim();
+  const name = nameValue.slice(0, eqIndex);
+  const value = nameValue.slice(eqIndex + 1);
 
   if (!name) return {};
 
@@ -637,9 +637,9 @@ window.browserGlobals.convertlooseCookieStringToObject = function (cookieString)
 
     if (idx === -1) continue;
 
-    const key = part.slice(0, idx).trim().toLowerCase();
+    const key = part.slice(0, idx).toLowerCase();
     if (key === "expires") {
-      expires = part.slice(idx + 1).trim();
+      expires = part.slice(idx + 1);
       break;
     }
   }

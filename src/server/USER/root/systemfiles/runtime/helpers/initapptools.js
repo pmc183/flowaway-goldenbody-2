@@ -607,12 +607,12 @@ window.protectedGlobals.initAppTools = function () {
     if (appOrId && typeof appOrId === "object") {
       app = appOrId;
     } else {
-      var hintedAppId = String(appOrId || "").trim();
+      var hintedAppId = String(appOrId || "");
       if (!hintedAppId && instance.rootElement && instance.rootElement.dataset) {
-        hintedAppId = String(instance.rootElement.dataset.appId || "").trim();
+        hintedAppId = String(instance.rootElement.dataset.appId || "");
       }
       if (!hintedAppId && instance.appId) {
-        hintedAppId = String(instance.appId || "").trim();
+        hintedAppId = String(instance.appId || "");
       }
       if (hintedAppId) {
         app =
@@ -640,7 +640,7 @@ window.protectedGlobals.initAppTools = function () {
       instance.rootElement._goldenbodyId = instance.goldenbodyId;
       if (instance.rootElement.dataset) {
         instance.rootElement.dataset.goldenbodyId = String(instance.goldenbodyId);
-        instance.rootElement.dataset.appId = app.id.trim();
+        instance.rootElement.dataset.appId = app.id;
       }
     }
 
@@ -662,7 +662,7 @@ window.protectedGlobals.initAppTools = function () {
     var ctx = window.protectedGlobals.resolveApptoolsContext(initialAppId, root);
     var app = ctx.app;
     var appId = ctx.appId;
-    var title = String(options.title || options.apptitle || "").trim();
+    var title = String(options.title || options.apptitle || "");
 
     var instance = {
       rootElement: root,

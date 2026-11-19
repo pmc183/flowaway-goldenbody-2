@@ -1,21 +1,21 @@
 "use strict";
 window.protectedGlobals.appMatchesIdentifier = function (app, identifier) {
   if (!app || !identifier) return false;
-  var id = String(identifier).trim();
+  var id = String(identifier);
   if (!id) return false;
   var candidates = [app.id]
     .filter((v) => v !== null && v !== undefined)
-    .map((v) => String(v).trim())
+    .map((v) => String(v))
     .filter(Boolean);
   return candidates.includes(id);
 };
 
 window.protectedGlobals.resolveApptoolsContext = function (appId, rootElement) {
-  var appIdStr = String(appId || "").trim();
+  var appIdStr = String(appId || "");
   
   // Try to extract appId from rootElement if not provided
   if (!appIdStr && rootElement && rootElement.dataset) {
-    appIdStr = String(rootElement.dataset.appId || "").trim();
+    appIdStr = String(rootElement.dataset.appId || "");
   }
   
   var app = null;
@@ -32,46 +32,13 @@ window.protectedGlobals.resolveApptoolsContext = function (appId, rootElement) {
 };
 
 window.protectedGlobals.activeOperations = 0;
-window.protectedGlobals.originalCursors = new Map();
-
-window.protectedGlobals.applyWaitCursor = function (el) {
-    if (
-        ["", "default", "pointer"].includes(el.style.cursor)
-    ) {
-        window.protectedGlobals.originalCursors.set(el, el.style.cursor);
-        el.style.cursor = "progress";
-    }
-};
-
-window.protectedGlobals.cursorObserver = new MutationObserver((mutations) => {
-    if (window.protectedGlobals.activeOperations <= 0) return;
-
-    mutations.forEach((mutation) => {
-        mutation.addedNodes.forEach((node) => {
-            if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-            window.protectedGlobals.applyWaitCursor(node);
-
-            node.querySelectorAll("*").forEach((el) => {
-                window.protectedGlobals.applyWaitCursor(el);
-            });
-        });
-    });
-});
-
-window.protectedGlobals.cursorObserver.observe(document.body, {
-    childList: true,
-    subtree: true
-});
 
 window.protectedGlobals.changeCursorToWait = function () {
     window.protectedGlobals.activeOperations++;
 
-    if (window.protectedGlobals.activeOperations > 1) return;
-
-    document.querySelectorAll("*").forEach((el) => {
-        window.protectedGlobals.applyWaitCursor(el);
-    });
+    if (window.protectedGlobals.activeOperations === 1) {
+        document.body.classList.add("wait-cursor");
+    }
 };
 
 window.protectedGlobals.changeCursorToDefault = function () {
@@ -80,13 +47,9 @@ window.protectedGlobals.changeCursorToDefault = function () {
         window.protectedGlobals.activeOperations - 1
     );
 
-    if (window.protectedGlobals.activeOperations > 0) return;
-
-    window.protectedGlobals.originalCursors.forEach((cursor, el) => {
-        el.style.cursor = cursor;
-    });
-
-    window.protectedGlobals.originalCursors.clear();
+    if (window.protectedGlobals.activeOperations === 0) {
+        document.body.classList.remove("wait-cursor");
+    }
 };
 
 window.protectedGlobals.launchApp = async function (appId, args) {
@@ -122,7 +85,7 @@ window.protectedGlobals.launchApp = async function (appId, args) {
 };
 
 window.protectedGlobals.initAppRuntimeState = function (app) {
-  var globalName = String(app.globalVarObjectString || "").trim();
+  var globalName = String(app.globalVarObjectString || "");
 
   var appGlobalObj = window[globalName] || {};
   window[globalName] = appGlobalObj;
@@ -166,9 +129,9 @@ window.protectedGlobals.setAppDataTitle = function (targetOrTitle, maybeTitle) {
 
   if (targetOrTitle && targetOrTitle.setAttribute) {
     target = targetOrTitle;
-    title = String(maybeTitle || "").trim();
+    title = String(maybeTitle || "");
   } else {
-    title = String(targetOrTitle || "").trim();
+    title = String(targetOrTitle || "");
     target = window.protectedGlobals.resolveLaunchContextRoot();
   }
 
@@ -233,7 +196,7 @@ window.protectedGlobals.resolveAppFromEvent = function (evt, appOverride = null)
       if (taskBtn) {
         appId =
           (taskBtn.dataset && taskBtn.dataset.appId) ||
-          (taskBtn.value && String(taskBtn.value).trim()) ||
+          (taskBtn.value && String(taskBtn.value)) ||
           "";
       }
     }
@@ -293,7 +256,7 @@ window.protectedGlobals.applyWindowControlIcon = function (button, iconName, opt
       // If a minWidth option was explicitly provided, respect it but cap it
       var opt = btn.dataset.minWidthOption;
       if (opt) {
-        var s = String(opt).trim();
+        var s = String(opt);
         if (s.endsWith("px")) {
           var val = parseFloat(s);
           if (!isNaN(val)) {

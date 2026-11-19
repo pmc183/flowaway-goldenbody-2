@@ -25,7 +25,7 @@ function sanitizeAuthRecord(raw, usernameHint) {
   const base = raw && typeof raw === 'object' ? raw : {};
   const maxSpace = Number(base.maxSpace);
   return {
-    username: String(base.username || usernameHint || '').trim(),
+    username: String(base.username || usernameHint || ''),
     password: typeof base.password === 'string' ? base.password : '',
     ...(Number.isFinite(maxSpace) && maxSpace > 0 ? { maxSpace } : {}),
     authTokens: Array.isArray(base.authTokens)
@@ -46,7 +46,7 @@ async function authenticateUser(username, providedPassword, authHeader) {
       if (obj && typeof obj.password === 'string' && obj.password.length) {
         if (providedPassword === obj.password) return true;
         if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-          const token = authHeader.slice(7).trim();
+          const token = authHeader.slice(7);
           if (Array.isArray(obj.authTokens)) {
             const now = Date.now();
             obj.authTokens = obj.authTokens.filter(t => t && t.expires && t.expires > now);
@@ -166,7 +166,7 @@ async function handleDownload(req, res) {
 
       // If client sent a Bearer token and it's still valid, echo it back
       if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-        const providedToken = authHeader.slice(7).trim();
+        const providedToken = authHeader.slice(7);
         if (obj.authTokens.some(t => t.token === providedToken && t.expires > now)) {
           tokenToReturn = providedToken;
         }

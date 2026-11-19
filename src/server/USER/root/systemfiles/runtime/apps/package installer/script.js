@@ -1,6 +1,6 @@
 "use strict";
 
-window.packageInstallerGlobals = window.packageInstallerGlobals || {};
+window.packageInstallerGlobals = {};
 (function () {
   const script = document.createElement('script');
   script.textContent = window.protectedGlobals.fflateText;
@@ -10,7 +10,7 @@ window.packageInstallerGlobals = window.packageInstallerGlobals || {};
   document.head.appendChild(script);
 })();
 
-window.packageInstallerGlobals.ensureJSZipLoaded = window.packageInstallerGlobals.ensureJSZipLoaded || async function () {
+window.packageInstallerGlobals.ensureJSZipLoaded = async function () {
   if (typeof window.fflate === 'undefined') {
     throw new Error('Zip library not available after loading CDN script');
   }
@@ -79,25 +79,25 @@ window.packageInstallerGlobals.parseZipData = window.packageInstallerGlobals.par
   };
 };
 
-window.packageInstallerGlobals.getMasterJsApiKey = window.packageInstallerGlobals.getMasterJsApiKey || async function () {
+window.packageInstallerGlobals.getMasterJsApiKey = async function () {
   try {
     const key = await window.protectedGlobals.ReadFile('systemfiles/userprofile/jsApiKey.txt', { text: true, direct: true });
-    return String(key || '').trim();
+    return String(key || '');
   } catch (error) {
     return '';
   }
 };
 
-window.packageInstallerGlobals.ensureFolderExists = window.packageInstallerGlobals.ensureFolderExists || async function (path, password) {
+window.packageInstallerGlobals.ensureFolderExists = async function (path) {
   if (!path || path === '/') return;
   try {
-    await window.protectedGlobals.WriteFolder(path, { password });
+    await window.protectedGlobals.WriteFolder(path);
   } catch (error) {
     // ignore if already exists or path cannot be created directly
   }
 };
 
-window.packageInstallerGlobals.readBinaryFile = window.packageInstallerGlobals.readBinaryFile || async function (filePath) {
+window.packageInstallerGlobals.readBinaryFile = async function (filePath) {
   const payload = await window.protectedGlobals.ReadFile(filePath, { buffer: true, direct: true });
 
   if (payload instanceof ArrayBuffer) {
@@ -127,8 +127,8 @@ window.packageInstallerGlobals.readBinaryFile = window.packageInstallerGlobals.r
   throw new Error('Unsupported binary payload returned from ReadFile');
 };
 
-window.packageInstallerGlobals.sanitizeFolderName = window.packageInstallerGlobals.sanitizeFolderName || function (value) {
-  const baseName = String(value || '').trim();
+window.packageInstallerGlobals.sanitizeFolderName = function (value) {
+  const baseName = String(value || '');
   const safeName = baseName
     .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '-')
     .replace(/\s+/g, ' ')
@@ -136,7 +136,7 @@ window.packageInstallerGlobals.sanitizeFolderName = window.packageInstallerGloba
   return safeName || 'app-package';
 };
 
-window.packageInstallerGlobals.readZipEntryText = window.packageInstallerGlobals.readZipEntryText || async function (entryFile, timeoutMs = 1500) {
+window.packageInstallerGlobals.readZipEntryText = async function (entryFile, timeoutMs = 1500) {
   if (!entryFile) {
     throw new Error('Zip entry is not provided');
   }
@@ -301,7 +301,7 @@ window.packageInstallerGlobals.getPackageMetadata = window.packageInstallerGloba
     throw new Error('entry.json is not valid JSON');
   }
 
-  const label = typeof entryData?.id === 'string' ? entryData.id.trim() : '';
+  const label = typeof entryData?.id === 'string' ? entryData.id : '';
   if (!label) {
     throw new Error('entry.json is missing a valid id property');
   }
@@ -407,28 +407,25 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
   }
 
   async function installPackage(zipData, folderName, statusDiv, packageMetadata, password) {
+    const pw = password;
+    if (typeof pw === 'string' && pw.length > 0) {
+      try {
+        const authRes = await window.protectedGlobals.zmcdpost({ password: pw });
+        if (!authRes || authRes.username !== window.protectedGlobals.getCurrentUsernameForRequests()) {
+          throw new Error('Password verification failed');
+        }
+      } catch (err) {
+        throw new Error(err && err.message ? err.message : String(err));
+      }
+    }
     const baseFolder = `/systemfiles/runtime/apps/${folderName}`;
     const appAlreadyLoadedInRuntime = Boolean(window.protectedGlobals.apps.find((a) => a.folderName === folderName));
     const shouldUpdate = appAlreadyLoadedInRuntime;
 
-      // Preflight: verify provided password with zmcdpost before writing anything
-      if (typeof password === 'string' && password.length > 0) {
-        try {
-          const authRes = await window.protectedGlobals.zmcdpost({ password });
-          if (!authRes || authRes.username !== window.protectedGlobals.getCurrentUsernameForRequests()) {
-            throw new Error('Password verification failed');
-          }
-        } catch (err) {
-          throw new Error('Password check failed: ' + (err && err.message ? err.message : String(err)));
-        }
-      }
-
-      // Update mode should trigger whenever the app is already loaded in runtime.
-      // If the folder is missing on disk, we still just write the package files in-place.
     statusDiv.style.color = 'var(--muted-color)';
     statusDiv.textContent = 'Installing, please wait...';
 
-    await window.packageInstallerGlobals.ensureFolderExists(baseFolder, password);
+    await window.packageInstallerGlobals.ensureFolderExists(baseFolder);
     const createdFolders = new Set([baseFolder]);
 
     const archiveFiles = Object.keys(zipData.files || {}).filter((entryPath) => !zipData.files[entryPath].dir);
@@ -456,7 +453,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
       const folderPath = fullPath.substring(0, fullPath.lastIndexOf('/')) || baseFolder;
       if (!createdFolders.has(folderPath)) {
         createdFolders.add(folderPath);
-        folderCreates.push(window.packageInstallerGlobals.ensureFolderExists(folderPath, password));
+        folderCreates.push(window.packageInstallerGlobals.ensureFolderExists(folderPath));
       }
     }
     await Promise.all(folderCreates);
@@ -482,7 +479,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
       const fullPath = `${baseFolder}/${relativePath}`;
       writeTasks.push(
         file.async('arraybuffer').then((fileContent) =>
-          window.protectedGlobals.WriteFile(fullPath, fileContent, { buffer: true, password })
+          window.protectedGlobals.WriteFile(fullPath, fileContent, { buffer: true })
         )
       );
     }
@@ -492,10 +489,15 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
     if (useJsApi) {
       const masterKey = await window.packageInstallerGlobals.getMasterJsApiKey();
       if (masterKey) {
-        await window.protectedGlobals.WriteFile(`${baseFolder}/jsKey.txt`, masterKey, { text: true, password });
+        await window.protectedGlobals.WriteFile(`${baseFolder}/jsKey.txt`, masterKey, { text: true });
       }
     }
-    await window.protectedGlobals.installApp(folderName, { update: shouldUpdate, password });
+    try {
+      await window.protectedGlobals.installApp(folderName, { update: shouldUpdate });
+    } catch (e) {
+      await window.protectedGlobals.DeleteFolder(baseFolder);
+      throw e;
+    }
     statusDiv.textContent = 'Installation complete!';
     statusDiv.style.color = '#107c10';
   }
@@ -535,6 +537,9 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
         statusDiv.textContent = 'Installing...';
         try {
           await installPackage(zipData, folderName, statusDiv, packageMetadata, pw);
+          doInstallBtn.style.display = 'none';
+          cancelBtnSimple.disabled = false;
+          cancelBtnSimple.textContent = 'Close';
         } catch (error) {
           statusDiv.textContent = `Installation error: ${error.message}`;
           statusDiv.style.color = '#d13438';
@@ -660,6 +665,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
         statusDiv.textContent = 'Installing...';
 
         const pw = container.querySelector('#installPassword')?.value || '';
+        // Authenticate only through ZMCD; never send the password to filesystem APIs.
         await installPackage(zipData, folderName, statusDiv, packageMetadata, pw);
 
         continueBtn.style.display = 'none';
@@ -670,7 +676,7 @@ window.packageInstaller = function (path = undefined, posX = 50, posY = 50) {
       } catch (error) {
         statusDiv.textContent = `Installation error: ${error.message}`;
         statusDiv.style.color = '#d13438';
-        continueBtn.disabled = false;
+        continueBtn.disabled = true;
       }
     });
   }

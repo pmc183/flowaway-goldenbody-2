@@ -8,7 +8,7 @@
         let fullPath;
         function getSessionAuthHeaders() {
           const headers = { "Content-Type": "application/json" };
-          const token = window.protectedGlobals.data.authToken.trim()
+          const token = window.protectedGlobals.data.authToken
           if (token) headers.Authorization = "Bearer " + token;
           return headers;
         }
@@ -744,7 +744,7 @@
             }
 
             searchInput.addEventListener("input", () => {
-              pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+              pickerSearchTerm = (searchInput.value || "").toLowerCase();
               renderPicker();
             });
 
@@ -886,7 +886,7 @@
             if (!savePickerTree) return;
             const selections = [...savePickerSelection];
             const basePath = savePickerCurrentPath.slice(1).join("/");
-            const fname = (nameInput.value || "").trim();
+            const fname = (nameInput.value || "");
             if (!fname) {
               alert("Enter a filename");
               return;
@@ -1041,7 +1041,7 @@
           }
 
           searchInput.addEventListener("input", () => {
-            savePickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+            savePickerSearchTerm = (searchInput.value || "").toLowerCase();
             render();
           });
 
@@ -1370,7 +1370,7 @@
           }
 
           searchInput.addEventListener("input", () => {
-            dirPickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+            dirPickerSearchTerm = (searchInput.value || "").toLowerCase();
             render();
           });
 

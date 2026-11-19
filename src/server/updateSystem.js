@@ -64,7 +64,7 @@ async function pathExists(filePath) {
 async function getUserMasterJsKey(userSystemfilesPath) {
   const jsApiKeyPath = path.join(userSystemfilesPath, 'userprofile', 'jsApiKey.txt');
   const key = await readTextFile(jsApiKeyPath);
-  return key ? String(key).trim() : '';
+  return key ? String(key) : '';
 }
 
 async function appRequestsAdminPerm(appDirPath) {

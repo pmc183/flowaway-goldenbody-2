@@ -251,7 +251,7 @@ async function getDirRealSizeBytes(root) {
   return walk(root);
 }
 
-async function authenticateUser(username, providedPassword, authHeader) {
+async function authenticateUser(username, authHeader) {
   if (!username) return false;
 
   try {
@@ -260,12 +260,10 @@ async function authenticateUser(username, providedPassword, authHeader) {
     const txt = await fsp.readFile(userFile, "utf8");
     const obj = JSON.parse(txt);
 
-    if (!obj || typeof obj.password !== "string") return false;
-
-    if (providedPassword === obj.password) return true;
+    if (!obj) return false;
 
     if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.slice(7).trim();
+      const token = authHeader.slice(7);
 
       const now = Date.now();
 
@@ -283,7 +281,7 @@ async function authenticateUser(username, providedPassword, authHeader) {
 
 let directoryPath = path.resolve(__dirname, "./zmcdfiles");
 function getUserDirectory(username) {
-  const safeUsername = String(username || "").trim();
+  const safeUsername = String(username || "");
 
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(safeUsername)) {
     throw new Error("Invalid username");
@@ -298,7 +296,7 @@ if (!fs.existsSync(directoryPath)) fs.mkdirSync(directoryPath, { recursive: true
 function removeUnwantedStuffInPath(value) {
   let raw = String(value ?? "")
     .replace(/\\/g, "/")
-    .trim();
+    ;
 
   if (!raw) return "/";
 
@@ -318,53 +316,10 @@ function stripLeadingSlash(value) {
 
 function isRootContainerPath(value) {
   if (value === undefined || value === null) return false;
-  const text = String(value).replace(/\\/g, "/").trim();
+  const text = String(value).replace(/\\/g, "/");
   if (!text || text === "/") return true;
   const normalized = stripLeadingSlash(text);
   return normalized === "" || normalized === "root";
-}
-
-function isExistingAppFolderPath(userRoot, normalizedPath) {
-  if (!normalizedPath || typeof normalizedPath !== "string") return false;
-
-  const appsRoot = "/systemfiles/runtime/apps/";
-  if (!normalizedPath.startsWith(appsRoot)) return false;
-
-  const relative = normalizedPath.slice(appsRoot.length).replace(/^\/+/, "");
-  if (!relative) return false;
-
-  const firstSegment = relative.split("/")[0];
-  if (!firstSegment) return false;
-
-  const candidatePath = safeResolve(userRoot, `systemfiles/runtime/apps/${firstSegment}`);
-
-  try {
-    const stat = fs.statSync(candidatePath);
-    return Boolean(stat && stat.isDirectory());
-  } catch {
-    return false;
-  }
-}
-
-function requiresPasswordForAppsWrite(userRoot, normalizedPath) {
-  if (!normalizedPath || typeof normalizedPath !== "string") return false;
-  if (!normalizedPath.startsWith("/systemfiles/runtime/apps/")) return false;
-
-  const relative = normalizedPath.slice("/systemfiles/runtime/apps/".length).replace(/^\/+/, "");
-  if (!relative) return false;
-
-  if (!relative.includes("/")) {
-    return false;
-  }
-
-  return !isExistingAppFolderPath(userRoot, normalizedPath);
-}
-
-function requiresPasswordForAppsFolderCreate(userRoot, normalizedPath) {
-  if (!normalizedPath || typeof normalizedPath !== "string") return false;
-  if (!normalizedPath.startsWith("/systemfiles/runtime/apps/")) return false;
-
-  return !isExistingAppFolderPath(userRoot, normalizedPath);
 }
 
 function getPermissionForRelativePath(relPath, permissionEntries) {
@@ -435,17 +390,16 @@ async function handleRawFileUpload(req, res) {
     return Buffer.from(base64Str, "base64").toString("utf8");
   }
   const headers = req.headers || {};
-  const username = String(headers["x-username"] || "").trim();
-  const password = String(headers["x-password"] || "").trim();
+  const username = String(headers["x-username"] || "");
   const authHeader = headers.authorization || headers.Authorization || "";
-  const relPath = base64ToUtf8(String(headers["x-file-path"] || "").trim());
+  const relPath = base64ToUtf8(String(headers["x-file-path"] || ""));
 
   if (!username || !relPath) {
     res.writeHead(400);
     return res.end(JSON.stringify({ error: "Missing username or file path" }));
   }
 
-  if (!(await authenticateUser(username, password, authHeader))) {
+  if (!(await authenticateUser(username, authHeader))) {
     res.writeHead(401);
     return res.end(JSON.stringify({ error: "unauthorized" }));
   }
@@ -470,13 +424,6 @@ async function handleRawFileUpload(req, res) {
       error: "write permission denied",
       path: normalizedPath,
     }));
-  }
-
-  // Require explicit password (not token) when writing under /systemfiles/runtime/apps/,
-  // except when the path is inside an already-created app folder.
-  if (requiresPasswordForAppsWrite(userRoot, normalizedPath) && (!authObj || password !== authObj.password)) {
-    res.writeHead(403);
-    return res.end(JSON.stringify({ error: "password required for folder writes to /systemfiles/runtime/apps/" }));
   }
 
   const replace = String(headers["x-file-replace"] || "true") !== "false";
@@ -504,7 +451,7 @@ async function handleFetchfiles(req, res) {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Username, X-File-Path, X-File-Replace, X-File-Action, X-Password");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Username, X-File-Path, X-File-Replace, X-File-Action");
   res.setHeader("Access-Control-Expose-Headers", "X-File-Size,X-Chunk-Index,X-Is-Last-Chunk,X-Total-Chunks");
 
   // Support simple streaming download endpoint for large files.
@@ -547,16 +494,15 @@ async function handleFetchfiles(req, res) {
       return res.end(JSON.stringify({ error: "Invalid request body" }));
     }
 
-    const username = typeof data.username === "string" ? data.username.trim() : "";
+    const username = typeof data.username === "string" ? data.username : "";
     if (!username) {
       res.writeHead(400);
       return res.end(JSON.stringify({ error: "Missing username" }));
     }
 
-    // Authenticate all POST actions. If the user has a password set
-    // in their user file (username.txt) it must match `data.password`.
+    // Authenticate all POST actions using the bearer session token.
     const authHeader = (req.headers && (req.headers.authorization || req.headers.Authorization)) || "";
-    if (!(await authenticateUser(username, data.password, authHeader))) {
+    if (!(await authenticateUser(username, authHeader))) {
       res.writeHead(401);
       return res.end(JSON.stringify({ error: "unauthorized" }));
     }
@@ -731,7 +677,7 @@ async function handleFetchfiles(req, res) {
         const normalizePathInput = (p = "") => {
           if (!p || p === "root") return "";
 
-          let text = String(p).replace(/\\/g, "/").trim();
+          let text = String(p).replace(/\\/g, "/");
           while (text.startsWith("/")) text = text.slice(1);
           if (text.startsWith("root/")) text = text.slice(5);
           return text;
@@ -858,7 +804,7 @@ async function handleFetchfiles(req, res) {
               const oldRel = directionPathToRelative(dir.path || "");
               assertWriteAllowed(oldRel);
 
-              const newName = path.basename(String(dir.newName || "").trim());
+              const newName = path.basename(String(dir.newName || ""));
 
               if (!newName || newName === "." || newName === "..") {
                 success = false;
@@ -947,14 +893,9 @@ async function handleFetchfiles(req, res) {
               const deleteRelPath = directionPathToRelative(dir.path || "");
               assertWriteAllowed(deleteRelPath);
               const targetPath = resolvePath(dir.path);
-              // Security: only allow permanent deletion of items inside .trash
-              const trashDir = safeResolve(rootPath, ".trash");
-              const normalizedTarget = path.resolve(targetPath);
-              const normalizedTrash = path.resolve(trashDir);
-              if (!normalizedTarget.startsWith(normalizedTrash + path.sep) && normalizedTarget !== normalizedTrash) {
-                // Not inside .trash — refuse
+              if (!(await exists(targetPath))) {
                 success = false;
-                error = "Cannot permanently delete items outside the trash directory";
+                error = "Target path does not exist";
                 continue;
               }
               await deletePathWithQuota(username, userRoot, targetPath);
@@ -1079,29 +1020,6 @@ async function handleFetchfiles(req, res) {
       }
 
       if (data.saveSnapshot) {
-        // If any addFolder under /systemfiles/runtime/apps/ is present, require the user's password
-        // unless the target is inside an already-created app folder.
-        const dirs = Array.isArray(data.directions) ? data.directions : [];
-        const needsPw = dirs.some((d) => {
-          if (!d.addFolder && !d.paste && !d.addFile) return false;
-
-          const baseTarget = removeUnwantedStuffInPath(d.path || '');
-          if (baseTarget.startsWith('/systemfiles/runtime/apps/')) {
-            return requiresPasswordForAppsFolderCreate(userRoot, baseTarget);
-          }
-
-          const combinedTarget = d.name
-            ? removeUnwantedStuffInPath(`${d.path || ''}/${d.name}`)
-            : '';
-
-          return combinedTarget.startsWith('/systemfiles/runtime/apps/') && requiresPasswordForAppsFolderCreate(userRoot, combinedTarget);
-        });
-
-        if (needsPw && (!authObj || data.password !== authObj.password)) {
-          res.writeHead(403);
-          return res.end(JSON.stringify({ error: 'password required for creating folders in /systemfiles/runtime/apps/' }));
-        }
-
         const result = await withUserLock(username, () => applyDirections(userRoot, data.directions, username, userPathPermissions, { move: Boolean(data.move) }));
 
         const safePayload = {

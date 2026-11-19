@@ -86,8 +86,8 @@ window.browser = async function (
         let needscript = false;
         try {
           const v = await window.protectedGlobals.ReadFile(defPath, { text: true, direct: true }).catch(() => null);
-          if (v && typeof v === 'string' && v.trim()) {
-            curProfileName = v.trim();
+          if (v && typeof v === 'string' && v) {
+            curProfileName = v;
           } else {
             needscript = true;
           }
@@ -143,7 +143,7 @@ window.browser = async function (
             try {
               av = await window.protectedGlobals.ReadFile(activePath, { text: true, direct: true }).catch(() => null);
             } catch (e) { av = null; }
-            const val = (av && typeof av === "string" ? av.trim().toLowerCase() : "");
+            const val = (av && typeof av === "string" ? av.toLowerCase() : "");
             if (/^t/.test(val)) {
               activatedUserscriptNames.push(entry);
             }
@@ -495,7 +495,7 @@ setTimeout(() => {
     });
   }
   function normalizePreloadLink(value) {
-    const input = String(value || "").trim();
+    const input = String(value || "");
     if (!input) return "";
     if (
       input.startsWith("file://") ||
@@ -585,7 +585,7 @@ setTimeout(() => {
           btnCreate.textContent = "Create";
           btnCreate.style.cssText = "background:#4c8bf5;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;";
           btnCreate.onclick = async () => {
-            const name = String(nameInput.value || "").trim();
+            const name = String(nameInput.value || "");
             const script = String(scriptArea.value || "");
             if (!name) return alert("Name required");
             btnCreate.disabled = true;
@@ -699,7 +699,7 @@ setTimeout(() => {
         // try to read name.txt
         try {
           const nv = await window.protectedGlobals.ReadFile(basePath + "/" + entry + "/name.txt", { text: true, direct: true }).catch(() => null);
-          let nameVal = nv && typeof nv === "string" ? nv.trim() : entry;
+          let nameVal = nv && typeof nv === "string" ? nv : entry;
           scriptName.textContent = nameVal || entry;
         } catch (e) {
           scriptName.textContent = entry;
@@ -729,7 +729,7 @@ setTimeout(() => {
               await window.protectedGlobals.WriteFile(activePath, "true", { text: true }).catch(() => {});
               toggle.checked = true;
             } else {
-              let val = av && typeof av === "string" ? av.trim().toLowerCase() : "true";
+              let val = av && typeof av === "string" ? av.toLowerCase() : "true";
               toggle.checked = /^t/.test(val) ? true : false;
             }
           } catch (e) {
@@ -783,7 +783,7 @@ setTimeout(() => {
           let curScript = "";
           try {
             const nv = await window.protectedGlobals.ReadFile(folderPath + "/name.txt", { text: true, direct: true }).catch(() => null);
-            if (nv && typeof nv === "string") curName = nv.trim();
+            if (nv && typeof nv === "string") curName = nv;
           } catch (e) {}
           try {
             const sv = await window.protectedGlobals.ReadFile(folderPath + "/script.txt", { text: true, direct: true }).catch(() => null);
@@ -833,7 +833,7 @@ setTimeout(() => {
               btnSave.textContent = "Save";
               btnSave.style.cssText = "background:#4c8bf5;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;";
               btnSave.onclick = () => {
-                const name = String(nameInput.value || "").trim();
+                const name = String(nameInput.value || "");
                 const script = String(scriptArea.value || "");
                 if (!name) return alert("Name required");
                 dlg.remove();
@@ -947,7 +947,7 @@ setTimeout(() => {
           btnCreate.textContent = "Create";
           btnCreate.style.cssText = "background:#4c8bf5;color:#fff;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;";
           btnCreate.onclick = async () => {
-            const name = String(nameInput.value || "").trim();
+            const name = String(nameInput.value || "");
             if (!name) return alert("Name required");
             btnCreate.disabled = true;
             btnCreate.textContent = "Creating...";
@@ -983,7 +983,7 @@ setTimeout(() => {
                 content = await window.protectedGlobals.ReadFile(listPath, { text: true, direct: true }).catch(() => "") || "";
               } catch (e) { content = ""; }
               if (!content) content = "profile";
-              const lines = content.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+              const lines = content.split(/\r?\n/).map(s => s).filter(Boolean);
               if (lines.indexOf(safeName) === -1) lines.push(safeName);
               await window.protectedGlobals.WriteFile(listPath, lines.join("\n"), { text: true });
               alert("Profile created");
@@ -1046,13 +1046,13 @@ setTimeout(() => {
       var raw = "";
     }
 
-    const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    const lines = raw.split(/\r?\n/).map(s => s).filter(Boolean);
 
     let defVal = null;
     try {
       try {
         defVal = await window.protectedGlobals.ReadFile(defaultPath, { text: true, direct: true }).catch(() => null) || null;
-        if (defVal && typeof defVal === 'string') defVal = defVal.trim();
+        if (defVal && typeof defVal === 'string') defVal = defVal;
       } catch (e) { defVal = null; }
     } catch (e) { defVal = null; }
 
@@ -1173,7 +1173,7 @@ setTimeout(() => {
                 await window.protectedGlobals.DeleteFile("/systemfiles/runtime/apps/browser/" + p);
                 try {
                   let content = await window.protectedGlobals.ReadFile(listPath, { text: true, direct: true }).catch(() => "") || "";
-                  const lines2 = content.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                  const lines2 = content.split(/\r?\n/).map(s => s).filter(Boolean);
                   const idx = lines2.indexOf(p);
                   if (idx !== -1) lines2.splice(idx, 1);
                   await window.protectedGlobals.WriteFile(listPath, lines2.join("\n"), { text: true });
@@ -1254,7 +1254,7 @@ setTimeout(() => {
     allow-presentation
     allow-same-origin
     allow-scripts
-  `.trim();
+  `;
 
     let fullscreen = true;
     let addTheSite = true;
@@ -1332,7 +1332,7 @@ setTimeout(() => {
     const sandboxSet = new Set(
       perms.sandbox
         ?.split(" ")
-        .map((v) => v.trim())
+        .map((v) => v)
         .filter(Boolean),
     );
 
@@ -2294,7 +2294,7 @@ setTimeout(() => {
       btnDownload.style.background = "#4c8bf5";
       btnDownload.style.color = "#fff";
       btnDownload.onclick = async () => {
-        const url = (input.value || "").trim();
+        const url = (input.value || "");
         if (!url) return alert("Enter a URL");
         const filename = computeName(url);
         try {
@@ -3102,7 +3102,7 @@ setTimeout(() => {
           const doc = iframe.contentDocument || iframe.contentWindow.document;
 
           // If site unreachable, doc will be null
-          if (!doc || doc.body.innerHTML.trim() === "") {
+          if (!doc || doc.body.innerHTML === "") {
             console.log("Site unreachable or failed to load.");
           } else {
             console.log("Loaded successfully.");
@@ -3771,7 +3771,7 @@ setTimeout(() => {
       }
     }
     function normalizeLocalFilePath(path) {
-      let normalized = String(path || "").trim();
+      let normalized = String(path || "");
       if (!normalized) return "";
       normalized = normalized.replace(/^file:\/\//i, "");
       normalized = normalized.replace(/^\/+/, "");
@@ -3857,9 +3857,9 @@ setTimeout(() => {
       }
 
       const text = new TextDecoder().decode(buffer);
-      const direct = text.trim();
+      const direct = text;
       const match = text.match(/^\s*URL\s*=\s*(\S+)/im);
-      const targetUrl = (match && match[1] ? match[1] : direct).trim();
+      const targetUrl = (match && match[1] ? match[1] : direct);
       if (targetUrl && /^https?:\/\//i.test(targetUrl)) {
         return {
           iframeSrc: targetUrl,
@@ -3920,7 +3920,7 @@ setTimeout(() => {
       const tabIndex = tabs.findIndex((t) => t.id === activeTabId);
       if (tabIndex === -1) return;
       const tab = tabs[tabIndex];
-      const input = String(rawUrl || "").trim();
+      const input = String(rawUrl || "");
       if (!input) {
         alert("Enter a URL or file path");
         return;

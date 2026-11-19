@@ -879,7 +879,7 @@ window.settings = function (posX = 50, posY = 50) {
 
     const displayName = appMeta.folderName || appMeta.label || appMeta.id || "Unknown App";
     const iconTextValue = isInvalidPackage
-      ? (String(displayName).trim().charAt(0) || "!").toUpperCase()
+      ? (String(displayName).charAt(0) || "!").toUpperCase()
       : (appMeta.icon || "");
 
     const iconMode = isInvalidPackage ? "text" : (appMeta.pngEnabled ? "img" : appMeta.iconType || "text");
@@ -1198,7 +1198,7 @@ window.settings = function (posX = 50, posY = 50) {
       const installedApps = Array.isArray(window.protectedGlobals.apps) ? [...window.protectedGlobals.apps] : [];
       const installedNames = new Set(
         installedApps
-          .map((app) => String(app.folderName || app.id || "").trim())
+          .map((app) => String(app.folderName || app.id || ""))
           .filter(Boolean),
       );
 

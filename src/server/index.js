@@ -53,17 +53,17 @@ function getUserShard(username) {
 
 const readIpList = (filePath) => {
     try {
-        return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+        return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map((line) => line).filter((line) => line.length > 0);
     } catch (e) {
         return [];
     }
 };
 const knownIps = readIpList(knownIpsPath);
 const bannedIpdata = JSON.parse(fs.readFileSync(bannedIpsPath));
-const bannedIps = Array.isArray(bannedIpdata.ips) ? bannedIpdata.ips.map((entry) => entry.address).filter((address) => typeof address === 'string' && address.trim().length > 0) : [];
+const bannedIps = Array.isArray(bannedIpdata.ips) ? bannedIpdata.ips.map((entry) => entry.address).filter((address) => typeof address === 'string' && address.length > 0) : [];
 async function isValidUpdateUser(username, password) {
-    const normalizedUsername = String(username || '').trim();
-    const normalizedPassword = String(password || '').trim();
+    const normalizedUsername = String(username || '');
+    const normalizedPassword = String(password || '');
     if (!normalizedUsername || !normalizedPassword) return false;
 
     if (!/^[a-zA-Z0-9_-]{3,20}$/.test(normalizedUsername)) {
@@ -76,8 +76,8 @@ async function isValidUpdateUser(username, password) {
     try {
         const data = JSON.parse(await fsp.readFile(authPath, 'utf8'));
         if (!data || typeof data !== 'object') return false;
-        return String(data.username || '').trim() === normalizedUsername
-            && String(data.password || '').trim() === normalizedPassword;
+        return String(data.username || '') === normalizedUsername
+            && String(data.password || '') === normalizedPassword;
     } catch (e) {
         return false;
     }

@@ -13,7 +13,7 @@ await (async function () {
     window.protectedGlobals.statusData.batteryLevel = Number.isFinite(window.protectedGlobals.batteryLevel) ? window.protectedGlobals.batteryLevel : (window.protectedGlobals.statusData.batteryLevel || 0);
     window.protectedGlobals.statusData.isCharging = nextChargingState;
     window.protectedGlobals.updateStatusBar();
-    if (window.protectedGlobals.buildStatusMenu && previousChargingState !== nextChargingState) {
+    if (previousChargingState !== nextChargingState) {
       window.protectedGlobals.buildStatusMenu();
     }
     if (!batteryInterval) return;
@@ -57,7 +57,7 @@ await (async function () {
       const z = parseInt(window.getComputedStyle(win).zIndex) || 0;
       if (z > topZindex) {
         topZindex = z;
-        atTop = win.dataset && win.dataset.appId ? win.dataset.appId : (win.id ? String(win.id).trim() : '');
+        atTop = win.dataset && win.dataset.appId ? win.dataset.appId : (win.id ? String(win.id) : '');
       }
     }
     for (let app of window.protectedGlobals.apps) {
@@ -1353,17 +1353,8 @@ await (async function () {
       _hideTimer = null;
     }
     // remove listeners added when enabled
-    if (window.protectedGlobals.systemAPIs.autohideCleanup) {
-      window.protectedGlobals.systemAPIs.autohideCleanup();
-      delete window.protectedGlobals.systemAPIs.autohideCleanup;
-    } else {
-      document.removeEventListener('mousemove', _onMouseMove);
-      taskbar.removeEventListener('pointerenter', _onTaskbarEnter);
-      document.removeEventListener('touchstart', _onTouchStart);
-      document.removeEventListener('touchmove', _onTouchMove);
-      document.removeEventListener('touchend', _onTouchEnd);
-      document.removeEventListener('touchcancel', _onTouchEnd);
-    }
+    window.protectedGlobals.systemAPIs.autohideCleanup();
+    delete window.protectedGlobals.systemAPIs.autohideCleanup;
     delete window.protectedGlobals.systemAPIs.autohideRefs;
     autohideActive = false;
     // ensure visible
@@ -1754,7 +1745,7 @@ await (async function () {
     // Add 'task-active' class to the corresponding task button and remove from others
     if (window.protectedGlobals.taskbuttons) {
       for (let btn of window.protectedGlobals.taskbuttons) {
-        const btnAppId = btn.dataset && btn.dataset.appId ? btn.dataset.appId : (btn.value && String(btn.value).trim());
+        const btnAppId = btn.dataset && btn.dataset.appId ? btn.dataset.appId : (btn.value && String(btn.value));
         if (btnAppId === atTop) {
           btn.classList.add('task-active');
           btn.classList.remove('task-open', 'task-closed');
@@ -1814,7 +1805,7 @@ await (async function () {
           let atTop = calcTop();
           window.protectedGlobals.atTop = atTop;
           for (let btn of window.protectedGlobals.taskbuttons) {
-            const btnAppId = btn.dataset && btn.dataset.appId ? btn.dataset.appId : (btn.value && String(btn.value).trim());
+            const btnAppId = btn.dataset && btn.dataset.appId ? btn.dataset.appId : (btn.value && String(btn.value));
             if (btnAppId === atTop) {
               btn.classList.add('task-active');
               btn.classList.remove('task-open', 'task-closed');

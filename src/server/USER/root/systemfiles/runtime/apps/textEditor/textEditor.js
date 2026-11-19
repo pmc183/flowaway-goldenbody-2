@@ -1206,7 +1206,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
 
     searchInput.addEventListener("input", () => {
-      pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+      pickerSearchTerm = (searchInput.value || "").toLowerCase();
       renderPicker();
     });
 
@@ -1233,7 +1233,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       btnSave.onclick = () => {
         const selections = [...pickerSelection];
         const basePath = pickerCurrentPath;
-        const fname = filenameInput.value.trim();
+        const fname = filenameInput.value;
         if (!fname) return getUIMessage("Enter a filename");
 
         let chosen = null;
@@ -1562,7 +1562,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
 
     searchInput.addEventListener("input", () => {
-      pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+      pickerSearchTerm = (searchInput.value || "").toLowerCase();
       renderPicker();
     });
 
@@ -1673,7 +1673,7 @@ async function preloadFile() {
   // Helpers: stats and caret position
   function computeStats() {
     const v = textarea.value || "";
-    const words = v.trim().length ? v.trim().split(/\s+/).length : 0;
+    const words = v.length ? v.split(/\s+/).length : 0;
     const chars = v.length;
     const lines = v.split("\n").length;
     return { words, chars, lines };

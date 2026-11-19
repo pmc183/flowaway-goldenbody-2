@@ -35,7 +35,7 @@ async function writeJsonPretty(filePath, value) {
 }
 
 function getUserPaths(username) {
-  const safeUsername = String(username || '').trim();
+  const safeUsername = String(username || '');
   const userDir = path.join(directoryPath, getUserShard(safeUsername), safeUsername);
   const userRoot = path.join(userDir, 'root');
   const authFile = path.join(userDir, `${safeUsername}.txt`);
@@ -93,7 +93,7 @@ function sanitizeAuthRecord(raw, username, passwordHint = '') {
     : [];
   const password = typeof base.password === 'string' ? base.password : String(passwordHint || '');
   return {
-    username: String(base.username || username || '').trim(),
+    username: String(base.username || username || ''),
     password,
     authTokens,
     maxSpace: base.maxSpace || 1,
@@ -130,10 +130,10 @@ function isAuthorized(authRecord, data/*, authHeader */) {
 }
 
 function getAuthTokenFromHeader(authHeader) {
-  const raw = typeof authHeader === 'string' ? authHeader.trim() : '';
+  const raw = typeof authHeader === 'string' ? authHeader : '';
   if (!raw) return '';
   const match = raw.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : raw.trim();
+  return match ? match[1] : raw;
 }
 
 function isTokenAuthorized(authRecord, authHeader) {
@@ -146,7 +146,7 @@ function isTokenAuthorized(authRecord, authHeader) {
 async function resolveUserByToken(authHeader, usernameHint) {
     const token = getAuthTokenFromHeader(authHeader);
     const username = typeof usernameHint === 'string'
-        ? usernameHint.trim()
+        ? usernameHint
         : '';
 
     if (!token || !/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
@@ -166,7 +166,7 @@ async function resolveUserByToken(authHeader, usernameHint) {
 }
 
 function normalizePermissionPath(rawPath) {
-  const value = String(rawPath ?? '').replace(/\\/g, '/').trim();
+  const value = String(rawPath ?? '').replace(/\\/g, '/');
   if (!value) return '/';
   const parts = [];
   for (const part of value.split('/')) {
@@ -265,7 +265,7 @@ function handleZMCd(req, res) {
 
       if (data.getPerm) {
         const targetPathRaw = data.getPerm && typeof data.getPerm === 'object' ? data.getPerm.path : data.getPerm;
-        if (typeof targetPathRaw !== 'string' || !targetPathRaw.trim()) {
+        if (typeof targetPathRaw !== 'string' || !targetPathRaw) {
           return sendJson(res, 400, { error: 'missing path' });
         }
 

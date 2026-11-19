@@ -15,7 +15,7 @@ window.protectedGlobals.normalizeFsPath = function (path, {
     throw new TypeError("Path must be a string");
   }
 
-  let p = path.trim().replace(/\\/g, "/");
+  let p = path.replace(/\\/g, "/");
 
   // Remove leading slashes.
   p = p.replace(/^\/+/, "");
@@ -115,7 +115,6 @@ window.protectedGlobals.WriteFolder = async function (relPath, options = {}) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath, { allowRoot: true });
   const directions = [{ path: normalizedPath, addFolder: true }, { end: true }];
   const payload = { saveSnapshot: true, directions };
-  if (options && options.password) payload.password = options.password;
   const res = await window.protectedGlobals.filePost(payload);
   return res;
 };
@@ -166,13 +165,11 @@ window.protectedGlobals.ReadFile = async function (
 
   const MAX_RETRIES = 8;
   const TIMEOUT_MS = 5000;
-  let increment = 1;
   let response;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS * increment);
-    increment++;
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
       response = await fetch(window.protectedGlobals.SERVER, {
         method: "POST",
@@ -186,7 +183,11 @@ window.protectedGlobals.ReadFile = async function (
       });
 
       clearTimeout(timeout);
-      break; // Success
+      if (!response) return { error: "No response from server" };
+      const retryable = response.status === 429 || (response.status >= 500 && response.status <= 599);
+      if (!retryable || attempt === MAX_RETRIES) break;
+
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
     } catch (err) {
       clearTimeout(timeout);
 
@@ -194,6 +195,7 @@ window.protectedGlobals.ReadFile = async function (
         return { error: "Request failed after multiple attempts: " + String(err) };
       }
 
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
       console.warn(
         `ReadFile attempt ${attempt} failed, retrying...`,
         err
@@ -377,7 +379,12 @@ window.protectedGlobals.WriteFile = async function (
   if (!options.stream) {
     if (contents instanceof ArrayBuffer) {
       raw = contents;
-    } else if (ArrayBuffer.isView(contents)) {raw = contents.buffer;}
+    } else if (ArrayBuffer.isView(contents)) {
+      raw = contents.buffer.slice(
+        contents.byteOffset,
+        contents.byteOffset + contents.byteLength
+      );
+    }
     else if (
       typeof Blob !== "undefined" &&
       contents instanceof Blob
@@ -403,13 +410,8 @@ window.protectedGlobals.WriteFile = async function (
     "X-File-Path": utf8ToBase64(normalizedPath),
     "X-Username": window.protectedGlobals.getCurrentUsernameForRequests(),
   };
-  // Forward optional password for server-side checks
-  if (options && options.password) {
-    baseHeaders["X-Password"] = String(options.password);
-  }
 
   const maxAttempts = 15;
-  let increment = 1;
   async function sendChunk(chunk, chunkReplace) {
     const headers = {
       ...baseHeaders,
@@ -423,9 +425,8 @@ window.protectedGlobals.WriteFile = async function (
 
       const timeout = setTimeout(
         () => controller.abort(),
-        options.retrytimeout * increment
+        options.retrytimeout
       );
-      increment++;
       try {
         response = await fetch(window.protectedGlobals.SERVER, {
           method: "POST",
@@ -436,9 +437,10 @@ window.protectedGlobals.WriteFile = async function (
 
         clearTimeout(timeout);
 
-        // Request completed, regardless of HTTP status.
-        // Don't retry completed requests.
-        break;
+        // 429 is retryable, but 5xx responses are not retried for writes.
+        if (response.status !== 429 || attempt === maxAttempts) break;
+
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
       } catch (err) {
         clearTimeout(timeout);
 
@@ -448,6 +450,8 @@ window.protectedGlobals.WriteFile = async function (
         if (!timedOut || attempt === maxAttempts) {
           return { error: timedOut ? "Request timed out" : String(err) };
         }
+
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
       }
     }
 
@@ -508,9 +512,14 @@ window.protectedGlobals.WriteFile = async function (
 
   return lastResult.body || { success: true };
 };
-window.protectedGlobals.DeleteFile = async function (relPath) {
+window.protectedGlobals.DeleteFile = async function (relPath, options = { permanent: false }) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
-  const directions = [{ delete: true, path: normalizedPath }, { end: true }];
+  let directions;
+  if (!!options.permanent) {
+    directions = [{ permanentDelete: true, path: normalizedPath }, { end: true }];
+  } else {
+    directions = [{ delete: true, path: normalizedPath }, { end: true }];
+  }
   return await window.protectedGlobals.filePost({ saveSnapshot: true, directions });
 };
 window.protectedGlobals.DeleteFolder = window.protectedGlobals.DeleteFile;
@@ -736,10 +745,7 @@ window.protectedGlobals.showSessionExpiredDialog = function () {
     // When user clicks refill, don't attempt token-based refill automatically.
     // Instead prompt for password and only send a password-based refill when provided.
     const uname = (function () {
-      const u = window.protectedGlobals.getCurrentUsernameForRequests();
-      if (u && typeof u === 'string' && u.trim()) return u.trim();
-      return window.protectedGlobals.data.username.trim();
-      return '';
+      return window.protectedGlobals.getCurrentUsernameForRequests();
     })();
 
     if (!uname) {
@@ -748,7 +754,7 @@ window.protectedGlobals.showSessionExpiredDialog = function () {
       return;
     }
 
-    const password = (pwdInput && typeof pwdInput.value === 'string') ? pwdInput.value.trim() : '';
+    const password = (pwdInput && typeof pwdInput.value === 'string') ? pwdInput.value : '';
 
     // If no password provided yet, focus the input and ask the user to enter it.
     if (!password) {
@@ -834,21 +840,53 @@ window.protectedGlobals.showSessionExpiredDialog = function () {
 };
 
 window.protectedGlobals.getCurrentUsernameForRequests = function getCurrentUsernameForRequests() {
-  return window.protectedGlobals.data.username.trim();
+  return window.protectedGlobals.data.username;
 };
 
 window.protectedGlobals.filePost = async function (data) {
   const headers = { "Content-Type": "application/json" };
   if (window.protectedGlobals.data.authToken)
     headers["Authorization"] = "Bearer " + window.protectedGlobals.data.authToken;
-  var res = await fetch(window.protectedGlobals.SERVER, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      username: window.protectedGlobals.getCurrentUsernameForRequests(),
-      ...data,
-    }),
-  });
+
+  const MAX_RETRIES = 8;
+  const TIMEOUT_MS = 5000;
+  let res = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      res = await fetch(window.protectedGlobals.SERVER, {
+        method: "POST",
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify({
+          username: window.protectedGlobals.getCurrentUsernameForRequests(),
+          ...data,
+        }),
+      });
+      clearTimeout(timeout);
+
+      const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
+      if (!retryable || attempt === MAX_RETRIES) break;
+
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
+    } catch (err) {
+      clearTimeout(timeout);
+
+      if (attempt === MAX_RETRIES) {
+        return { error: "Request failed after multiple attempts: " + String(err) };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
+      console.warn(`filePost attempt ${attempt} failed, retrying...`, err);
+    }
+  }
+
+  if (!res) {
+    return { error: "Request failed after multiple attempts" };
+  }
+
   let body = {};
   try {
     body = await res.json();
@@ -860,7 +898,6 @@ window.protectedGlobals.filePost = async function (data) {
     body.error = body.error || window.protectedGlobals.serverErrorMsg[res.status] || "invalid";
     body.error !== 'invalid' ? alert(body.error) : null;
   }
-  var fileErrorMessage = body && body.error ? String(body.error) : "";
   if (res.status === 401 && !window.protectedGlobals.firstlogin) {
     const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
     if (refilled) return await window.protectedGlobals.filePost(data);
@@ -986,7 +1023,7 @@ for (const script of window.tmpGlobals.scriptContents) {
       let replaceStart = f.indexOf('<') - 1;
       let replaceEnd = f.indexOf('>', replaceStart) + 1;
       if (replaceStart !== -2 && replaceEnd !== 0) {
-        let importPath = f.substring(replaceStart + 1, replaceEnd).trim();
+        let importPath = f.substring(replaceStart + 1, replaceEnd);
         if (importPath.startsWith('/')) {
           importPath = importPath.substring(1);
         }
@@ -1097,9 +1134,16 @@ window.protectedGlobals.savedScrollY = window.scrollY;
 
 // body restrictions
 window.protectedGlobals.bodyStyle = document.createElement("style");
-window.protectedGlobals.bodyStyle.textContent = `body {
-overflow: hidden;
-}`;
+window.protectedGlobals.bodyStyle.textContent = 
+`
+body {
+  overflow: hidden;
+}
+body.wait-cursor,
+body.wait-cursor *:not(.app-window-root, .app-window-root *) {
+  cursor: progress;
+}
+`;
 document.body.appendChild(window.protectedGlobals.bodyStyle);
 // Desktop background context menu
 window.protectedGlobals.showBackgroundContextMenu = function (x, y) {
@@ -1465,7 +1509,7 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       `;
       let searchTerm = "";
       searchInput.addEventListener("input", () => {
-        searchTerm = (searchInput.value || "").trim().toLowerCase();
+        searchTerm = (searchInput.value || "").toLowerCase();
         if (currentPath) {
           loadFolder(currentPath);
         }
@@ -1925,7 +1969,6 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       loadFolder(options.startPath || "/");
     });
   };
-
 window.protectedGlobals.sendMsgToAllThreads = (msg) => {
   let threads = window.protectedGlobals.__processes || [];
   threads.forEach((thread) => {

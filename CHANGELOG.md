@@ -310,3 +310,12 @@
 - fixed instance counter starting at 2
 - fixed /downloads exploit for apps
 - fixed file explorer reading files before tracking its instance
+- removed excessive trim() throughout
+- fixed cursor change bugs regarding whether to change to progress, fixed performance issues regarding
+- moved login panel down a bit
+- added fs retries to all reasonable 5xx/4xx error codes
+- removed password auth in fetchfiles.
+- fixed sequences of keyboard shortcuts listed in shortcuts tab to match actual 
+- fixed alt tabbing the overlay can't be cleared via clicking on it
+- removed the feature for apps autolaunch when typing their name in terminal, added an open cmd for that, typing their name will show the avaliable commands for the app.
+- added permadelete option in deletefile/folder

@@ -48,10 +48,22 @@ window.protectedGlobals.firstlogin = false;
   document.body.style.background = '#0f0f0f';
   document.body.style.color = '#fff';
   document.body.style.fontFamily = 'Arial, sans-serif';
+  document.body.style.margin = '0';
+  document.body.style.minHeight = '100vh';
+  document.body.style.display = 'block';
+  document.body.style.boxSizing = 'border-box';
+
+  const shell = document.createElement('div');
+  shell.style.minHeight = '100vh';
+  shell.style.display = 'flex';
+  shell.style.alignItems = 'center';
+  shell.style.justifyContent = 'center';
+  shell.style.boxSizing = 'border-box';
+  shell.style.padding = '24px 0';
 
   let box = document.createElement('div');
   box.style.width = 'min(440px, calc(100vw - 22px))';
-  box.style.margin = '10px auto 12px';
+  box.style.margin = '0';
   box.style.padding = '12px 14px 10px';
   box.style.background = '#2c2f33';
   box.style.borderRadius = '16px';
@@ -121,7 +133,8 @@ window.protectedGlobals.firstlogin = false;
   `;
 
   document.body.innerHTML = '';
-  document.body.appendChild(box);
+  document.body.appendChild(shell);
+  shell.appendChild(box);
 
   const msg = document.getElementById('zmc-msg');
   const recoveryAppSelect = document.getElementById('recovery-app-select');
