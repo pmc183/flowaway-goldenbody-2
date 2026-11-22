@@ -272,7 +272,7 @@ button:active {
     });
 
     function searchRedirect() {
-      const query = document.getElementById("query").value.trim();
+      const query = document.getElementById("query").value;
       if (!query) return;
 
       const encoded = encodeURIComponent(query);

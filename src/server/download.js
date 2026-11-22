@@ -21,44 +21,30 @@ if (!fs.existsSync(directoryPath)) fs.mkdirSync(directoryPath, { recursive: true
 
 const MAX_JSON_BODY = 10 * 1024 * 1024; // 10MB
 
-function sanitizeAuthRecord(raw, usernameHint) {
-  const base = raw && typeof raw === 'object' ? raw : {};
-  const maxSpace = Number(base.maxSpace);
-  return {
-    username: String(base.username || usernameHint || '').trim(),
-    password: typeof base.password === 'string' ? base.password : '',
-    ...(Number.isFinite(maxSpace) && maxSpace > 0 ? { maxSpace } : {}),
-    authTokens: Array.isArray(base.authTokens)
-      ? base.authTokens.filter((tokenRow) => tokenRow && tokenRow.token && tokenRow.expires)
-      : [],
-  };
-}
-
-// Authenticate user against <directoryPath>/<username>/<username>.txt
-async function authenticateUser(username, providedPassword, authHeader) {
+// Authenticate user against <directoryPath>/<username>/<username>.txt using a Bearer token.
+async function authenticateUser(username, authHeader) {
   try {
     if (!username) return false;
     const userDir = getUserDir(username);
     const userFile = path.join(userDir, `${username}.txt`);
-    try {
-      const txt = await fsp.readFile(userFile, 'utf8');
-      const obj = JSON.parse(txt);
-      if (obj && typeof obj.password === 'string' && obj.password.length) {
-        if (providedPassword === obj.password) return true;
-        if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-          const token = authHeader.slice(7).trim();
-          if (Array.isArray(obj.authTokens)) {
-            const now = Date.now();
-            obj.authTokens = obj.authTokens.filter(t => t && t.expires && t.expires > now);
-            return obj.authTokens.some(t => t.token === token && t.expires > now);
-          }
-        }
-        return false;
+
+    const txt = await fsp.readFile(userFile, 'utf8');
+    const obj = JSON.parse(txt);
+    if (!obj) return false;
+
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const now = Date.now();
+      const expires = Number(obj.authTokenExpires);
+
+      if (typeof obj.authToken === 'string' && obj.authToken === token) {
+        return Number.isFinite(expires) ? expires > now : false;
       }
-      return true; // no password set → allow
-    } catch (e) {
-      return false; // missing/unreadable user file → deny (prevents recreating deleted accounts)
+
+      return false;
     }
+
+    return false;
   } catch (e) {
     return false;
   }
@@ -133,7 +119,6 @@ async function handleDownload(req, res) {
     console.log('[download] request payload received');
 
     const username = payload.username;
-    const password = payload.password;
     const data = payload.data || {};
 
     if (!username) return respondJSON(res, 400, { error: 'missing username' });
@@ -145,44 +130,17 @@ async function handleDownload(req, res) {
     console.log('[download] username=', username, 'href=', data.href);
 
     const authHeader = req.headers && (req.headers.authorization || req.headers.Authorization) || '';
-    if (!(await authenticateUser(username, password, authHeader))) {
+    if (!(await authenticateUser(username, authHeader))) {
       console.log('download auth failed for', username);
       return respondJSON(res, 401, { error: 'unauthorized' });
     }
 
     console.log('[download] authenticated', username);
 
-    // Determine whether to issue or echo an auth token for the client.
-    // If a valid Bearer token was provided, echo it back. If authenticated
-    // by password, issue a short-lived token and persist it to the user file.
-    let tokenToReturn = null;
-    try {
-      const userFile = path.join(getUserDir(username), `${username}.txt`);
-      const txt = await fsp.readFile(userFile, 'utf8');
-      const obj = sanitizeAuthRecord(JSON.parse(txt), username);
-      obj.authTokens = Array.isArray(obj.authTokens) ? obj.authTokens : [];
-      const now = Date.now();
-      obj.authTokens = obj.authTokens.filter(t => t && t.expires && t.expires > now);
-
-      // If client sent a Bearer token and it's still valid, echo it back
-      if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-        const providedToken = authHeader.slice(7).trim();
-        if (obj.authTokens.some(t => t.token === providedToken && t.expires > now)) {
-          tokenToReturn = providedToken;
-        }
-      }
-
-      // If no valid token and the client authenticated with password, issue a new one
-      if (!tokenToReturn && typeof password === 'string' && password === obj.password) {
-        const newToken = crypto.randomBytes(24).toString('hex');
-        const expires = Date.now() + 1000 * 60 * 60; // 1 hour
-        obj.authTokens.push({ token: newToken, expires });
-        try { await fsp.writeFile(userFile, JSON.stringify(sanitizeAuthRecord(obj, username), null, 2)); } catch (e) { /* non-fatal */ }
-        tokenToReturn = newToken;
-      }
-    } catch (e) {
-      // ignore failures here; token issuance is best-effort
-    }
+    // Echo the validated Bearer token back in the download response.
+    const tokenToReturn = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : null;
 
     try {
       const userRoot = path.join(getUserDir(username), 'root');

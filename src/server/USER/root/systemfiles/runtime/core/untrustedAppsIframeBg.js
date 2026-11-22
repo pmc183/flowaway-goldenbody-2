@@ -374,7 +374,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
         let result = null;
         let requestId = e.detail.data.requestId;
         if (e.detail.data.launchApp) {
-            const appId = String(e.detail.data.appId || "").trim();
+            const appId = String(e.detail.data.appId || "");
             if (!appId) {
                 source.postMessage({ error: "Invalid appId", requestId: requestId }, "*");
                 return;

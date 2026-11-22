@@ -1,4 +1,3 @@
-
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
@@ -24,7 +23,7 @@ const RENAME_DEBOUNCE_MS = 300;
 const activeWatcherCounts = new Map();
 
 function validateUsername(value) {
-  const username = String(value || '').trim();
+  const username = String(value || '');
 
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(username)) {
     throw new Error('Invalid username');
@@ -64,14 +63,15 @@ async function isValidToken(username, token) {
     username = validateUsername(username);
     const authFile = path.join(getUserDir(username), `${username}.txt`);
     const auth = JSON.parse(await fsp.readFile(authFile, 'utf8'));
-    const tokens = Array.isArray(auth.authTokens) ? auth.authTokens : [];
 
-    return tokens.some(entry =>
-      entry &&
-      typeof entry.token === 'string' &&
-      entry.token === token &&
-      Number(entry.expires) > Date.now()
-    );
+    const authToken = typeof auth.authToken === 'string' ? auth.authToken : '';
+    const expires = Number(auth.authTokenExpires);
+
+    if (authToken && authToken === token) {
+      return Number.isFinite(expires) && expires > Date.now();
+    }
+
+    return false;
   } catch {
     return false;
   }
@@ -92,9 +92,16 @@ async function handleWatchConnection(ws, req) {
 
   try {
     const url = new URL(req.url, 'http://localhost');
+    const protocolHeader = String(req.headers['sec-websocket-protocol'] || '');
+    const protocols = protocolHeader.split(', ');
 
-    username = validateUsername(url.searchParams.get('username'));
-    token = url.searchParams.get('token') || '';
+    username = validateUsername(
+      protocols.find(value => value.startsWith('user-'))?.slice('user-'.length) || ''
+    );
+
+    const authHeader = String(req.headers.authorization || req.headers.Authorization || '');
+    token = protocols.find(value => value.startsWith('bearer-'))?.slice('bearer-'.length) || '';
+
     requestedPath = normalizeRelativePath(url.searchParams.get('path') || '');
     recursive = url.searchParams.get('recursive') === 'true';
   } catch {

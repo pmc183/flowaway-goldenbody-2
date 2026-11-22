@@ -1,7 +1,7 @@
 // Helper utilities for request header handling used by rate-limiters
 function getRequestIP(req) {
     const ipHeader = req && req.headers && (req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']);
-    if (ipHeader) return String(ipHeader).split(',')[0].trim();
+    if (ipHeader) return String(ipHeader).split(',')[0];
     return (req && req.socket && req.socket.remoteAddress) || (req && req.connection && req.connection && req.connection.remoteAddress) || 'unknown';
 }
 const browserSessionAttempts = new Map();

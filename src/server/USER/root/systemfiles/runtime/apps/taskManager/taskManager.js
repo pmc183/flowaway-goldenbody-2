@@ -640,7 +640,7 @@ window.taskManager = function (posX = 50, posY = 50) {
   }
 
   function resolveAppLabelById(appId) {
-    const id = String(appId || "").trim();
+    const id = String(appId || "");
     if (!id) return "";
     const apps = Array.isArray(window.protectedGlobals.apps) ? window.protectedGlobals.apps : [];
     for (let i = 0; i < apps.length; i++) {
@@ -663,11 +663,11 @@ window.taskManager = function (posX = 50, posY = 50) {
     const globalVar = String(item.globalVar || "");
     const sourceType = String(item.sourceType || item.appSourceType || "unknown");
     const status = String(item.status || item.appStatus || "unknown");
-    const appLabel = String(item.source || resolveAppLabelById(appId) || "global").trim();
+    const appLabel = String(item.source || resolveAppLabelById(appId) || "global");
     const sourceLabel = appLabel && appLabel !== "unknown-app" && appLabel !== "unknown" ? appLabel : "global";
     const entryOptions = Array.isArray(item.entryOptions)
       ? item.entryOptions
-          .map((value) => String(value || "").trim())
+          .map((value) => String(value || ""))
           .filter(Boolean)
       : [];
     const processId = Number(firstDefinedValue(item.processId, item.pid, 0));
@@ -680,12 +680,12 @@ window.taskManager = function (posX = 50, posY = 50) {
       null,
     );
     const url = (() => {
-      const candidate = String(firstDefinedValue(item.url, item.sourceUrl, item.scriptURL, item.link, "") || "").trim();
+      const candidate = String(firstDefinedValue(item.url, item.sourceUrl, item.scriptURL, item.link, "") || "");
       if (!candidate) return "";
       if (candidate.startsWith("blob:")) return "";
       return candidate;
     })();
-    const rawName = String(firstDefinedValue(item.name, item.workerName, item.title, label, "") || "").trim();
+    const rawName = String(firstDefinedValue(item.name, item.workerName, item.title, label, "") || "");
     const name = rawName && rawName.indexOf("blob:") === -1 ? rawName : "process";
 
     return {

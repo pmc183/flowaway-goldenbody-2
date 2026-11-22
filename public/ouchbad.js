@@ -48,10 +48,22 @@ window.protectedGlobals.firstlogin = false;
   document.body.style.background = '#0f0f0f';
   document.body.style.color = '#fff';
   document.body.style.fontFamily = 'Arial, sans-serif';
+  document.body.style.margin = '0';
+  document.body.style.minHeight = '100vh';
+  document.body.style.display = 'block';
+  document.body.style.boxSizing = 'border-box';
+
+  let shell = document.createElement('div');
+  shell.style.minHeight = '100vh';
+  shell.style.display = 'flex';
+  shell.style.alignItems = 'center';
+  shell.style.justifyContent = 'center';
+  shell.style.boxSizing = 'border-box';
+  shell.style.padding = '24px 0';
 
   let box = document.createElement('div');
   box.style.width = 'min(440px, calc(100vw - 22px))';
-  box.style.margin = '10px auto 12px';
+  box.style.margin = '0';
   box.style.padding = '12px 14px 10px';
   box.style.background = '#2c2f33';
   box.style.borderRadius = '16px';
@@ -75,8 +87,32 @@ window.protectedGlobals.firstlogin = false;
       </div>
 
       <div>
-        <label for="zmc-pass" style="display:block; margin:0 0 4px; font-size:clamp(0.72rem, 1vw, 0.86rem); font-weight:700; color:#f5f7fa;">Password</label>
-        <input id="zmc-pass" type="password" placeholder="Enter password" style="width:100%;height:38px;padding:0 10px;box-sizing:border-box;border:none;border-radius:9px;background:#dfe3e8;color:#2d3034;font-size:clamp(0.82rem, 0.9vw, 0.96rem);outline:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04);">
+        <label for="zmc-pass" style="display:block; margin:0 0 4px; font-size:clamp(0.72rem, 1vw, 0.86rem); font-weight:700; color:#f5f7fa;">
+          Password
+        </label>
+
+        <div style="position:relative; width:100%;">
+          <input
+            id="zmc-pass"
+            type="password"
+            placeholder="Enter password"
+            style="width:100%; height:38px; padding:0 40px 0 10px; box-sizing:border-box; border:none; border-radius:9px; background:#dfe3e8; color:#2d3034; font-size:clamp(0.82rem, 0.9vw, 0.96rem); outline:none; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.04);"
+          >
+
+          <button
+            type="button"
+            aria-label="Show password"
+            id="zmc-pass-toggle"
+            style="position:absolute; right:10px; top:50%; transform:translateY(-50%); border:none; background:transparent; padding:4px; cursor:pointer; color:#555b63; display:flex; align-items:center; justify-content:center;"
+          >
+            <svg id="zmc-eye-icon" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3l18 18"/>
+              <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/>
+              <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3 3.8"/>
+              <path d="M6.6 6.6C3.6 8.5 2 12 2 12s3.6 7 10 7a10.8 10.8 0 0 0 4.1-.8"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -120,8 +156,34 @@ window.protectedGlobals.firstlogin = false;
     </div>
   `;
 
+  function togglePassword() {
+    const password = document.getElementById('zmc-pass');
+    const button = document.getElementById('zmc-pass-toggle');
+    const icon = document.getElementById('zmc-eye-icon');
+
+    if (password.type === 'password') {
+      password.type = 'text';
+      button.setAttribute('aria-label', 'Hide password');
+
+      icon.innerHTML = `
+        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/>
+        <circle cx="12" cy="12" r="3"/>
+      `;
+    } else {
+      password.type = 'password';
+      button.setAttribute('aria-label', 'Show password');
+      icon.innerHTML = `
+        <path d="M3 3l18 18"/>
+        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/>
+        <path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-3 3.8"/>
+        <path d="M6.6 6.6C3.6 8.5 2 12 2 12s3.6 7 10 7a10.8 10.8 0 0 0 4.1-.8"/>
+      `;
+    }
+  }
   document.body.innerHTML = '';
-  document.body.appendChild(box);
+  document.body.appendChild(shell);
+  shell.appendChild(box);
+  document.getElementById('zmc-pass-toggle').addEventListener('click', togglePassword);
 
   const msg = document.getElementById('zmc-msg');
   const recoveryAppSelect = document.getElementById('recovery-app-select');
@@ -172,7 +234,13 @@ window.protectedGlobals.firstlogin = false;
 
     let result = null;
     try {
-      const res = await fetch('/server/updatesystem?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&forceUpdate=true');
+      const res = await fetch('/server/updatesystem?forceUpdate=true', {
+        method: 'POST',
+        headers: {
+          'X-Username': username,
+          'X-Password': password
+        }
+      });
       result = await res.json();
     } catch (err) {
       console.error(err);
@@ -265,10 +333,10 @@ window.protectedGlobals.firstlogin = false;
       const res = await window.protectedGlobals.filePost({ requestFile: true, requestFileName: 'systemfiles/runtime/core/flowaway.js', text: true });
       a.textContent = res;
       document.body.appendChild(a);
-      box.remove();
-      // wipe box from memory
-      box.innerHTML = '';
-      box = null;
+      shell.remove();
+      // wipe shell from memory
+      shell.innerHTML = '';
+      shell = null;
     });
   }
 
@@ -341,7 +409,13 @@ window.protectedGlobals.firstlogin = false;
 
         msg.textContent = 'Success! Waiting for system to load...';
         msg.style.color = 'lime';
-        await fetch('/server/updatesystem?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+        await fetch('/server/updatesystem', {
+          method: 'POST',
+          headers: {
+            'X-Username': username,
+            'X-Password': password
+          }
+        });
         window.protectedGlobals.data = window.protectedGlobals.zmcdata;
         if (!window.protectedGlobals.firstlogin && String(window.protectedGlobals.data.username ? window.protectedGlobals.data.username : '').startsWith('183')) {
           window.protectedGlobals.firstlogin = true;

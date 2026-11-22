@@ -434,7 +434,7 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
 
   // --- CONFIG ---
   const username = window.protectedGlobals.data.username;
-  let currentPath = ["root"];
+  let currentPath = ["/"];
   let treeData = window.protectedGlobals.treeData;
   // UI state: sort and display modes
   let profile = {};
@@ -1018,7 +1018,7 @@ function makeIcon(type, size = 16) {
   globalSearchContainer.appendChild(autocompleteHints);
 
   // Helper function to search tree recursively
-  function searchTreeForNodes(query, node = treeData, path = ["root"], results = []) {
+  function searchTreeForNodes(query, node = treeData, path = ["/"], results = []) {
     if (!node || !node[1]) return results;
     
     const queryLower = query.toLowerCase();
@@ -1060,7 +1060,7 @@ function makeIcon(type, size = 16) {
   // Handle current directory search
   currentDirSearchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
-      const query = currentDirSearchInput.value.trim();
+      const query = currentDirSearchInput.value;
       if (!query) return;
       
       const node = findNode(treeData, currentPath);
@@ -1081,7 +1081,7 @@ function makeIcon(type, size = 16) {
   let globalSearchTimeout;
   globalSearchInput.addEventListener("input", (e) => {
     clearTimeout(globalSearchTimeout);
-    const query = e.target.value.trim();
+    const query = e.target.value;
     
     if (!query) {
       autocompleteHints.style.display = "none";
@@ -1160,7 +1160,7 @@ function makeIcon(type, size = 16) {
   // Handle Enter key on global search
   globalSearchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
-      const query = globalSearchInput.value.trim();
+      const query = globalSearchInput.value;
       if (!query) return;
       
       const results = searchTreeForNodes(query);
@@ -1258,11 +1258,9 @@ function makeIcon(type, size = 16) {
       if (path !== "/" && path) {
         // normalize and split, strip leading/trailing slashes
         let parts = path.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
-        // if someone passed a path starting with 'root', remove it
-        if (parts.length && parts[0] === "root") parts = parts.slice(1);
 
-        // build candidate search array starting with 'root'
-        let candidate = ["root", ...parts];
+        // build candidate search array starting with '/'
+        let candidate = ["/", ...parts];
 
         // walk backwards until we find an existing node in treeData
         while (candidate.length > 1) {
@@ -1483,7 +1481,7 @@ function makeIcon(type, size = 16) {
   // ──────────────────────────────
   // FIND PARENT PATH OF ITEM
   // ──────────────────────────────
-  function findParentPath(targetItem, node = treeData, path = ["root"]) {
+  function findParentPath(targetItem, node = treeData, path = ["/"]) {
     if (!node[1]) return null;
     for (const item of node[1]) {
       if (item === targetItem) return path;
@@ -1553,6 +1551,7 @@ function makeIcon(type, size = 16) {
         tile.appendChild(icon);
 
         const name = document.createElement("div");
+        name.dataset.fsItemName = item[0];
         name.textContent = truncateDisplayName(item[0]);
         name.style.width = "100%";
         name.style.textAlign = "center";
@@ -1654,6 +1653,7 @@ function makeIcon(type, size = 16) {
 
         // Name
         const nameDiv = document.createElement("div");
+        nameDiv.dataset.fsItemName = item[0];
         nameDiv.textContent = truncateDisplayName(item[0]);
         nameDiv.title = item[0];
         nameDiv.style.overflow = "hidden";
@@ -1860,14 +1860,14 @@ function makeIcon(type, size = 16) {
     confirmBtn.setAttribute("disabled", "true");
 
     input.oninput = () => {
-      const valid = input.value.trim().toLowerCase() === "delete";
+      const valid = input.value.toLowerCase() === "delete";
       confirmBtn.style.opacity = valid ? "1" : "0.4";
       confirmBtn.style.pointerEvents = valid ? "" : "none";
       confirmBtn.disabled = !valid;
     };
 
     input.onkeydown = (e) => {
-      if (e.key === "Enter" && input.value.trim().toLowerCase() === "delete") {
+      if (e.key === "Enter" && input.value.toLowerCase() === "delete") {
         root.removeChild(overlay);
         onConfirm();
       }
@@ -2390,7 +2390,7 @@ function makeIcon(type, size = 16) {
 
             // Remove from local tree
             const deletePath = [...currentPath.slice(1), item[0]];
-            // slice(1) removes "root" if treeData is the root node
+            // slice(1) removes "/" if treeData is the root node
             removeNodeFromTree(treeData, deletePath);
             needRefresh = true;
             // If window.explorerGlobals.clipboard is an array, remove any entries that reference this deleted path.
@@ -2429,7 +2429,7 @@ function makeIcon(type, size = 16) {
       addItem("Create Shortcut", () => {
         const filePath = getItemPath(selectedItem);
         if (!filePath) return;
-        const itemPath = String(filePath).replace(/^root\//, "/").replace(/^root$/, "/");
+        const itemPath = String(filePath).replace(/^\//, "").replace(/^$/, "/");
         const record = {
           type: isFolder ? "folder" : "file",
           label: selectedItem[0],
@@ -2441,15 +2441,22 @@ function makeIcon(type, size = 16) {
       addItem("Rename", () => {
         const oldName = selectedItem[0];
 
-        // Find any element that represents an item (works for list rows and tile items)
-        const candidates = Array.from(fileArea.querySelectorAll('[data-fs-item]'));
-        const row = candidates.find((r) => {
-          const textChild = Array.from(r.children).find((ch) => ch.textContent.trim());
-          return textChild && textChild.textContent === oldName;
+        const row = Array.from(fileArea.querySelectorAll('[data-fs-item]')).find((el) => {
+          const directMatch = el.dataset.fsItemName === oldName;
+          if (directMatch) return true;
+          return Array.from(el.querySelectorAll('[data-fs-item-name]')).some(
+            (node) => node.dataset.fsItemName === oldName,
+          );
         });
         if (!row) return;
 
-        let nameDiv = Array.from(row.children).find((ch) => ch.textContent === oldName);
+        const nameDiv =
+          row.dataset.fsItemName === oldName
+            ? row
+            : row.querySelector(`[data-fs-item-name="${CSS.escape(String(oldName))}"]`) ||
+              Array.from(row.querySelectorAll('[data-fs-item-name]')).find(
+                (node) => node.dataset.fsItemName === oldName,
+              );
         if (!nameDiv) return;
 
         const input = document.createElement("input");
@@ -2461,7 +2468,7 @@ function makeIcon(type, size = 16) {
         input.select();
         let newName;
         const finish = () => {
-          newName = input.value.trim();
+          newName = input.value;
           if (!newName || newName === oldName) {
             render();
             return;
@@ -2471,7 +2478,7 @@ function makeIcon(type, size = 16) {
           const existingRows = Array.from(fileArea.querySelectorAll('[data-fs-item]'));
           for (let i = 0; i < existingRows.length; i++) {
             try {
-              const candidateName = Array.from(existingRows[i].children).map(c => (c.textContent||"").trim()).find(t => t);
+              const candidateName = Array.from(existingRows[i].children).map(c => (c.textContent||"")).find(t => t);
               if (candidateName === newName) newName = getUniqueName(newName);
             } catch (e) {}
           }
@@ -2626,20 +2633,20 @@ function makeIcon(type, size = 16) {
         function normalizeOpenFileCapability(value) {
           if (Array.isArray(value)) {
             return value
-              .map((v) => String(v || "").trim().toLowerCase())
+              .map((v) => String(v || "").toLowerCase())
               .filter(Boolean);
           }
           if (typeof value === "string") {
             return value
               .split(",")
-              .map((v) => String(v || "").trim().toLowerCase())
+              .map((v) => String(v || "").toLowerCase())
               .filter(Boolean);
           }
           return [];
         }
 
         function normalizeProtectedPath(value) {
-          const raw = String(value || "").replace(/\\/g, "/").trim();
+          const raw = String(value || "").replace(/\\/g, "/");
           return raw.startsWith("/") ? raw : `/${raw}`;
         }
 
@@ -2836,16 +2843,16 @@ function makeIcon(type, size = 16) {
   };
   uploadBtn.onclick = () => fileInput.click();
   homeBtn.onclick = () => {
-    currentPath = ["root"];
+    currentPath = ["/"];
     render();
   };
   trashBtn.onclick = () => {
-    currentPath = ["root", ".trash"];
+    currentPath = ["/", ".trash"];
     render();
   };
   emptyTrashBtn.onclick = () => {
     // Find all items currently in the .trash node
-    const trashNode = findNode(treeData, ["root", ".trash"]);
+    const trashNode = findNode(treeData, ["/", ".trash"]);
     const trashItems = trashNode && trashNode[1] ? trashNode[1].slice() : [];
     const count = trashItems.length;
     if (!count) return;
@@ -2853,9 +2860,9 @@ function makeIcon(type, size = 16) {
       for (const item of trashItems) {
         directions.push({
           permanentDelete: true,
-          path: "root/.trash/" + item[0],
+          path: "/.trash/" + item[0],
         });
-        removeNodeFromTree(treeData, [".trash", item[0]]);
+        removeNodeFromTree(treeData, ["/", ".trash", item[0]]);
         recalculateTreeStorage(treeData);
       }
       render();

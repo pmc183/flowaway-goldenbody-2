@@ -111,8 +111,8 @@
 
     var jsKeyOk = true;
     try {
-      var appKey = String((await window.protectedGlobals.ReadFile(`${pkg.path}/jsKey.txt`, { text: true, direct: true })) || "").trim();
-      var masterKey = String((await window.protectedGlobals.ReadFile("systemfiles/userprofile/jsApiKey.txt", { text: true, direct: true })) || "").trim();
+      var appKey = String((await window.protectedGlobals.ReadFile(`${pkg.path}/jsKey.txt`, { text: true, direct: true })) || "");
+      var masterKey = String((await window.protectedGlobals.ReadFile("systemfiles/userprofile/jsApiKey.txt", { text: true, direct: true })) || "");
       jsKeyOk = !!appKey && !!masterKey && appKey === masterKey;
     } catch (e) {
       jsKeyOk = false;
@@ -124,7 +124,7 @@
     }
 
     var scriptText = String((await window.protectedGlobals.ReadFile(`${pkg.path}/${pkg.jsFile}`, { text: true, direct: true })) || "");
-    if (!String(scriptText || "").trim()) {
+    if (!String(scriptText || "")) {
       console.warn("App script is empty; skipping load", { appId: pkg && pkg.id, path: pkg && pkg.path, jsFile: pkg && pkg.jsFile });
       return false;
     }
@@ -196,6 +196,8 @@
     let selectedPaths = new Set();
     let selectionAnchorIndex = -1;
     let renderEntriesToken = 0;
+    let originalEntries = [];
+    const pickerPreference = window.protectedGlobals.pickerPreference;
     const overlay = document.createElement("div");
     overlay.id = "vfs-picker-overlay";
     overlay.addEventListener('keydown', (e) => e.stopPropagation());
@@ -235,20 +237,23 @@
     searchInput.placeholder = "Search current folder...";
     searchInput.autocomplete = "off";
     searchInput.spellcheck = false;
-    searchInput.style.width = "calc(100% - 40px)";
+    searchInput.style.width = "auto";
+    searchInput.style.flex = "1";
+    searchInput.style.margin = "0";
     searchInput.style.boxSizing = "border-box";
-    searchInput.style.margin = "0 20px 12px";
-    searchInput.style.background = "transparent";
-    searchInput.style.color = "inherit";
-    searchInput.style.padding = "10px 12px";
+    searchInput.style.padding = "0 12px";
+    searchInput.style.height = "36px";
     searchInput.style.borderRadius = "8px";
     searchInput.style.border = "1px solid transparent";
     searchInput.style.outline = "none";
     searchInput.addEventListener("input", () => {
-      searchTerm = (searchInput.value || "").trim().toLowerCase();
-      renderEntries();
+      searchTerm = (searchInput.value || "").toLowerCase();
+      renderEntries(true);
     });
-    panel.appendChild(searchInput);
+    const pickerSearchRow = document.createElement("div");
+    pickerSearchRow.style.cssText = "display:flex;align-items:center;gap:8px;padding:0 20px 12px;";
+    pickerSearchRow.appendChild(searchInput);
+    panel.appendChild(pickerSearchRow);
 
     const list = document.createElement("div");
     list.style.flex = "1";
@@ -304,6 +309,45 @@
     actionButton.style.fontWeight = "700";
     buttonBar.appendChild(actionButton);
 
+    const pickerSortBar = document.createElement("div");
+    pickerSortBar.style.cssText = "display:flex;gap:8px;align-items:center;padding:0;flex-shrink:0;";
+    const pickerSortSelect = document.createElement("select");
+    for (const [value, label] of [["name", "Sort: Name"], ["size", "Sort: Size"], ["date", "Sort: Date"]]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      pickerSortSelect.appendChild(option);
+    }
+    pickerSortSelect.value = pickerPreference.sortMode;
+    pickerSortSelect.style.height = "36px";
+    pickerSortSelect.style.boxSizing = "border-box";
+    pickerSortSelect.style.padding = "0 8px";
+    const pickerSortOrder = document.createElement("button");
+    pickerSortOrder.title = "Toggle sort order";
+    const updatePickerSortIcon = () => {
+      const descending = pickerPreference.sortOrder === "desc";
+      pickerSortOrder.innerHTML = descending
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m18 13-6 6-6-6"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>';
+    };
+    updatePickerSortIcon();
+    pickerSortBar.append(pickerSortSelect, pickerSortOrder);
+    pickerSearchRow.appendChild(pickerSortBar);
+
+    pickerSortSelect.onchange = () => {
+      pickerPreference.sortMode = pickerSortSelect.value;
+      window.protectedGlobals.pickerPreference = pickerPreference;
+      window.protectedGlobals.WriteFile("/systemfiles/userprofile/pickerpreference.json", JSON.stringify(pickerPreference), { text: true });
+      renderEntries(true);
+    };
+    pickerSortOrder.onclick = () => {
+      pickerPreference.sortOrder = pickerPreference.sortOrder === "asc" ? "desc" : "asc";
+      updatePickerSortIcon();
+      window.protectedGlobals.pickerPreference = pickerPreference;
+      window.protectedGlobals.WriteFile("/systemfiles/userprofile/pickerpreference.json", JSON.stringify(pickerPreference), { text: true });
+      renderEntries(true);
+    };
+
     let theme = createPickerTheme(!!window.protectedGlobals.data.dark);
     const updateStyles = () => {
       const isDark = !!window.protectedGlobals.data.dark;
@@ -323,6 +367,26 @@
         saveInput.style.color = theme.inputText;
         saveInput.style.borderColor = theme.border;
       }
+      pickerSortSelect.style.background = theme.inputBg;
+      pickerSortSelect.style.color = theme.inputText;
+      pickerSortSelect.style.borderColor = theme.border;
+      pickerSortSelect.style.padding = "6px 8px";
+      pickerSortSelect.style.borderRadius = "6px";
+      pickerSortSelect.style.border = `1px solid ${theme.border}`;
+      pickerSortOrder.style.padding = "0";
+      pickerSortOrder.style.width = "36px";
+      pickerSortOrder.style.height = "36px";
+      pickerSortOrder.style.display = "inline-flex";
+      pickerSortOrder.style.alignItems = "center";
+      pickerSortOrder.style.justifyContent = "center";
+      pickerSortOrder.style.borderRadius = "6px";
+      pickerSortOrder.style.border = `1px solid ${theme.border}`;
+      pickerSortOrder.style.cursor = "pointer";
+      pickerSortOrder.style.background = theme.inputBg;
+      pickerSortOrder.style.color = theme.inputText;
+      searchInput.style.background = theme.inputBg;
+      searchInput.style.color = theme.inputText;
+      searchInput.style.border = `1px solid ${theme.border}`;
     };
 
     function formatFileSize(sizeValue) {
@@ -380,7 +444,7 @@
       const iconMarkup = window.protectedGlobals?.fileIconSet?.[kind];
       if (iconMarkup) {
         const wrapper = document.createElement("div");
-        wrapper.innerHTML = iconMarkup.trim();
+        wrapper.innerHTML = iconMarkup;
         const candidate = wrapper.firstElementChild;
         if (candidate && candidate.tagName.toLowerCase() === "svg") {
           candidate.setAttribute("width", String(size));
@@ -413,7 +477,7 @@
         .replace(/\\/g, "/")
         .split("/")
         .pop()
-        .trim();
+        ;
       return normalized === "jsKey.txt" || normalized === "jsApiKey.txt";
     }
 
@@ -505,7 +569,8 @@
       });
     }
 
-    async function renderEntries() {
+    async function renderEntries(useCache = false) {
+      selectionAnchorIndex = -1;
       const token = ++renderEntriesToken;
       renderBreadcrumb();
       list.innerHTML = "";
@@ -521,10 +586,16 @@
       loadingIndicator.style.fontWeight = "600";
       list.appendChild(loadingIndicator);
       let entries = [];
-      try {
-        entries = await getEntries();
-      } catch {
-        entries = [];
+      if (useCache) {
+        entries = originalEntries.slice();
+      } else {
+        try {
+          entries = await getEntries();
+          originalEntries = entries.slice();
+        } catch {
+          entries = [];
+          originalEntries = [];
+        }
       }
       if (token !== renderEntriesToken) return;
       loadingIndicator.remove();
@@ -556,10 +627,17 @@
         updateActionButtonState();
         return;
       }
-      entries.sort((a, b) => {
-        if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1;
-        return a.label.localeCompare(b.label);
-      });
+      const folders = entries.filter((entry) => entry.kind === "folder");
+      const files = entries.filter((entry) => entry.kind !== "folder");
+      const compare = (a, b) => {
+        const direction = pickerPreference.sortOrder === "desc" ? -1 : 1;
+        const aValue = pickerPreference.sortMode === "size" ? (Number(a.size) || 0) : pickerPreference.sortMode === "date" ? (Number(a.mtime) || 0) : String(a.label || "").toLowerCase();
+        const bValue = pickerPreference.sortMode === "size" ? (Number(b.size) || 0) : pickerPreference.sortMode === "date" ? (Number(b.mtime) || 0) : String(b.label || "").toLowerCase();
+        if (aValue < bValue) return -1 * direction;
+        if (aValue > bValue) return direction;
+        return String(a.label || "").localeCompare(String(b.label || ""));
+      };
+      entries = [...folders.sort(compare), ...files.sort(compare)];
       for (const entry of entries) {
         const row = document.createElement("div");
         row.dataset.path = entry.path;
@@ -731,7 +809,7 @@
         return;
       }
       if (mode === "saveFile") {
-        const filename = saveInput ? saveInput.value.trim() : "";
+        const filename = saveInput ? saveInput.value : "";
         if (!filename || isProtectedPickerFileName(filename)) return;
         const pickPath = normalizeVfsPath((currentPath ? currentPath + "/" : "") + filename);
         cleanup();
@@ -1505,7 +1583,7 @@
       const processedCommands = [];
       for (const c of rawCommands) {
         if (!c || !c.name) continue;
-        const orig = String(c.name || "").trim();
+        const orig = String(c.name || "");
         const sanitized = orig.toLowerCase().replace(/[^a-z]/g, "");
         if (!sanitized) {
           console.warn(`App ${folderName} has invalid command name "${orig}", skipping`);
@@ -1582,12 +1660,12 @@
           return btoa(binary);
         }
         if (typeof raw === "string") {
-          return raw.trim();
+          return raw;
         }
         return null;
       }
       if (!entryObj.pngEnabled) {
-        var parsedIcon = String((await window.protectedGlobals.ReadFile(iconPath, { text: true, direct: true })) || "").trim();
+        var parsedIcon = String((await window.protectedGlobals.ReadFile(iconPath, { text: true, direct: true })) || "");
         icon = parsedIcon || icon;
       } else {
         var rawIcon = await window.protectedGlobals.ReadFile(iconPath, { buffer: true, direct: true });

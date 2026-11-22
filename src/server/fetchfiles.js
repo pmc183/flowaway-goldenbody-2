@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const fsp = require("fs/promises");
-const { getUserUsage, getUserQuotaBytes } = require("./storageQuota");
+const { getUserUsage } = require("./storageQuota");
 const { withUserLock, writeFileWithQuota, createDirectoryWithQuota, deletePathWithQuota, copyPathWithQuota } = require("./quotaFs");
 const crypto = require("crypto");
 
@@ -72,11 +72,23 @@ function sendSafeError(res, err, fallbackStatus = 500) {
   }));
 }
 
+function validatePath(value) {
+  const raw = String(value ?? "");
+
+  if (raw.includes("\\")) {
+    const err = new Error("Backslashes are not allowed in paths. Use '/' instead.");
+    err.code = "EINVAL";
+    throw err;
+  }
+
+  return raw;
+}
+
 const limit = createLimiter(32);
 function safeResolve(root, userPath = "") {
   const resolvedRoot = path.resolve(root);
-  const raw = String(userPath ?? "");
-  const relative = raw.replace(/\\/g, "/").replace(/^\/+/, "");
+  const raw = validatePath(userPath);
+  const relative = raw.replace(/^\/+/, "");
   const resolved = relative ? path.resolve(resolvedRoot, relative) : resolvedRoot;
 
   if (resolved !== resolvedRoot && !resolved.startsWith(resolvedRoot + path.sep)) {
@@ -106,7 +118,7 @@ function createLimiter(maxConcurrent = 64, maxQueue = 2000) {
   };
 }
 async function buildUserFileTree(rootPath) {
-  const root = ["root", []];
+  const root = ["/", []];
 
   const queue = [{
     path: rootPath,
@@ -251,7 +263,7 @@ async function getDirRealSizeBytes(root) {
   return walk(root);
 }
 
-async function authenticateUser(username, providedPassword, authHeader) {
+async function authenticateUser(username, authHeader) {
   if (!username) return false;
 
   try {
@@ -260,19 +272,16 @@ async function authenticateUser(username, providedPassword, authHeader) {
     const txt = await fsp.readFile(userFile, "utf8");
     const obj = JSON.parse(txt);
 
-    if (!obj || typeof obj.password !== "string") return false;
-
-    if (providedPassword === obj.password) return true;
+    if (!obj) return false;
 
     if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.slice(7).trim();
-
+      const token = authHeader.slice(7);
       const now = Date.now();
+      const expires = Number(obj.authTokenExpires);
 
-      return Array.isArray(obj.authTokens) &&
-        obj.authTokens.some(
-          t => t.token === token && t.expires > now
-        );
+      return typeof obj.authToken === "string" &&
+        obj.authToken === token &&
+        Number.isFinite(expires) && expires > now;
     }
 
     return false;
@@ -283,7 +292,7 @@ async function authenticateUser(username, providedPassword, authHeader) {
 
 let directoryPath = path.resolve(__dirname, "./zmcdfiles");
 function getUserDirectory(username) {
-  const safeUsername = String(username || "").trim();
+  const safeUsername = String(username || "");
 
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(safeUsername)) {
     throw new Error("Invalid username");
@@ -296,15 +305,10 @@ function getUserDirectory(username) {
 if (!fs.existsSync(directoryPath)) fs.mkdirSync(directoryPath, { recursive: true });
 
 function removeUnwantedStuffInPath(value) {
-  let raw = String(value ?? "")
-    .replace(/\\/g, "/")
-    .trim();
+  let raw = validatePath(value)
+    ;
 
   if (!raw) return "/";
-
-  if (raw.startsWith("root/")) {
-    raw = raw.slice(5);
-  }
 
   const normalized = path.posix.normalize(raw.startsWith("/") ? raw : `/${raw}`);
 
@@ -312,59 +316,16 @@ function removeUnwantedStuffInPath(value) {
 }
 
 function stripLeadingSlash(value) {
-  const text = String(value ?? "");
+  const text = validatePath(value);
   return text.replace(/^\/+/, "");
 }
 
 function isRootContainerPath(value) {
   if (value === undefined || value === null) return false;
-  const text = String(value).replace(/\\/g, "/").trim();
+  const text = validatePath(value);
   if (!text || text === "/") return true;
   const normalized = stripLeadingSlash(text);
-  return normalized === "" || normalized === "root";
-}
-
-function isExistingAppFolderPath(userRoot, normalizedPath) {
-  if (!normalizedPath || typeof normalizedPath !== "string") return false;
-
-  const appsRoot = "/systemfiles/runtime/apps/";
-  if (!normalizedPath.startsWith(appsRoot)) return false;
-
-  const relative = normalizedPath.slice(appsRoot.length).replace(/^\/+/, "");
-  if (!relative) return false;
-
-  const firstSegment = relative.split("/")[0];
-  if (!firstSegment) return false;
-
-  const candidatePath = safeResolve(userRoot, `systemfiles/runtime/apps/${firstSegment}`);
-
-  try {
-    const stat = fs.statSync(candidatePath);
-    return Boolean(stat && stat.isDirectory());
-  } catch {
-    return false;
-  }
-}
-
-function requiresPasswordForAppsWrite(userRoot, normalizedPath) {
-  if (!normalizedPath || typeof normalizedPath !== "string") return false;
-  if (!normalizedPath.startsWith("/systemfiles/runtime/apps/")) return false;
-
-  const relative = normalizedPath.slice("/systemfiles/runtime/apps/".length).replace(/^\/+/, "");
-  if (!relative) return false;
-
-  if (!relative.includes("/")) {
-    return false;
-  }
-
-  return !isExistingAppFolderPath(userRoot, normalizedPath);
-}
-
-function requiresPasswordForAppsFolderCreate(userRoot, normalizedPath) {
-  if (!normalizedPath || typeof normalizedPath !== "string") return false;
-  if (!normalizedPath.startsWith("/systemfiles/runtime/apps/")) return false;
-
-  return !isExistingAppFolderPath(userRoot, normalizedPath);
+  return normalized === "";
 }
 
 function getPermissionForRelativePath(relPath, permissionEntries) {
@@ -435,22 +396,22 @@ async function handleRawFileUpload(req, res) {
     return Buffer.from(base64Str, "base64").toString("utf8");
   }
   const headers = req.headers || {};
-  const username = String(headers["x-username"] || "").trim();
-  const password = String(headers["x-password"] || "").trim();
+  const username = String(headers["x-username"] || "");
   const authHeader = headers.authorization || headers.Authorization || "";
-  const relPath = base64ToUtf8(String(headers["x-file-path"] || "").trim());
+  const relPath = base64ToUtf8(String(headers["x-file-path"] || ""));
 
   if (!username || !relPath) {
     res.writeHead(400);
     return res.end(JSON.stringify({ error: "Missing username or file path" }));
   }
 
-  if (!(await authenticateUser(username, password, authHeader))) {
+  if (!(await authenticateUser(username, authHeader))) {
     res.writeHead(401);
     return res.end(JSON.stringify({ error: "unauthorized" }));
   }
 
   const normalizedPath = removeUnwantedStuffInPath(relPath);
+
   const userDir = getUserDirectory(username);
   const userRoot = safeResolve(userDir, "root");
 
@@ -470,13 +431,6 @@ async function handleRawFileUpload(req, res) {
       error: "write permission denied",
       path: normalizedPath,
     }));
-  }
-
-  // Require explicit password (not token) when writing under /systemfiles/runtime/apps/,
-  // except when the path is inside an already-created app folder.
-  if (requiresPasswordForAppsWrite(userRoot, normalizedPath) && (!authObj || password !== authObj.password)) {
-    res.writeHead(403);
-    return res.end(JSON.stringify({ error: "password required for folder writes to /systemfiles/runtime/apps/" }));
   }
 
   const replace = String(headers["x-file-replace"] || "true") !== "false";
@@ -504,7 +458,7 @@ async function handleFetchfiles(req, res) {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Username, X-File-Path, X-File-Replace, X-File-Action, X-Password");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Username, X-File-Path, X-File-Replace, X-File-Action");
   res.setHeader("Access-Control-Expose-Headers", "X-File-Size,X-Chunk-Index,X-Is-Last-Chunk,X-Total-Chunks");
 
   // Support simple streaming download endpoint for large files.
@@ -547,16 +501,15 @@ async function handleFetchfiles(req, res) {
       return res.end(JSON.stringify({ error: "Invalid request body" }));
     }
 
-    const username = typeof data.username === "string" ? data.username.trim() : "";
+    const username = typeof data.username === "string" ? data.username : "";
     if (!username) {
       res.writeHead(400);
       return res.end(JSON.stringify({ error: "Missing username" }));
     }
 
-    // Authenticate all POST actions. If the user has a password set
-    // in their user file (username.txt) it must match `data.password`.
+    // Authenticate all POST actions using the bearer session token.
     const authHeader = (req.headers && (req.headers.authorization || req.headers.Authorization)) || "";
-    if (!(await authenticateUser(username, data.password, authHeader))) {
+    if (!(await authenticateUser(username, authHeader))) {
       res.writeHead(401);
       return res.end(JSON.stringify({ error: "unauthorized" }));
     }
@@ -675,7 +628,7 @@ async function handleFetchfiles(req, res) {
           );
         }
 
-        const files = await limit(() => Promise.all(
+        const files = await Promise.all(
           dirents.map(async (d) => {
             const entryPath = stripLeadingSlash(d.name);
 
@@ -687,8 +640,7 @@ async function handleFetchfiles(req, res) {
             };
 
             try {
-              const entryStat = await fsp.stat(safeResolve(fullPath, d.name));
-
+              const entryStat = await limit(() => fsp.stat(safeResolve(fullPath, d.name)));
               result.mtime = entryStat.mtimeMs;
 
               if (type === "file") {
@@ -708,7 +660,7 @@ async function handleFetchfiles(req, res) {
 
             return result;
           }),
-        ));
+        );
         return res.end(
           JSON.stringify({
             kind: "folder",
@@ -729,11 +681,10 @@ async function handleFetchfiles(req, res) {
         const result = {};
 
         const normalizePathInput = (p = "") => {
-          if (!p || p === "root") return "";
+          if (!p) return "";
 
-          let text = String(p).replace(/\\/g, "/").trim();
+          let text = validatePath(p);
           while (text.startsWith("/")) text = text.slice(1);
-          if (text.startsWith("root/")) text = text.slice(5);
           return text;
         };
 
@@ -747,15 +698,6 @@ async function handleFetchfiles(req, res) {
           const normalized = normalizePathInput(p);
           if (!normalized) return "";
           return removeUnwantedStuffInPath(normalized);
-        };
-
-        const isImmediateRootChild = (relativePath) => removeUnwantedStuffInPath(relativePath) === "/root";
-        const assertNotImmediateRootChild = (relativePath, action) => {
-          if (isImmediateRootChild(relativePath)) {
-            const err = new Error(`Cannot ${action} item named 'root' at the top level`);
-            err.code = "EINVAL";
-            throw err;
-          }
         };
 
         const assertReadAllowed = (relativePath) => {
@@ -782,7 +724,7 @@ async function handleFetchfiles(req, res) {
               let folderPath;
 
               if (dir.name && dir.name.length) {
-                parentPath = resolvePath(dir.path || "root");
+                parentPath = resolvePath(dir.path || "");
                 folderPath = safeResolve(parentPath, dir.name);
               } else {
                 const requestedPath = typeof dir.path === "string" ? dir.path : "";
@@ -792,7 +734,6 @@ async function handleFetchfiles(req, res) {
 
               const parentRel = removeUnwantedStuffInPath(path.relative(rootPath, parentPath || rootPath).replace(/\\/g, "/"));
               const folderRel = removeUnwantedStuffInPath(path.relative(rootPath, folderPath || rootPath).replace(/\\/g, "/"));
-              assertNotImmediateRootChild(folderRel, "create");
               assertWriteAllowed(parentRel);
               assertWriteAllowed(folderRel);
               await ensureDir(parentPath || rootPath);
@@ -834,7 +775,6 @@ async function handleFetchfiles(req, res) {
             }
             if (dir.addFile) {
               const fileRel = directionPathToRelative(dir.path || "");
-              assertNotImmediateRootChild(fileRel, "create");
               const parentRel = path.posix.dirname(fileRel);
               assertWriteAllowed(parentRel);
               assertWriteAllowed(fileRel);           
@@ -858,7 +798,7 @@ async function handleFetchfiles(req, res) {
               const oldRel = directionPathToRelative(dir.path || "");
               assertWriteAllowed(oldRel);
 
-              const newName = path.basename(String(dir.newName || "").trim());
+              const newName = path.basename(String(dir.newName || ""));
 
               if (!newName || newName === "." || newName === "..") {
                 success = false;
@@ -881,7 +821,6 @@ async function handleFetchfiles(req, res) {
                 continue;
               }
               const newRel = path.join(path.dirname(oldRel), newName).replace(/\\/g, "/");
-              assertNotImmediateRootChild(newRel, "rename to");
               assertWriteAllowed(removeUnwantedStuffInPath(newRel));
 
               await fsp.rename(oldPath, newPath);
@@ -947,14 +886,19 @@ async function handleFetchfiles(req, res) {
               const deleteRelPath = directionPathToRelative(dir.path || "");
               assertWriteAllowed(deleteRelPath);
               const targetPath = resolvePath(dir.path);
-              // Security: only allow permanent deletion of items inside .trash
-              const trashDir = safeResolve(rootPath, ".trash");
-              const normalizedTarget = path.resolve(targetPath);
-              const normalizedTrash = path.resolve(trashDir);
-              if (!normalizedTarget.startsWith(normalizedTrash + path.sep) && normalizedTarget !== normalizedTrash) {
-                // Not inside .trash — refuse
+              if (isRootContainerPath(dir.path)) {
                 success = false;
-                error = "Cannot permanently delete items outside the trash directory";
+                error = "Cannot permanently delete the root directory";
+                continue;
+              }
+              if (deleteRelPath.replace(/^\/+/, "") === "systemfiles") {
+                success = false;
+                error = "Cannot permanently delete the systemfiles folder";
+                continue;
+              }
+              if (!(await exists(targetPath))) {
+                success = false;
+                error = "Target path does not exist";
                 continue;
               }
               await deletePathWithQuota(username, userRoot, targetPath);
@@ -962,7 +906,6 @@ async function handleFetchfiles(req, res) {
             }
 
             if (dir.restore) {
-              const restoreRelPath = directionPathToRelative(dir.path || "");
               const targetPath = resolvePath(dir.path);
               // Security: only restore items that are inside .trash
               const trashDir = safeResolve(rootPath, ".trash");
@@ -994,12 +937,10 @@ async function handleFetchfiles(req, res) {
                 continue;
               }
 
-              const destinationRelPath = directionPathToRelative(dir.path || "root");
+              const destinationRelPath = directionPathToRelative(dir.path || "");
               assertWriteAllowed(destinationRelPath);
 
-              const destinationPath = resolvePath(dir.path || "root");
-
-              let currentUsed = await getUserUsage(username, userRoot);
+              const destinationPath = resolvePath(dir.path || "");
 
               // Single-object clipboard paste
               const item = clipboard;
@@ -1079,29 +1020,6 @@ async function handleFetchfiles(req, res) {
       }
 
       if (data.saveSnapshot) {
-        // If any addFolder under /systemfiles/runtime/apps/ is present, require the user's password
-        // unless the target is inside an already-created app folder.
-        const dirs = Array.isArray(data.directions) ? data.directions : [];
-        const needsPw = dirs.some((d) => {
-          if (!d.addFolder && !d.paste && !d.addFile) return false;
-
-          const baseTarget = removeUnwantedStuffInPath(d.path || '');
-          if (baseTarget.startsWith('/systemfiles/runtime/apps/')) {
-            return requiresPasswordForAppsFolderCreate(userRoot, baseTarget);
-          }
-
-          const combinedTarget = d.name
-            ? removeUnwantedStuffInPath(`${d.path || ''}/${d.name}`)
-            : '';
-
-          return combinedTarget.startsWith('/systemfiles/runtime/apps/') && requiresPasswordForAppsFolderCreate(userRoot, combinedTarget);
-        });
-
-        if (needsPw && (!authObj || data.password !== authObj.password)) {
-          res.writeHead(403);
-          return res.end(JSON.stringify({ error: 'password required for creating folders in /systemfiles/runtime/apps/' }));
-        }
-
         const result = await withUserLock(username, () => applyDirections(userRoot, data.directions, username, userPathPermissions, { move: Boolean(data.move) }));
 
         const safePayload = {

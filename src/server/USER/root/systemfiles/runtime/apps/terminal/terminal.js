@@ -100,7 +100,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     instance.askUserBeforeClose = false;
     // current working directory for this terminal instance
     let cwd = (() => {
-      const raw = path === undefined || path === null ? '' : String(path).trim();
+      const raw = path === undefined || path === null ? '' : String(path);
       if (!raw) return '/';
       return normalizeCloudPath(raw.startsWith('/') ? raw : '/' + raw);
     })();
@@ -116,7 +116,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     function renderCommandEcho(commandText) {
-      const raw = String(commandText ?? "").trim();
+      const raw = String(commandText ?? "");
       if (!raw) return;
       const line = document.createElement("div");
       line.style.display = "flex";
@@ -428,26 +428,31 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     async function runPermissionUpdate(pathValue, permArg, passwordValue) {
-      if (passwordValue === null || String(passwordValue).trim() === '') {
+      if (passwordValue === null || String(passwordValue) === '') {
         printError('Password required to change permissions.');
         return;
       }
       const normalizedPerm = String(permArg || '').toLowerCase();
+      const isDefault = normalizedPerm === 'default';
       const read = normalizedPerm.includes('r');
       const write = normalizedPerm.includes('w');
       const targetPath = resolveTerminalPath(pathValue, cwd);
       try {
         const res = await window.protectedGlobals.zmcdpost({
           password: String(passwordValue),
-          updatePathPermission: { path: targetPath, perm: { read, write } }
+          updatePathPermission: {
+            path: targetPath,
+            default: isDefault,
+            perm: isDefault ? undefined : { read, write },
+          }
         });
-        if (res && res.success) printLine('Permission updated');
+        if (res && res.success) printLine(isDefault ? 'Permission reset to default' : 'Permission updated');
         else printError(res && res.error ? String(res.error) : 'Failed to update permission');
       } catch (e) { printError(e.message || String(e)); }
     }
 
     function parseQuotedPath(cmdline) {
-      if (!cmdline || !String(cmdline).trim()) return null;
+      if (!cmdline || !String(cmdline)) return null;
       const tokens = tokenize(String(cmdline));
       if (tokens.length < 2) return null;
       return tokens[1];
@@ -506,14 +511,14 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
       const maybeParseSingle = (text) => {
         if (!text || typeof text !== 'string') return null;
-        const trimmed = text.trim();
+        const trimmed = text;
         if (!trimmed) return null;
         try {
           const parsed = JSON.parse(trimmed);
           if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
         } catch (e) {}
 
-        const compact = trimmed.replace(/^\[|\]$/g, '').replace(/^\{|\}$/g, '').trim();
+        const compact = trimmed.replace(/^\[|\]$/g, '').replace(/^\{|\}$/g, '');
         if (compact && /["'].*["']\s*:\s*["'].*["']/.test(compact)) {
           const pairs = {};
           const re = /["']([^"']+)["']\s*:\s*(["'])(.*?)\2|["']([^"']+)["']\s*:\s*([^,\]}]+)/g;
@@ -521,7 +526,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
           while ((m = re.exec(compact)) !== null) {
             const key = m[1] || m[4];
             const value = m[3] ?? m[5];
-            if (key) pairs[key] = String(value).trim();
+            if (key) pairs[key] = String(value);
           }
           if (Object.keys(pairs).length) return pairs;
         }
@@ -530,7 +535,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
       for (const item of items) {
         if (item === undefined || item === null) continue;
-        const text = String(item).trim();
+        const text = String(item);
         if (!text) continue;
 
         const parsed = maybeParseSingle(text);
@@ -541,8 +546,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
         const eq = text.indexOf('=');
         if (eq > 0) {
-          const key = text.slice(0, eq).trim();
-          const value = text.slice(eq + 1).trim();
+          const key = text.slice(0, eq);
+          const value = text.slice(eq + 1);
           assign(key, value);
           continue;
         }
@@ -557,7 +562,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     // worker-related helpers
     function normalizeCloudPath(pathValue) {
       if (pathValue === undefined || pathValue === null) return '/';
-      const value = String(pathValue).replace(/\\/g, '/').trim();
+      const value = String(pathValue).replace(/\\/g, '/');
       if (!value) return '/';
       const parts = [];
       for (const part of value.split('/')) {
@@ -577,7 +582,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     function resolveTerminalPath(pathValue, baseDir = cwd) {
-      const raw = (pathValue === undefined || pathValue === null) ? '' : String(pathValue).trim();
+      const raw = (pathValue === undefined || pathValue === null) ? '' : String(pathValue);
       if (!raw) return normalizeCloudPath(String(baseDir || '/'));
       const base = normalizeCloudPath(String(baseDir || '/'));
       const candidate = raw.startsWith('/') ? raw : (base === '/' ? '/' + raw : base + '/' + raw);
@@ -608,7 +613,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     function getAppRootFromPath(pathValue) {
-      const raw = typeof pathValue === 'string' ? pathValue.trim() : '';
+      const raw = typeof pathValue === 'string' ? pathValue : '';
       if (!raw || raw === '/' || raw === '.') return '/';
       const normalized = normalizeCloudPath(raw);
       const looksLikeFile = /\/[^/]+\.[^/]+$/i.test(normalized);
@@ -640,7 +645,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     function resolveWorkerPath(p, appRoot) {
-      if (!appRoot || String(appRoot).trim() === '' || String(appRoot).trim() === '/') {
+      if (!appRoot || String(appRoot) === '' || String(appRoot) === '/') {
         if (p === undefined || p === null || p === '') return '/';
         const s = String(p);
         return normalizeVfsPath(s.startsWith('/') ? s : '/' + s);
@@ -654,10 +659,10 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     function resolveCommandScriptPath(srcValue, appInfo) {
-      if (srcValue === undefined || srcValue === null || String(srcValue).trim() === '') return null;
-      const appRoot = appInfo && appInfo.path ? String(appInfo.path).trim() : (appInfo && appInfo.id ? `/systemfiles/runtime/apps/${String(appInfo.id).trim()}` : '/');
+      if (srcValue === undefined || srcValue === null || String(srcValue) === '') return null;
+      const appRoot = appInfo && appInfo.path ? String(appInfo.path) : (appInfo && appInfo.id ? `/systemfiles/runtime/apps/${String(appInfo.id)}` : '/');
       const normalizedRoot = normalizeCloudPath(appRoot || '/');
-      const raw = String(srcValue).trim();
+      const raw = String(srcValue);
       const relative = raw.startsWith('/') ? raw.replace(/^\/+/, '') : raw;
       if (!relative) return normalizedRoot;
       return normalizeCloudPath(normalizedRoot === '/' ? '/' + relative : normalizedRoot + '/' + relative);
@@ -796,8 +801,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
             readFolder: (path, opts)=>{ const id = nextId(); postMessage({type:'api', id, op:'readFolder', path, opts}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
             fileExists: (path)=>{ const id = nextId(); postMessage({type:'api', id, op:'fileExists', path}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
             folderExists: (path)=>{ const id = nextId(); postMessage({type:'api', id, op:'folderExists', path}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
-            deleteFile: (path)=>{ const id = nextId(); postMessage({type:'api', id, op:'deleteFile', path}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
-            deleteFolder: (path)=>{ const id = nextId(); postMessage({type:'api', id, op:'deleteFolder', path}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
+            deleteFile: (path, opts)=>{ const id = nextId(); postMessage({type:'api', id, op:'deleteFile', path, opts}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
+            deleteFolder: (path, opts)=>{ const id = nextId(); postMessage({type:'api', id, op:'deleteFolder', path, opts}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
             writeFolder: (path)=>{ const id = nextId(); postMessage({type:'api', id, op:'writeFolder', path}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
             renameFile: (path, newName)=>{ const id = nextId(); postMessage({type:'api', id, op:'renameFile', path, newName}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
             renameFolder: (path, newName)=>{ const id = nextId(); postMessage({type:'api', id, op:'renameFolder', path, newName}); return new Promise((res, rej)=>_pending.set(id,{res,rej})); },
@@ -1146,8 +1151,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
                 case 'readFolder': result = await window.protectedGlobals.ReadFolder(resolved, d.opts || {}); break;
                 case 'fileExists': result = await window.protectedGlobals.FileExists(resolved); break;
                 case 'folderExists': result = await window.protectedGlobals.FolderExists(resolved); break;
-                case 'deleteFile': result = await window.protectedGlobals.DeleteFile(resolved); break;
-                case 'deleteFolder': result = await window.protectedGlobals.DeleteFolder(resolved); break;
+                case 'deleteFile': result = await window.protectedGlobals.DeleteFile(resolved, d.opts); break;
+                case 'deleteFolder': result = await window.protectedGlobals.DeleteFolder(resolved, d.opts); break;
                 case 'writeFolder': result = await window.protectedGlobals.WriteFolder(resolved); break;
                 case 'renameFile': result = await window.protectedGlobals.RenameFile(resolved, d.newName); break;
                 case 'renameFolder': result = await window.protectedGlobals.RenameFolder(resolved, d.newName); break;
@@ -1174,8 +1179,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
     }
 
     async function handleCommand(cmdline) {
-      if (!cmdline || !cmdline.trim()) return;
-      const commandText = String(cmdline).trim();
+      if (!cmdline || !cmdline) return;
+      const commandText = String(cmdline);
       const parts = tokenize(commandText);
       if (parts.length === 0) return;
       // Keep command case as-typed to make commands case-sensitive
@@ -1195,7 +1200,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
       // builtins
       if (cmd === "help") {
-        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm, rmdir, mkdir, mv, perm, getperm, apps, worker, procs, killproc, killall, kill");
+        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm [-p|--permanent], rmdir, mkdir, mv, perm, getperm, apps, installedapps, open, worker, procs, killproc, killall, kill");
         // list custom app commands
         const appCmds = [];
         (window.protectedGlobals.apps || []).forEach(a => {
@@ -1205,6 +1210,27 @@ window.terminal = function (path, posX = 50, posY = 50) {
           printLine("\nApp commands:");
           appCmds.forEach(ac => printLine(` - ${ac.app} ${ac.name}`));
           printLine("Use <appId> <command> to run an app command, if appId, argument name, or any arguments you want to pass to the command contains spaces, wrap it in double quotes. if it contains double quotes, escape them with a backslash (\\\").");
+        }
+        printLine("Use open <appId> to launch an app. Type <appId> by itself to list its commands.");
+        return;
+      }
+
+      if (cmd === 'open') {
+        const appId = parseQuotedPath(cmdline) || parts[1] || '';
+        if (!appId) {
+          printError('Usage: open <appId>');
+          return;
+        }
+        const appToOpen = (window.protectedGlobals.apps || []).find(a => (a.id || '') === String(appId));
+        if (!appToOpen) {
+          printError(`Unknown app: ${appId}`);
+          return;
+        }
+        try {
+          await window.protectedGlobals.launchApp(appToOpen.id);
+          printLine(`Launched ${appToOpen.id}`);
+        } catch (launchErr) {
+          printError('Failed to launch app: ' + String(launchErr));
         }
         return;
       }
@@ -1237,8 +1263,15 @@ window.terminal = function (path, posX = 50, posY = 50) {
         return;
       }
 
-      if (cmd === "apps") {
-        (window.protectedGlobals.apps || []).forEach(a => printLine(`${a.id} - ${a.label}`));
+      if (cmd === "apps" || cmd === "installedapps") {
+        const apps = window.protectedGlobals.apps || [];
+        const idWidth = Math.max(2, ...apps.map(a => String(a.id || '').length));
+        printLine(`ID${' '.repeat(idWidth - 2 + 2)}LABEL`);
+        printLine(`${'-'.repeat(idWidth)}  ${'-'.repeat(5)}`);
+        apps.forEach(a => {
+          const id = String(a.id || '');
+          printLine(`${id}${' '.repeat(idWidth - id.length + 2)}${a.label || ''}`);
+        });
         return;
       }
 
@@ -1360,7 +1393,20 @@ window.terminal = function (path, posX = 50, posY = 50) {
           const targetPath = resolveTerminalPath(path, cwd);
           const listing = await waitForFsResponse(window.protectedGlobals.ReadFolder(targetPath, { detail: true }));
           if (Array.isArray(listing)) {
-            listing.forEach(i => printLine(`${i.type === "folder" ? '<DIR>' : '<FILE>'}     ${i.path}     size: ${i.size ? i.size : '--'}     modified: ${formatDate(i.mtime)}`));
+            const rows = listing.map(i => ({
+              name: toDisplayPath(i.path, targetPath),
+              type: i.type === "folder" ? "DIR" : "FILE",
+              size: Number.isFinite(i.size) ? String(i.size) : "--",
+              modified: formatDate(i.mtime)
+            }));
+            const nameWidth = Math.max(4, ...rows.map(row => row.name.length));
+            const typeWidth = Math.max(4, ...rows.map(row => row.type.length));
+            const sizeWidth = Math.max(4, ...rows.map(row => row.size.length));
+            printLine(`NAME${' '.repeat(nameWidth - 4 + 2)}TYPE${' '.repeat(typeWidth - 4 + 2)}SIZE${' '.repeat(sizeWidth - 4 + 2)}MODIFIED`);
+            printLine(`${'-'.repeat(nameWidth)}  ${'-'.repeat(typeWidth)}  ${'-'.repeat(sizeWidth)}  ${'-'.repeat(8)}`);
+            rows.forEach(row => {
+              printLine(`${row.name}${' '.repeat(nameWidth - row.name.length + 2)}${row.type}${' '.repeat(typeWidth - row.type.length + 2)}${row.size}${' '.repeat(sizeWidth - row.size.length + 2)}${row.modified}`);
+            });
           }
         } catch (e) {
           printError(e.message || String(e));
@@ -1394,12 +1440,18 @@ window.terminal = function (path, posX = 50, posY = 50) {
       }
 
       if (cmd === 'rm') {
-        const pathArg = parseQuotedPath(cmdline) || parts[1];
-        if (!pathArg) { printError('Usage: rm "<path>"'); return; }
+        const tokens = tokenize(cmdline);
+        const permanent = tokens.slice(1).some(arg => arg === '--permanent' || arg === '-p');
+        const pathArg = tokens.slice(1).find(arg => arg !== '--permanent' && arg !== '-p');
+        if (!pathArg) { printError('Usage: rm [-p|--permanent] "<path>"'); return; }
         try {
           const targetPath = resolveTerminalPath(pathArg, cwd);
-          await waitForFsResponse(window.protectedGlobals.DeleteFile(targetPath));
-          printLine('Deleted ' + targetPath);
+          const result = await waitForFsResponse(window.protectedGlobals.DeleteFile(targetPath, { permanent }));
+          if (result.success) {
+            printLine((permanent ? 'Permanently deleted ' : 'Deleted ') + targetPath);
+          } else {
+            printError(result.error || 'Failed to delete: ' + targetPath);
+          }
         } catch (e) { printError(e.message || String(e)); }
         return;
       }
@@ -1468,11 +1520,11 @@ window.terminal = function (path, posX = 50, posY = 50) {
       if (cmd === 'perm' || cmd === 'chmod') {
         // perm "<path>" rw|r|w|
         const path = parseQuotedPath(cmdline) || parts[1];
-        if (parts.length < 3) { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
-        if (!path) { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
+        if (parts.length < 3) { printError('Usage: perm "<path>" <r|w|rw|none|default>'); return; }
+        if (!path) { printError('Usage: perm "<path>" <r|w|rw|none|default>'); return; }
         const m = cmdline.match(/\s(\w+)\s*$/);
         const permArg = m ? m[1] : '';
-        if (permArg !== 'r' && permArg !== 'w' && permArg !== 'rw' && permArg !== 'none') { printError('Usage: perm "<path>" <r|w|rw|none>'); return; }
+        if (permArg !== 'r' && permArg !== 'w' && permArg !== 'rw' && permArg !== 'none' && permArg !== 'default') { printError('Usage: perm "<path>" <r|w|rw|none|default>'); return; }
         awaitingPasswordPrompt = { path, permArg };
         printLine('Password:');
         return;
@@ -1502,8 +1554,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
         // worker "<scriptPath>"
         // Built-in terminal workers are intentionally unrestricted so they can act as a
         // full cloud-drive helper; app-command workers remain scoped to their app folder.
-        const workerArgs = tokenize(cmdline).slice(1).filter(v => v !== undefined && v !== null && String(v).trim() !== '');
-        const workerPath = workerArgs[0] ? String(workerArgs[0]).trim() : '';
+        const workerArgs = tokenize(cmdline).slice(1).filter(v => v !== undefined && v !== null && String(v) !== '');
+        const workerPath = workerArgs[0] ? String(workerArgs[0]) : '';
         const scriptPath = workerPath || null;
         if (!workerPath) { printError('Usage: worker "<scriptPath>"'); return; }
         try {
@@ -1571,7 +1623,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
             const scriptPath = resolveCommandScriptPath(target.command.src, target.app);
             if (scriptPath) {
               const content = await window.protectedGlobals.ReadFile(scriptPath, { text: true, direct: true });
-              const isJs = String(scriptPath || '').toLowerCase().endsWith('.js') || String(content || '').trim().startsWith('(function') || String(content || '').includes('self.api') || String(content || '').includes('globalThis');
+              const isJs = String(scriptPath || '').toLowerCase().endsWith('.js') || String(content || '').startsWith('(function') || String(content || '').includes('self.api') || String(content || '').includes('globalThis');
               askUserBeforeClose = false;
               instance.askUserBeforeClose = false;
               terminalBusy = true;
@@ -1603,16 +1655,18 @@ window.terminal = function (path, posX = 50, posY = 50) {
         }
       }
 
-      // App commands are intentionally app-scoped and must be invoked as: <appId> <cmd> [args...]
-      // They are not resolved as global commands by bare name.
+      // A bare app ID lists that app's commands. Apps must be launched explicitly with open <appId>.
       const appById = apps.find(a => (a.id || '') === String(cmd || ''));
-      if (appById) {
-        try {
-          await window.protectedGlobals.launchApp(appById.id);
-          printLine(`Launched ${appById.id}`);
-        } catch (launchErr) {
-          printError('Failed to launch app: ' + String(launchErr));
+      if (appById && parts.length === 1) {
+        const commands = Array.isArray(appById.commands) ? appById.commands : [];
+        if (!commands.length) {
+          printLine(`${appById.id} has no commands`);
+          return;
         }
+        printLine(`Commands for ${appById.id}:`);
+        commands.forEach(command => {
+          if (command && command.name) printLine(` - ${command.name}`);
+        });
         return;
       }
 
@@ -1679,7 +1733,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
     async function autocompletePath() {
       const full = String(input.textContent || "");
-      if (!full.trim()) return;
+      if (!full) return;
 
       const caretIndex = getInputCaretIndex();
       const beforeCaret = full.slice(0, caretIndex);

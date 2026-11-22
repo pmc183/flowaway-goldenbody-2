@@ -8,7 +8,7 @@
         let fullPath;
         function getSessionAuthHeaders() {
           const headers = { "Content-Type": "application/json" };
-          const token = window.protectedGlobals.data.authToken.trim()
+          const token = window.protectedGlobals.data.authToken
           if (token) headers.Authorization = "Bearer " + token;
           return headers;
         }
@@ -152,7 +152,7 @@
           // injector can reconstruct directory structure (remove picker base)
           const fileParts = (fullPath || "").split("/").filter(Boolean);
           const origPicker = Array.from(pickerCurrentPath || []);
-          const pickerBase = origPicker.slice(1); // drop leading 'root'
+          const pickerBase = origPicker.slice(1); // drop leading '/'
           // remove matching leading segments
           let relParts = Array.from(fileParts);
           for (let i = 0; i < pickerBase.length; i++) {
@@ -325,7 +325,7 @@
         // ----------------------------
         let pickerOverlay = null;
         let pickerSelection = [];
-        let pickerCurrentPath = ["root"];
+        let pickerCurrentPath = ["/"];
         let pickerTree = null;
 
         function getPickerTheme() {
@@ -459,7 +459,7 @@
          window.browserGlobals.showOpenFilePicker = async function (frameWin) {
           sentreqframe = resolveRequestFrame(frameWin) || sentreqframe;
           pickerTree = null;
-          pickerCurrentPath = ["root"];
+          pickerCurrentPath = ["/"];
           pickerSelection = [];
 
           let pickerDone = null;
@@ -744,7 +744,7 @@
             }
 
             searchInput.addEventListener("input", () => {
-              pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+              pickerSearchTerm = (searchInput.value || "").toLowerCase();
               renderPicker();
             });
 
@@ -753,7 +753,7 @@
             pickerTree = JSON.parse(
               JSON.stringify(window.protectedGlobals.treeData),
             );
-            pickerCurrentPath = ["root"];
+            pickerCurrentPath = ["/"];
             pickerSelection = [];
             renderPicker();
 
@@ -886,7 +886,7 @@
             if (!savePickerTree) return;
             const selections = [...savePickerSelection];
             const basePath = savePickerCurrentPath.slice(1).join("/");
-            const fname = (nameInput.value || "").trim();
+            const fname = (nameInput.value || "");
             if (!fname) {
               alert("Enter a filename");
               return;
@@ -913,7 +913,7 @@
           };
 
           let savePickerTree = null;
-          let savePickerCurrentPath = ["root"];
+          let savePickerCurrentPath = ["/"];
           let savePickerSelection = [];
           let savePickerSearchTerm = "";
 
@@ -1041,7 +1041,7 @@
           }
 
           searchInput.addEventListener("input", () => {
-            savePickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+            savePickerSearchTerm = (searchInput.value || "").toLowerCase();
             render();
           });
 
@@ -1068,7 +1068,7 @@
 
           await window.protectedGlobals.onlyloadTree();
           savePickerTree = JSON.parse(JSON.stringify(window.protectedGlobals.treeData || {}));
-          savePickerCurrentPath = ["root"];
+          savePickerCurrentPath = ["/"];
           savePickerSelection = [];
           render();
 
@@ -1179,11 +1179,11 @@
 
           btnOpen.onclick = () => {
             if (!dirPickerTree) return;
-            const basePath = dirPickerCurrentPath.slice(1).join("/") || "root";
+            const basePath = dirPickerCurrentPath.slice(1).join("/") || "/";
             let chosen = dirPickerSelectionPaths.length > 0 ? dirPickerSelectionPaths[0] : basePath;
 
             let selectedNode = dirPickerTree;
-            const pathParts = chosen.split("/").filter((p) => p && p !== "root");
+            const pathParts = chosen.split("/").filter((p) => p && p !== "/");
             for (const part of pathParts) {
               if (!selectedNode || !selectedNode[1]) break;
               selectedNode = selectedNode[1].find((c) => c[0] === part);
@@ -1236,7 +1236,7 @@
           };
 
           let dirPickerTree = null;
-          let dirPickerCurrentPath = ["root"];
+          let dirPickerCurrentPath = ["/"];
           let dirPickerSelectionPaths = [];
           let dirPickerSearchTerm = "";
 
@@ -1370,7 +1370,7 @@
           }
 
           searchInput.addEventListener("input", () => {
-            dirPickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+            dirPickerSearchTerm = (searchInput.value || "").toLowerCase();
             render();
           });
 
@@ -1396,7 +1396,7 @@
 
           await window.protectedGlobals.onlyloadTree();
           dirPickerTree = JSON.parse(JSON.stringify(window.protectedGlobals.treeData || {}));
-          dirPickerCurrentPath = ["root"];
+          dirPickerCurrentPath = ["/"];
           dirPickerSelectionPaths = [];
           render();
 
@@ -1492,9 +1492,7 @@ window.browserGlobals.handleVfsSaveFile = function (sourceWindow, data) {
   rootRef.__pendingSaves = rootRef.__pendingSaves || {};
 
   const incomingPath = data.path || data.name || "unnamed";
-  const fullPath = incomingPath.startsWith("root/")
-    ? incomingPath
-    : "root/" + incomingPath;
+  const fullPath = incomingPath;
 
   if (!rootRef.__pendingSaves[fullPath]) {
     rootRef.__pendingSaves[fullPath] = {

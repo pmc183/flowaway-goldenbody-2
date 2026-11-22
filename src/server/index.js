@@ -42,6 +42,18 @@ const moderationDir = path.resolve(__dirname, '../../moderation');
 const knownIpsPath = path.join(moderationDir, 'known_ips.txt');
 const bannedIpsPath = path.join(moderationDir, 'banned_ips.json');
 const ipLogsPath = path.join(moderationDir, 'ip_logs.txt');
+// make the dirs if they don't exist
+fs.mkdirSync(moderationDir, { recursive: true });
+if (!fs.existsSync(bannedIpsPath)) {
+    fs.writeFileSync(bannedIpsPath, JSON.stringify({ ips: [] }, null, 2));
+}
+if (!fs.existsSync(knownIpsPath)) {
+    fs.writeFileSync(knownIpsPath, '');
+}
+if (!fs.existsSync(ipLogsPath)) {
+    fs.writeFileSync(ipLogsPath, '');
+}
+
 function getUserShard(username) {
     return crypto
         .createHash('sha256')
@@ -53,17 +65,17 @@ function getUserShard(username) {
 
 const readIpList = (filePath) => {
     try {
-        return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+        return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).map((line) => line).filter((line) => line.length > 0);
     } catch (e) {
         return [];
     }
 };
 const knownIps = readIpList(knownIpsPath);
 const bannedIpdata = JSON.parse(fs.readFileSync(bannedIpsPath));
-const bannedIps = Array.isArray(bannedIpdata.ips) ? bannedIpdata.ips.map((entry) => entry.address).filter((address) => typeof address === 'string' && address.trim().length > 0) : [];
+const bannedIps = Array.isArray(bannedIpdata.ips) ? bannedIpdata.ips.map((entry) => entry.address).filter((address) => typeof address === 'string' && address.length > 0) : [];
 async function isValidUpdateUser(username, password) {
-    const normalizedUsername = String(username || '').trim();
-    const normalizedPassword = String(password || '').trim();
+    const normalizedUsername = String(username || '');
+    const normalizedPassword = String(password || '');
     if (!normalizedUsername || !normalizedPassword) return false;
 
     if (!/^[a-zA-Z0-9_-]{3,20}$/.test(normalizedUsername)) {
@@ -76,8 +88,8 @@ async function isValidUpdateUser(username, password) {
     try {
         const data = JSON.parse(await fsp.readFile(authPath, 'utf8'));
         if (!data || typeof data !== 'object') return false;
-        return String(data.username || '').trim() === normalizedUsername
-            && String(data.password || '').trim() === normalizedPassword;
+        return String(data.username || '') === normalizedUsername
+            && String(data.password || '') === normalizedPassword;
     } catch (e) {
         return false;
     }
@@ -138,6 +150,56 @@ if (!config.enableWorkers || !cluster.isMaster) {
     // mount zmcd and fetchfiles handlers under proxy routes
     const download = require('./download');
     const MAX_REQUEST_BODY = 100 * 1024 * 1024; // 100 MB
+    const FETCHFILES_MAX_CONCURRENT = 16;
+    const FETCHFILES_MAX_QUEUE = 800;
+    let fetchfilesActive = 0;
+    const fetchfilesQueue = [];
+
+    async function processFetchfilesRequest(req, res) {
+        fetchfilesActive++;
+        try {
+            const fetchfiles = require('./fetchfiles');
+            await fetchfiles.handleFetchfiles(req, res);
+        } catch (e) {
+            logger.error('fetchfiles handler error: ' + e.message);
+            try {
+                if (!res.headersSent) {
+                    if (e.message == 'Out of storage: cannot write file') {
+                        res.writeHead(413, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: e.message }));
+                    } else {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Server Error' }));
+                    }
+                }
+            } catch (er) {
+                logger.debug('Failed to write fetchfiles error response: ' + er.message);
+            }
+        } finally {
+            fetchfilesActive--;
+            drainFetchfilesQueue();
+        }
+    }
+
+    function drainFetchfilesQueue() {
+        while (fetchfilesActive < FETCHFILES_MAX_CONCURRENT && fetchfilesQueue.length) {
+            const queued = fetchfilesQueue.shift();
+            processFetchfilesRequest(queued.req, queued.res);
+        }
+    }
+
+    function enqueueFetchfilesRequest(req, res) {
+        if (fetchfilesActive < FETCHFILES_MAX_CONCURRENT) {
+            processFetchfilesRequest(req, res);
+            return;
+        }
+        if (fetchfilesQueue.length >= FETCHFILES_MAX_QUEUE) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Too many fetchfiles requests queued' }));
+            return;
+        }
+        fetchfilesQueue.push({ req, res });
+    }
 
     proxyServer.addToOnRequestPipeline((req, res) => {
         const ip = getRequestIP(req);
@@ -241,23 +303,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
         if (req.url.startsWith('/server/fetchfiles')) {
             if (!fetchFilesRateLimit(req, res)) return true;
             req.url = req.url.slice('/server/fetchfiles'.length) || '/';
-            try {
-                const fetchfiles = require('./fetchfiles');
-                const maybe = fetchfiles.handleFetchfiles(req, res);
-                if (maybe && typeof maybe.then === 'function') maybe.catch((e) => {
-                    logger.error('fetchfiles handler error: ' + e.message);
-                    try { 
-                        if (e.message == 'Out of storage: cannot write file') { res.writeHead(413); res.end(e.message); }
-                        else { res.writeHead(500); res.end('Server Error'); }
-                    } catch (er) {
-                        logger.debug('Failed to write fetchfiles error response: ' + er.message);
-                    }
-                });
-            } catch (e) {
-                logger.error('fetchfiles handler error: ' + e.message);
-                res.writeHead(500);
-                res.end('Server Error');
-            }
+            enqueueFetchfilesRequest(req, res);
             return true;
         }
         if (req.url.startsWith('/server/updatesystem')) {
@@ -265,8 +311,8 @@ if (!config.enableWorkers || !cluster.isMaster) {
             (async () => {
                 try {
                     const parsed = new URL(req.url, 'http://localhost');
-                    const username = parsed.searchParams.get('username');
-                    const password = parsed.searchParams.get('password');
+                    const username = req.headers['x-username'];
+                    const password = req.headers['x-password'];
                     const forceUpdate = ['1', 'true', 'yes'].includes(String(parsed.searchParams.get('forceUpdate') || '').toLowerCase());
 
                     if (!username) {

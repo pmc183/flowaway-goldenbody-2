@@ -42,7 +42,7 @@ window.protectedGlobals.dedupefiles = function (folders) {
   var list = [];
   for (const folder of folders || []) {
     if (!Array.isArray(folder)) continue;
-    var folderName = folder[0].trim();
+    var folderName = folder[0];
     if (!folderName || folderName === ".DS_Store" || folderName.startsWith("."))
       continue;
     var folderPath =
@@ -220,7 +220,7 @@ window.protectedGlobals.showModal = function(title, body, level, forceModal) {
   if (typeof darkVal === "boolean") isDark = darkVal;
   else if (typeof darkVal === "number") isDark = !!darkVal;
   else if (typeof darkVal === "string") {
-    var dv = darkVal.trim().toLowerCase();
+    var dv = darkVal.toLowerCase();
     if (dv === "false" || dv === "0" || dv === "no" || dv === "off") isDark = false;
     else if (dv === "true" || dv === "1" || dv === "yes" || dv === "on") isDark = true;
   }
@@ -493,7 +493,6 @@ window.protectedGlobals.rebuildhandler = function () {
 
   // remove all observers
   window.protectedGlobals.appObserver.disconnect();
-  window.protectedGlobals.cursorObserver.disconnect();
 
   if (window.protectedGlobals.process && window.protectedGlobals.FlowawayProcess && window.protectedGlobals.process === window.protectedGlobals.FlowawayProcess) {
     delete window.protectedGlobals.process;

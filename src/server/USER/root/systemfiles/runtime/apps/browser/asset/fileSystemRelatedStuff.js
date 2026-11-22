@@ -718,7 +718,7 @@ frameWin.showSaveFilePicker = async (options = {}) => {
       pendingDirectoryRejectors.push(reject);
       pendingDirectoryResolvers.push((path, treeNode) => {
         const h = new FileSystemDirectoryHandle();
-        h.name = path.split('/').pop() || 'root';
+        h.name = path.split('/').pop() || 'untitled';
         h.kind = 'directory';
         h.path = path;
         h._treeNode = treeNode; // store for entries() iteration

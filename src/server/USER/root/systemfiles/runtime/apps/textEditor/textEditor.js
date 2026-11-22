@@ -1206,7 +1206,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
 
     searchInput.addEventListener("input", () => {
-      pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+      pickerSearchTerm = (searchInput.value || "").toLowerCase();
       renderPicker();
     });
 
@@ -1233,7 +1233,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
       btnSave.onclick = () => {
         const selections = [...pickerSelection];
         const basePath = pickerCurrentPath;
-        const fname = filenameInput.value.trim();
+        const fname = filenameInput.value;
         if (!fname) return getUIMessage("Enter a filename");
 
         let chosen = null;
@@ -1562,7 +1562,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
     };
 
     searchInput.addEventListener("input", () => {
-      pickerSearchTerm = (searchInput.value || "").trim().toLowerCase();
+      pickerSearchTerm = (searchInput.value || "").toLowerCase();
       renderPicker();
     });
 
@@ -1602,7 +1602,7 @@ window.textEditor = function (path, posX = 50, posY = 50) {
 
   // Assign the editor's path from the picked file (do not reuse old path)
 async function preloadFile() {
-    const reqName = toRequestFileName(path);
+    const reqName = path;
     if (!reqName) return;
     const res = await window.protectedGlobals.ReadFile(reqName, { text: true, direct: true });
     if (typeof res === "string") {
@@ -1648,7 +1648,7 @@ async function preloadFile() {
             ? picked[0]
             : null;
 
-      const reqName = toRequestFileName(fullPath || picked[0]);
+      const reqName = fullPath || picked[0];
       if (!reqName) return;
 
       try {
@@ -1673,7 +1673,7 @@ async function preloadFile() {
   // Helpers: stats and caret position
   function computeStats() {
     const v = textarea.value || "";
-    const words = v.trim().length ? v.trim().split(/\s+/).length : 0;
+    const words = v.length ? v.split(/\s+/).length : 0;
     const chars = v.length;
     const lines = v.split("\n").length;
     return { words, chars, lines };
@@ -1699,29 +1699,12 @@ async function preloadFile() {
   // Debounced autosave
   let saveTimer = null;
 
-  // Normalize paths for the server APIs used by the backend (see src/server/fetchfiles.js)
-  function toRequestFileName(p) {
-    if (!p) return null;
-    let s = p;
-    if (s.startsWith("/")) s = s.slice(1);
-    if (s.startsWith("root/")) s = s.slice(5);
-    return s;
-  }
-
-  function toDirectionsPath(p) {
-    if (!p) return null;
-    let s = p;
-    if (s.startsWith("/")) s = s.slice(1);
-    if (!s.startsWith("root/")) s = "root/" + s;
-    return s;
-  }
-
   async function doSave(auto = true) {
     try {
       // show transient saved state locally
       saveBtn.textContent = auto ? "Autosaved" : "Saved";
       setTimeout(() => (saveBtn.textContent = "Save"), 1200);
-      const dirPath = toDirectionsPath(path);
+      const dirPath = path;
 
       // Only perform remote save on explicit user Save (not autosave), and when we have a real path
       if (!auto && path) {
@@ -1792,7 +1775,7 @@ async function preloadFile() {
     try {
       // Prefer server version when a path is provided
       if (path) {
-        const reqName = toRequestFileName(path);
+        const reqName = path;
         if (reqName) {
           try {
             const res = await window.protectedGlobals.ReadFile(reqName, { text: true, direct: true });

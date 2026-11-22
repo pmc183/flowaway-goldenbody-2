@@ -158,8 +158,8 @@ const saveTaskButtons = window.protectedGlobals.saveTaskButtons = function saveT
       } else {
         // If no appId, try to infer id from value or textContent
         var inferred =
-          (b.value && String(b.value).trim()) ||
-          (b.textContent && String(b.textContent).trim());
+          (b.value && String(b.value)) ||
+          (b.textContent && String(b.textContent));
         if (inferred) postdata.push(inferred);
       }
     }
@@ -217,13 +217,13 @@ const resolveWindowLabel = window.protectedGlobals.resolveWindowLabel = function
   windowTitle = (
     (el && el.getAttribute && el.getAttribute("data-title")) ||
     ""
-  ).trim();
+  );
   if (windowTitle && windowTitle !== "undefined" && windowTitle !== "null")
     return windowTitle;
 
   var appMeta = findAppByIdentifier(appId);
   if (appMeta) {
-    var appLabel = (appMeta.label || appMeta.name || "").trim();
+    var appLabel = (appMeta.label || appMeta.name || "");
     if (appLabel && appLabel !== "undefined" && appLabel !== "null")
       return appLabel;
   }
@@ -281,7 +281,7 @@ var prepareWindowSwitchPreview = function () {
     display: "none",
     alignItems: "center",
     justifyContent: "center",
-    pointerEvents: "none",
+    pointerEvents: "auto",
     background: "rgba(0, 0, 0, 0.12)",
     backdropFilter: "blur(2px)",
   });
@@ -328,6 +328,13 @@ var prepareWindowSwitchPreview = function () {
   panel.appendChild(title);
   panel.appendChild(list);
   root.appendChild(panel);
+
+  root.addEventListener("click", function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    resetWindowSwitchState();
+  });
+
   document.body.appendChild(root);
 
   windowSwitchState.previewRoot = root;

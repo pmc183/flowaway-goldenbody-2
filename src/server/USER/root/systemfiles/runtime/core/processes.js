@@ -771,7 +771,7 @@
       if (options && typeof options === "object") {
         var inputName = options.name;
         if (inputName !== null && typeof inputName !== "undefined") {
-          workerName = String(inputName).trim();
+          workerName = String(inputName);
         }
       }
       if (!workerName) {

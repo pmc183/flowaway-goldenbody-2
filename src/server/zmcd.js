@@ -35,7 +35,7 @@ async function writeJsonPretty(filePath, value) {
 }
 
 function getUserPaths(username) {
-  const safeUsername = String(username || '').trim();
+  const safeUsername = String(username || '');
   const userDir = path.join(directoryPath, getUserShard(safeUsername), safeUsername);
   const userRoot = path.join(userDir, 'root');
   const authFile = path.join(userDir, `${safeUsername}.txt`);
@@ -88,14 +88,19 @@ function mergePathPermissionsWithDefaults(existingEntries) {
 
 function sanitizeAuthRecord(raw, username, passwordHint = '') {
   const base = raw && typeof raw === 'object' ? raw : {};
-  const authTokens = Array.isArray(base.authTokens)
-    ? base.authTokens.filter((tokenRow) => tokenRow && tokenRow.token && tokenRow.expires)
-    : [];
+  const authToken = typeof base.authToken === 'string' ? base.authToken : '';
+  let authTokenExpires = Number.isFinite(Number(base.authTokenExpires))
+    ? Number(base.authTokenExpires)
+    : 0;
+
+  if (!authToken) authTokenExpires = 0;
+
   const password = typeof base.password === 'string' ? base.password : String(passwordHint || '');
   return {
-    username: String(base.username || username || '').trim(),
+    username: String(base.username || username || ''),
     password,
-    authTokens,
+    authToken,
+    authTokenExpires,
     maxSpace: base.maxSpace || 1,
     pathPermissions: mergePathPermissionsWithDefaults(Array.isArray(base.pathPermissions) ? base.pathPermissions : []),
   };
@@ -116,37 +121,36 @@ async function writeAuthRecord(userPaths, authRecord) {
   return sanitized;
 }
 
-function pruneExpiredTokens(authRecord) {
-  authRecord.authTokens = Array.isArray(authRecord.authTokens) ? authRecord.authTokens : [];
-  const now = Date.now();
-  authRecord.authTokens = authRecord.authTokens.filter((tokenRow) => tokenRow && tokenRow.expires && tokenRow.expires > now);
+function pruneExpiredToken(authRecord) {
+  if (!authRecord.authToken || !authRecord.authTokenExpires || Number(authRecord.authTokenExpires) <= Date.now()) {
+    authRecord.authToken = '';
+    authRecord.authTokenExpires = 0;
+  }
 }
 
-function isAuthorized(authRecord, data/*, authHeader */) {
-  pruneExpiredTokens(authRecord);
-  const passwordValid = typeof data.password === 'string' && data.password === authRecord.password;
-  const oldPasswordValid = typeof data.oldPassword === 'string' && data.oldPassword === authRecord.password;
-  return passwordValid || oldPasswordValid;
+function isAuthorized(authRecord, data) {
+  pruneExpiredToken(authRecord);
+  return typeof data.password === 'string' &&
+    data.password === authRecord.password;
 }
 
 function getAuthTokenFromHeader(authHeader) {
-  const raw = typeof authHeader === 'string' ? authHeader.trim() : '';
+  const raw = typeof authHeader === 'string' ? authHeader : '';
   if (!raw) return '';
   const match = raw.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : raw.trim();
+  return match ? match[1] : raw;
 }
 
 function isTokenAuthorized(authRecord, authHeader) {
-  pruneExpiredTokens(authRecord);
+  pruneExpiredToken(authRecord);
   const token = getAuthTokenFromHeader(authHeader);
-  if (!token) return false;
-  return Array.isArray(authRecord.authTokens) && authRecord.authTokens.some((row) => row && row.token === token);
+  return Boolean(token && authRecord.authToken && authRecord.authToken === token);
 }
 
 async function resolveUserByToken(authHeader, usernameHint) {
     const token = getAuthTokenFromHeader(authHeader);
     const username = typeof usernameHint === 'string'
-        ? usernameHint.trim()
+        ? usernameHint
         : '';
 
     if (!token || !/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
@@ -166,7 +170,7 @@ async function resolveUserByToken(authHeader, usernameHint) {
 }
 
 function normalizePermissionPath(rawPath) {
-  const value = String(rawPath ?? '').replace(/\\/g, '/').trim();
+  const value = String(rawPath ?? '').replace(/\\/g, '/');
   if (!value) return '/';
   const parts = [];
   for (const part of value.split('/')) {
@@ -218,10 +222,10 @@ function getPermissionForPath(relPath, permissionEntries) {
   return permissions;
 }
 function issueToken(authRecord) {
-  pruneExpiredTokens(authRecord);
+  pruneExpiredToken(authRecord);
   const token = crypto.randomBytes(24).toString('hex');
-  const expires = Date.now() + 1000 * 60 * 60;
-  authRecord.authTokens.push({ token, expires });
+  authRecord.authToken = token;
+  authRecord.authTokenExpires = Date.now() + 1000 * 60 * 60;
   return token;
 }
 
@@ -265,7 +269,7 @@ function handleZMCd(req, res) {
 
       if (data.getPerm) {
         const targetPathRaw = data.getPerm && typeof data.getPerm === 'object' ? data.getPerm.path : data.getPerm;
-        if (typeof targetPathRaw !== 'string' || !targetPathRaw.trim()) {
+        if (typeof targetPathRaw !== 'string' || !targetPathRaw) {
           return sendJson(res, 400, { error: 'missing path' });
         }
 
@@ -291,7 +295,6 @@ function handleZMCd(req, res) {
       if (!(await pathExists(directoryPath))) await fs.promises.mkdir(directoryPath, { recursive: true });
 
       const userPaths = getUserPaths(data.username);
-
       if (data.needNewAcc) {
         if (!/^[a-zA-Z0-9_-]+$/.test(data.username) || data.username.length < 3 || password.length < 3 || password.length > 20 || data.username.length > 20) {
           return sendJson(res, 403, { error: "Username or password don't meet server requirements" });
@@ -316,7 +319,8 @@ function handleZMCd(req, res) {
           console.error('setupUserFilesystem failed', e && e.message ? e.message : String(e));
         }
         responseContent = buildLoginResponse(authRecord, token);
-      } else {
+      }
+      else if (data.needNewAcc === false) {
         const authResult = await readAuthRecord(userPaths);
         if (!authResult) {
           responseContent = { error: 'invalid username or password' };
@@ -331,8 +335,7 @@ function handleZMCd(req, res) {
           }
         }
       }
-
-      if (data.refillSession) {
+      else if (data.refillSession) {
         const authResult = await readAuthRecord(userPaths);
         if (!authResult) {
           return sendJson(res, 404, { error: 'User file not found' });
@@ -348,7 +351,7 @@ function handleZMCd(req, res) {
         return res.end(JSON.stringify({ success: true, authToken: newToken }));
       }
 
-      if (data.updatePathPermission || data.setPathPermissions) {
+      else if (data.updatePathPermission || data.setPathPermissions) {
         const authResult = await readAuthRecord(userPaths);
         if (!authResult) {
           return sendJson(res, 404, { error: 'User file not found' });
@@ -368,27 +371,28 @@ function handleZMCd(req, res) {
         }
 
         if (data.updatePathPermission) {
-          const userfile = await fs.promises.readFile(userPaths.authFile, 'utf8');
-          const parsedUserfile = JSON.parse(userfile);
-          if (password !== parsedUserfile.password) {
-            return sendJson(res, 403, { error: 'incorrect password' });
+          const targetPath = normalizePermissionPath(data.updatePathPermission.path);
+          if (data.updatePathPermission.default === true) {
+            nextPermissions = nextPermissions.filter((row) =>
+              normalizePermissionPath(row && row.path) !== targetPath
+            );
+          } else {
+            const normalizedRow = {
+              path: targetPath,
+              perm: {
+                read: data.updatePathPermission.perm && data.updatePathPermission.perm.read !== false,
+                write: data.updatePathPermission.perm && data.updatePathPermission.perm.write !== false,
+              },
+            };
+
+            let replaced = false;
+            nextPermissions = nextPermissions.map((row) => {
+              if (normalizePermissionPath(row.path) !== targetPath) return row;
+              replaced = true;
+              return normalizedRow;
+            });
+            if (!replaced) nextPermissions.push(normalizedRow);
           }
-
-          const normalizedRow = {
-            path: data.updatePathPermission.path,
-            perm: {
-              read: data.updatePathPermission.perm && data.updatePathPermission.perm.read !== false,
-              write: data.updatePathPermission.perm && data.updatePathPermission.perm.write !== false,
-            },
-          };
-
-          let replaced = false;
-          nextPermissions = nextPermissions.map((row) => {
-            if (row.path !== normalizedRow.path) return row;
-            replaced = true;
-            return normalizedRow;
-          });
-          if (!replaced) nextPermissions.push(normalizedRow);
         }
 
         authRecord.pathPermissions = mergePathPermissionsWithDefaults(nextPermissions);
@@ -399,33 +403,48 @@ function handleZMCd(req, res) {
         }));
       }
 
-      if (data.updatePassword) {
+      else if (data.updatePassword) {
         const authResult = await readAuthRecord(userPaths);
         if (!authResult) {
           return sendJson(res, 404, { error: 'User file not found' });
         }
 
         const authRecord = authResult.auth;
-        if (typeof data.oldPassword !== 'string' || data.oldPassword !== authRecord.password) {
-          return sendJson(res, 400, { error: 'old password is wrong' });
+        if (typeof data.password !== 'string' || data.password !== authRecord.password) {
+          return sendJson(res, 400, { error: 'incorrect password' });
         }
         if (data.newPassword.length < 3 || data.newPassword.length > 20) {
           return sendJson(res, 400, { error: 'new password must be between 3 and 20 characters' });
         }
         authRecord.password = String(data.newPassword || '');
-        authRecord.authTokens = [];
+        authRecord.authToken = '';
+        authRecord.authTokenExpires = 0;
         const newToken = issueToken(authRecord);
         await writeAuthRecord(userPaths, authRecord);
         return res.end(JSON.stringify({ success: true, authToken: newToken }));
-      } else if (data.deleteAcc) {
+      }
+      else if (data.checkPassword) {
         const authResult = await readAuthRecord(userPaths);
         if (!authResult) {
           return sendJson(res, 404, { error: 'User file not found' });
         }
 
         const authRecord = authResult.auth;
-        if (typeof data.oldPassword !== 'string' || data.oldPassword !== authRecord.password) {
-          return sendJson(res, 400, { error: 'wrong password' });
+        if (typeof data.password !== 'string' || data.password !== authRecord.password) {
+          return sendJson(res, 400, { error: 'incorrect password' });
+        }
+
+        return res.end(JSON.stringify({ success: true }));
+      }
+      else if (data.deleteAcc) {
+        const authResult = await readAuthRecord(userPaths);
+        if (!authResult) {
+          return sendJson(res, 404, { error: 'User file not found' });
+        }
+
+        const authRecord = authResult.auth;
+        if (typeof data.password !== 'string' || data.password !== authRecord.password) {
+          return sendJson(res, 400, { error: 'incorrect password' });
         }
 
         const targetDir = userPaths.userDir;

@@ -1,6 +1,6 @@
 "use strict";
 (function () {
-  window.protectedGlobals.osVersion = "v2.7.8";
+  window.protectedGlobals.osVersion = "v2.8.0";
   window.alert = () => {};
   window.confirm = () => true;
   window.prompt = () => null;
@@ -18,7 +18,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100000; /* Ensure it's on top of other elements */
+    z-index: 100004; /* Ensure it's on top of other elements */
   `;
 
   const loadMessage = document.createElement("div");
@@ -115,7 +115,7 @@ window.protectedGlobals.addScopedListener = function(
   nativeAdd(type, handler, options);
 
   if (!appname) return;
-  var scopedAppName = String(appname).trim();
+  var scopedAppName = String(appname);
   if (!scopedAppName) return;
   window.protectedGlobals[scopedAppName + "_handlers"] =
     window.protectedGlobals[scopedAppName + "_handlers"] || [];
@@ -153,7 +153,7 @@ window.addEventListener = function (a, b, c, d) {
 };
 
 window.protectedGlobals.removeAllEventListenersForApp = function (appname) {
-  var scopedAppName = String(appname || "").trim();
+  var scopedAppName = String(appname || "");
   if (!scopedAppName) return;
   var handlers = window.protectedGlobals[scopedAppName + "_handlers"] || [];
   handlers.forEach(({ target, type, handler, options, capture }) => {
@@ -284,14 +284,26 @@ window.protectedGlobals.removeAllEventListenersForApp = function (appname) {
       return btoa(binary);
     }
     if (typeof raw === "string") {
-      return raw.trim();
+      return raw;
     }
     return null;
   };
   (async () => {
+    window.protectedGlobals.pickerPreference = { sortMode: "name", sortOrder: "asc" };
     const data = await window.protectedGlobals.filePost({ requestFile: true, requestFileName: 'systemfiles/runtime/core/runtimeCore.js', text: true });
     let script = document.createElement('script');
     script.textContent = data;
     document.head.appendChild(script);
+
+    const preferenceText = await window.protectedGlobals.ReadFile('/systemfiles/userprofile/pickerpreference.json', { text: true, direct: true }).catch(() => null);
+    if (typeof preferenceText === 'string') {
+      try {
+        const preference = JSON.parse(preferenceText);
+        window.protectedGlobals.pickerPreference = {
+          sortMode: ["name", "size", "date"].includes(preference.sortMode) ? preference.sortMode : "name",
+          sortOrder: ["asc", "desc"].includes(preference.sortOrder) ? preference.sortOrder : "asc",
+        };
+      } catch {}
+    }
   })();
 })();

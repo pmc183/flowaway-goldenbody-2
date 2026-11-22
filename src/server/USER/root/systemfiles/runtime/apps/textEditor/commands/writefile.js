@@ -5,7 +5,7 @@
     let rawPath = '';
     if (Array.isArray(args) && args.length) rawPath = String(args[0] || '');
     else if (args && typeof args === 'object') rawPath = String(args.path || args.file || args.target || '');
-    rawPath = String(rawPath || '').trim();
+    rawPath = String(rawPath || '');
     if (!rawPath) {
       try { await self.api.writeline('writefile: missing path argument'); self.close(); } catch (e) {}
       return;
@@ -14,7 +14,7 @@
     // resolve '.' and '..' relative to worker cwd (support ../file.txt etc)
     const normalizeCloudPath = (pathValue) => {
       if (pathValue === undefined || pathValue === null) return '/';
-      const value = String(pathValue).replace(/\\/g, '/').trim();
+      const value = String(pathValue).replace(/\\/g, '/');
       if (!value) return '/';
       const parts = [];
       for (const part of value.split('/')) {

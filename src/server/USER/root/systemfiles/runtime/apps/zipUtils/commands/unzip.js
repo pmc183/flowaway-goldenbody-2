@@ -22,7 +22,7 @@
     const first = (...values) => {
       for (const value of values) {
         if (value == null) continue;
-        const s = String(value).trim();
+        const s = String(value);
         if (s) return s;
       }
       return '';
@@ -39,7 +39,7 @@
 
     const normalize = value => {
       const parts = [];
-      for (const part of String(value ?? '/').replace(/\\/g, '/').trim().split('/')) {
+      for (const part of String(value ?? '/').replace(/\\/g, '/').split('/')) {
         if (!part || part === '.') continue;
         if (part === '..') {
           if (parts.length) parts.pop();
@@ -57,7 +57,7 @@
     const cwd = normalize(cwdInfo?.full || '/');
 
     const resolve = (value, fallback = '') => {
-      const input = String(value ?? '').trim() || fallback;
+      const input = String(value ?? '') || fallback;
       if (!input) throw new Error('Missing path.');
       if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input)) {
         throw new Error('URL paths are not supported.');

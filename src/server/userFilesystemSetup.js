@@ -163,7 +163,7 @@ async function ensureAppIntegrityKey(userPaths) {
 
   try {
     const existing = await fs.promises.readFile(keyPath, "utf8");
-    return String(existing).trim();
+    return String(existing);
   } catch (e) {
     const randomKey = crypto.randomBytes(16).toString("hex");
     await fs.promises.writeFile(keyPath, randomKey);
@@ -172,7 +172,7 @@ async function ensureAppIntegrityKey(userPaths) {
 }
 
 async function syncAppKeysToUserKey(userPaths, userKey) {
-  const resolvedKey = String(userKey || "").trim();
+  const resolvedKey = String(userKey || "");
   if (!resolvedKey) return;
 
   const appsDir = path.join(userPaths.systemfilesDir, "runtime", "apps");

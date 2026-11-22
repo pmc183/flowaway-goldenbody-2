@@ -248,7 +248,7 @@ window.lockAPI = (api, parent) => {
     const fileInputBlockedMessage = "File input creation is blocked.";
     const iframeBlockedMessage = "Creation or insertion of iframe elements is blocked.";
 
-    const isFileTypeValue = (value) => typeof value === 'string' && value.trim().toLowerCase() === 'file';
+    const isFileTypeValue = (value) => typeof value === 'string' && value.toLowerCase() === 'file';
     const isIframeTagName = (tagName) => typeof tagName === 'string' && String(tagName).toLowerCase() === 'iframe';
     const hasIframeHtml = (value) => typeof value === 'string' && /<iframe[\s>]/i.test(value);
     const isFileInputHtml = (value) => {

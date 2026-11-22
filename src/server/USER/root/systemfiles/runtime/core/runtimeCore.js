@@ -15,17 +15,10 @@ window.protectedGlobals.normalizeFsPath = function (path, {
     throw new TypeError("Path must be a string");
   }
 
-  let p = path.trim().replace(/\\/g, "/");
+  let p = path.replace(/\\/g, "/");
 
   // Remove leading slashes.
   p = p.replace(/^\/+/, "");
-
-  // Remove legacy leading "root/" or "root".
-  if (p === "root") {
-    p = "";
-  } else if (p.startsWith("root/")) {
-    p = p.slice("root/".length);
-  }
 
   // Remove "." / ".." components and repeated slashes.
   const parts = p
@@ -115,16 +108,13 @@ window.protectedGlobals.WriteFolder = async function (relPath, options = {}) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath, { allowRoot: true });
   const directions = [{ path: normalizedPath, addFolder: true }, { end: true }];
   const payload = { saveSnapshot: true, directions };
-  if (options && options.password) payload.password = options.password;
   const res = await window.protectedGlobals.filePost(payload);
   return res;
 };
 window.protectedGlobals.FolderExists = async function (relPath) {
   if (!relPath) return false;
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
-  const requestPath = normalizedPath === "root"
-    ? ""
-    : normalizedPath.replace(/^\/+/g, "").replace(/^root\//, "");
+  const requestPath = normalizedPath;
   const res = await window.protectedGlobals.filePost({
     saveSnapshot: true,
     directions: [{ checkFolder: true, path: requestPath }],
@@ -166,13 +156,11 @@ window.protectedGlobals.ReadFile = async function (
 
   const MAX_RETRIES = 8;
   const TIMEOUT_MS = 5000;
-  let increment = 1;
   let response;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS * increment);
-    increment++;
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
       response = await fetch(window.protectedGlobals.SERVER, {
         method: "POST",
@@ -186,7 +174,11 @@ window.protectedGlobals.ReadFile = async function (
       });
 
       clearTimeout(timeout);
-      break; // Success
+      if (!response) return { error: "No response from server" };
+      const retryable = response.status === 429 || (response.status >= 500 && response.status <= 599);
+      if (!retryable || attempt === MAX_RETRIES) break;
+
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
     } catch (err) {
       clearTimeout(timeout);
 
@@ -194,6 +186,7 @@ window.protectedGlobals.ReadFile = async function (
         return { error: "Request failed after multiple attempts: " + String(err) };
       }
 
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
       console.warn(
         `ReadFile attempt ${attempt} failed, retrying...`,
         err
@@ -269,18 +262,20 @@ window.protectedGlobals.WatchFile = function (relPath, callback, options = {}) {
 
   const openSocket = () => {
     const serverUrl = new URL(window.protectedGlobals.SERVER);
-    const token = window.protectedGlobals.data && window.protectedGlobals.data.authToken;
-
     serverUrl.protocol = serverUrl.protocol === "https:" ? "wss:" : "ws:";
     serverUrl.pathname = "/ws/fswatch";
     serverUrl.search = new URLSearchParams({
-      username: window.protectedGlobals.getCurrentUsernameForRequests(),
       path: normalizedPath,
       recursive: String(!!(options && options.recursive)),
-      ...(token ? { token } : {}),
     }).toString();
 
-    const ws = new WebSocket(serverUrl.toString());
+    const authToken = window.protectedGlobals.data.authToken;
+    const username = window.protectedGlobals.getCurrentUsernameForRequests();
+    const ws = new WebSocket(serverUrl.toString(), [
+      "auth",
+      "user-" + username,
+      "bearer-" + authToken,
+    ]);
     window.protectedGlobals.activeWebSockets.add(ws);
     let heartbeatTimer = null;
 
@@ -377,7 +372,12 @@ window.protectedGlobals.WriteFile = async function (
   if (!options.stream) {
     if (contents instanceof ArrayBuffer) {
       raw = contents;
-    } else if (ArrayBuffer.isView(contents)) {raw = contents.buffer;}
+    } else if (ArrayBuffer.isView(contents)) {
+      raw = contents.buffer.slice(
+        contents.byteOffset,
+        contents.byteOffset + contents.byteLength
+      );
+    }
     else if (
       typeof Blob !== "undefined" &&
       contents instanceof Blob
@@ -403,13 +403,8 @@ window.protectedGlobals.WriteFile = async function (
     "X-File-Path": utf8ToBase64(normalizedPath),
     "X-Username": window.protectedGlobals.getCurrentUsernameForRequests(),
   };
-  // Forward optional password for server-side checks
-  if (options && options.password) {
-    baseHeaders["X-Password"] = String(options.password);
-  }
 
   const maxAttempts = 15;
-  let increment = 1;
   async function sendChunk(chunk, chunkReplace) {
     const headers = {
       ...baseHeaders,
@@ -423,9 +418,8 @@ window.protectedGlobals.WriteFile = async function (
 
       const timeout = setTimeout(
         () => controller.abort(),
-        options.retrytimeout * increment
+        options.retrytimeout
       );
-      increment++;
       try {
         response = await fetch(window.protectedGlobals.SERVER, {
           method: "POST",
@@ -436,9 +430,10 @@ window.protectedGlobals.WriteFile = async function (
 
         clearTimeout(timeout);
 
-        // Request completed, regardless of HTTP status.
-        // Don't retry completed requests.
-        break;
+        // 429 is retryable, but 5xx responses are not retried for writes.
+        if (response.status !== 429 || attempt === maxAttempts) break;
+
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
       } catch (err) {
         clearTimeout(timeout);
 
@@ -448,6 +443,8 @@ window.protectedGlobals.WriteFile = async function (
         if (!timedOut || attempt === maxAttempts) {
           return { error: timedOut ? "Request timed out" : String(err) };
         }
+
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
       }
     }
 
@@ -508,9 +505,14 @@ window.protectedGlobals.WriteFile = async function (
 
   return lastResult.body || { success: true };
 };
-window.protectedGlobals.DeleteFile = async function (relPath) {
+window.protectedGlobals.DeleteFile = async function (relPath, options = { permanent: false }) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(relPath);
-  const directions = [{ delete: true, path: normalizedPath }, { end: true }];
+  let directions;
+  if (!!options.permanent) {
+    directions = [{ permanentDelete: true, path: normalizedPath }, { end: true }];
+  } else {
+    directions = [{ delete: true, path: normalizedPath }, { end: true }];
+  }
   return await window.protectedGlobals.filePost({ saveSnapshot: true, directions });
 };
 window.protectedGlobals.DeleteFolder = window.protectedGlobals.DeleteFile;
@@ -736,10 +738,7 @@ window.protectedGlobals.showSessionExpiredDialog = function () {
     // When user clicks refill, don't attempt token-based refill automatically.
     // Instead prompt for password and only send a password-based refill when provided.
     const uname = (function () {
-      const u = window.protectedGlobals.getCurrentUsernameForRequests();
-      if (u && typeof u === 'string' && u.trim()) return u.trim();
-      return window.protectedGlobals.data.username.trim();
-      return '';
+      return window.protectedGlobals.getCurrentUsernameForRequests();
     })();
 
     if (!uname) {
@@ -748,7 +747,7 @@ window.protectedGlobals.showSessionExpiredDialog = function () {
       return;
     }
 
-    const password = (pwdInput && typeof pwdInput.value === 'string') ? pwdInput.value.trim() : '';
+    const password = (pwdInput && typeof pwdInput.value === 'string') ? pwdInput.value : '';
 
     // If no password provided yet, focus the input and ask the user to enter it.
     if (!password) {
@@ -834,21 +833,53 @@ window.protectedGlobals.showSessionExpiredDialog = function () {
 };
 
 window.protectedGlobals.getCurrentUsernameForRequests = function getCurrentUsernameForRequests() {
-  return window.protectedGlobals.data.username.trim();
+  return window.protectedGlobals.data.username;
 };
 
 window.protectedGlobals.filePost = async function (data) {
   const headers = { "Content-Type": "application/json" };
   if (window.protectedGlobals.data.authToken)
     headers["Authorization"] = "Bearer " + window.protectedGlobals.data.authToken;
-  var res = await fetch(window.protectedGlobals.SERVER, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      username: window.protectedGlobals.getCurrentUsernameForRequests(),
-      ...data,
-    }),
-  });
+
+  const MAX_RETRIES = 8;
+  const TIMEOUT_MS = 5000;
+  let res = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      res = await fetch(window.protectedGlobals.SERVER, {
+        method: "POST",
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify({
+          username: window.protectedGlobals.getCurrentUsernameForRequests(),
+          ...data,
+        }),
+      });
+      clearTimeout(timeout);
+
+      const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
+      if (!retryable || attempt === MAX_RETRIES) break;
+
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
+    } catch (err) {
+      clearTimeout(timeout);
+
+      if (attempt === MAX_RETRIES) {
+        return { error: "Request failed after multiple attempts: " + String(err) };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (2 ** (attempt - 1)), 8000)));
+      console.warn(`filePost attempt ${attempt} failed, retrying...`, err);
+    }
+  }
+
+  if (!res) {
+    return { error: "Request failed after multiple attempts" };
+  }
+
   let body = {};
   try {
     body = await res.json();
@@ -860,7 +891,6 @@ window.protectedGlobals.filePost = async function (data) {
     body.error = body.error || window.protectedGlobals.serverErrorMsg[res.status] || "invalid";
     body.error !== 'invalid' ? alert(body.error) : null;
   }
-  var fileErrorMessage = body && body.error ? String(body.error) : "";
   if (res.status === 401 && !window.protectedGlobals.firstlogin) {
     const refilled = await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
     if (refilled) return await window.protectedGlobals.filePost(data);
@@ -986,7 +1016,7 @@ for (const script of window.tmpGlobals.scriptContents) {
       let replaceStart = f.indexOf('<') - 1;
       let replaceEnd = f.indexOf('>', replaceStart) + 1;
       if (replaceStart !== -2 && replaceEnd !== 0) {
-        let importPath = f.substring(replaceStart + 1, replaceEnd).trim();
+        let importPath = f.substring(replaceStart + 1, replaceEnd);
         if (importPath.startsWith('/')) {
           importPath = importPath.substring(1);
         }
@@ -1097,9 +1127,16 @@ window.protectedGlobals.savedScrollY = window.scrollY;
 
 // body restrictions
 window.protectedGlobals.bodyStyle = document.createElement("style");
-window.protectedGlobals.bodyStyle.textContent = `body {
-overflow: hidden;
-}`;
+window.protectedGlobals.bodyStyle.textContent = 
+`
+body {
+  overflow: hidden;
+}
+body.wait-cursor,
+body.wait-cursor *:not(.app-window-root, .app-window-root *) {
+  cursor: progress;
+}
+`;
 document.body.appendChild(window.protectedGlobals.bodyStyle);
 // Desktop background context menu
 window.protectedGlobals.showBackgroundContextMenu = function (x, y) {
@@ -1365,6 +1402,7 @@ window.protectedGlobals.writeStatus = function writeStatus() {
 
     return new Promise(async (resolve, reject) => {
       const isDark = window.protectedGlobals.data.dark || false;
+      const pickerPreference = window.protectedGlobals.pickerPreference;
 
       // Create modal container
       const modal = document.createElement("div");
@@ -1447,16 +1485,90 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       pathBar.textContent = "Current: " + options.startPath;
       dialog.appendChild(pathBar);
 
+      const pickerSortBar = document.createElement("div");
+      pickerSortBar.style.cssText = `
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        height: 34px;
+        flex-shrink: 0;
+      `;
+      dialog.appendChild(pickerSortBar);
+
+      const pickerSortSelect = document.createElement("select");
+      pickerSortSelect.style.cssText = `
+        height: 34px;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid ${isDark ? "#333333" : "#d9d9d9"};
+        background: ${isDark ? "#1d1d1d" : "#ffffff"};
+        color: ${isDark ? "#ffffff" : "#111111"};
+      `;
+      for (const [value, label] of [["name", "Sort: Name"], ["size", "Sort: Size"], ["date", "Sort: Date"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        pickerSortSelect.appendChild(option);
+      }
+      pickerSortSelect.value = pickerPreference.sortMode;
+
+      const pickerSortOrder = document.createElement("button");
+      pickerSortOrder.title = "Toggle sort order";
+      pickerSortOrder.style.cssText = `
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        border: 1px solid ${isDark ? "#333333" : "#d9d9d9"};
+        background: ${isDark ? "#1d1d1d" : "#ffffff"};
+        color: ${isDark ? "#ffffff" : "#111111"};
+        cursor: pointer;
+      `;
+
+      const updatePickerSortIcon = () => {
+        const descending = pickerPreference.sortOrder === "desc";
+        pickerSortOrder.innerHTML = descending
+          ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m18 13-6 6-6-6"/></svg>'
+          : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>';
+      };
+      updatePickerSortIcon();
+      pickerSortSelect.onchange = () => {
+        pickerPreference.sortMode = pickerSortSelect.value;
+        window.protectedGlobals.pickerPreference = pickerPreference;
+        window.protectedGlobals.WriteFile("/systemfiles/userprofile/pickerpreference.json", JSON.stringify(pickerPreference), { text: true });
+        renderFiles(currentFiles, currentPath);
+      };
+      pickerSortOrder.onclick = () => {
+        pickerPreference.sortOrder = pickerPreference.sortOrder === "asc" ? "desc" : "asc";
+        updatePickerSortIcon();
+        window.protectedGlobals.pickerPreference = pickerPreference;
+        window.protectedGlobals.WriteFile("/systemfiles/userprofile/pickerpreference.json", JSON.stringify(pickerPreference), { text: true });
+        renderFiles(currentFiles, currentPath);
+      };
+
+      pickerSortBar.append(pickerSortSelect, pickerSortOrder);
+
+      const pickerControls = document.createElement("div");
+      pickerControls.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 16px 0;
+      `;
+
       const searchInput = document.createElement("input");
       searchInput.type = "search";
       searchInput.placeholder = "Search current folder...";
       searchInput.autocomplete = "off";
       searchInput.spellcheck = false;
       searchInput.style.cssText = `
-        width: calc(100% - 32px);
+        flex: 1;
+        height: 34px;
         box-sizing: border-box;
-        margin: 12px 16px 0;
-        padding: 10px 12px;
+        padding: 8px 12px;
         border-radius: 8px;
         border: 1px solid ${isDark ? "#333333" : "#d9d9d9"};
         background: ${isDark ? "#1d1d1d" : "#ffffff"};
@@ -1465,12 +1577,11 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       `;
       let searchTerm = "";
       searchInput.addEventListener("input", () => {
-        searchTerm = (searchInput.value || "").trim().toLowerCase();
-        if (currentPath) {
-          loadFolder(currentPath);
-        }
+        searchTerm = (searchInput.value || "").toLowerCase();
+        renderFiles(currentFiles, currentPath);
       });
-      dialog.appendChild(searchInput);
+      pickerControls.append(searchInput, pickerSortBar);
+      dialog.appendChild(pickerControls);
 
       // File browser area
       const browserContainer = document.createElement("div");
@@ -1484,6 +1595,8 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       // Selection state
       const selected = new Set();
       let currentPath = options.startPath || "/";
+      let currentFiles = [];
+      const folderCache = new Map();
       let selectionAnchorIndex = -1;
 
       const formatFileSize = (sizeValue) => {
@@ -1541,8 +1654,12 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       const loadFolder = async (path) => {
         browserContainer.innerHTML = '<div style="padding: 16px; text-align: center; color: ' + (isDark ? "#aaa" : "#666") + ';">Loading...</div>';
         try {
-          const files = await window.protectedGlobals.ReadFolder(path, { detail: true }).catch(() => []);
+          if (!folderCache.has(path)) {
+            folderCache.set(path, window.protectedGlobals.ReadFolder(path, { detail: true }).catch(() => []));
+          }
+          const files = await folderCache.get(path);
 
+          currentFiles = files;
           selected.clear();
           selectionAnchorIndex = -1;
           currentPath = path;
@@ -1671,8 +1788,22 @@ window.protectedGlobals.writeStatus = function writeStatus() {
         };
 
         const sortedFiles = [
-          ...folders.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
-          ...filelist.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
+          ...folders.sort((a, b) => {
+            const direction = pickerPreference.sortOrder === "desc" ? -1 : 1;
+            const aValue = pickerPreference.sortMode === "size" ? (Number(a.size) || 0) : pickerPreference.sortMode === "date" ? (Number(a.mtime) || 0) : String(a.name || "").toLowerCase();
+            const bValue = pickerPreference.sortMode === "size" ? (Number(b.size) || 0) : pickerPreference.sortMode === "date" ? (Number(b.mtime) || 0) : String(b.name || "").toLowerCase();
+            if (aValue < bValue) return -1 * direction;
+            if (aValue > bValue) return direction;
+            return String(a.name || "").localeCompare(String(b.name || ""));
+          }),
+          ...filelist.sort((a, b) => {
+            const direction = pickerPreference.sortOrder === "desc" ? -1 : 1;
+            const aValue = pickerPreference.sortMode === "size" ? (Number(a.size) || 0) : pickerPreference.sortMode === "date" ? (Number(a.mtime) || 0) : String(a.name || "").toLowerCase();
+            const bValue = pickerPreference.sortMode === "size" ? (Number(b.size) || 0) : pickerPreference.sortMode === "date" ? (Number(b.mtime) || 0) : String(b.name || "").toLowerCase();
+            if (aValue < bValue) return -1 * direction;
+            if (aValue > bValue) return direction;
+            return String(a.name || "").localeCompare(String(b.name || ""));
+          }),
         ];
         const selectionEntries = sortedFiles.map((entry) => ({
           ...entry,
@@ -1728,7 +1859,7 @@ window.protectedGlobals.writeStatus = function writeStatus() {
           const iconMarkup = isFolder
             ? (window.protectedGlobals.fileIconSet?.folder || "")
             : (window.protectedGlobals.fileIconSet?.file || "");
-          icon.innerHTML = iconMarkup || (isFolder ? "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M3 7.5A2.5 2.5 0 0 1 5.5 5h4.2c.6 0 1.2.2 1.6.6l1.2 1.1c.2.2.5.3.8.3h5.2A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-10Z' fill='#F4C95D' stroke='currentColor' stroke-width='1.2' stroke-linejoin='round'/><path d='M3 11.5H21' stroke='rgba(0,0,0,.25)' stroke-width='1' stroke-linecap='round'/></svg>" : "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z' fill='rgba(255,255,255,.08)' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M14 2v5h5' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M9 12h6M9 16h6' stroke='currentColor' stroke-width='1.3' stroke-linecap='round'/></svg>");
+          icon.innerHTML = iconMarkup || (isFolder ? "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M3 7.5A2.5 2.5 0 0 1 5.5 5h4.2c.6 0 1.2.2 1.6.6l1.2 1.1c.2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-10Z' fill='#F4C95D' stroke='currentColor' stroke-width='1.2' stroke-linejoin='round'/><path d='M3 11.5H21' stroke='rgba(0,0,0,.25)' stroke-width='1' stroke-linecap='round'/></svg>" : "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5Z' fill='rgba(255,255,255,.08)' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M14 2v5h5' stroke='currentColor' stroke-width='1.3' stroke-linejoin='round'/><path d='M9 12h6M9 16h6' stroke='currentColor' stroke-width='1.3' stroke-linecap='round'/></svg>");
           item.appendChild(icon);
 
           const labelWrap = document.createElement("div");
@@ -1925,7 +2056,6 @@ window.protectedGlobals.writeStatus = function writeStatus() {
       loadFolder(options.startPath || "/");
     });
   };
-
 window.protectedGlobals.sendMsgToAllThreads = (msg) => {
   let threads = window.protectedGlobals.__processes || [];
   threads.forEach((thread) => {

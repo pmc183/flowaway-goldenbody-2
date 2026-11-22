@@ -19,15 +19,26 @@ function getEntryDiskSizeBytes(size) {
 
 function withUserLock(username, fn) {
   const prev = userLocks.get(username) || Promise.resolve();
+
   const next = prev.then(fn, fn);
 
-  userLocks.set(
-    username,
-    next.catch(() => {}),
-  );
+  // Store a settled-safe promise so failed operations
+  // don't break subsequent operations.
+  const queued = next.catch(() => {});
+
+  userLocks.set(username, queued);
+
+  // Only remove the lock if this is still the latest
+  // operation queued for this user.
+  queued.finally(() => {
+    if (userLocks.get(username) === queued) {
+      userLocks.delete(username);
+    }
+  });
 
   return next;
 }
+
 
 async function exists(fullPath) {
   try {

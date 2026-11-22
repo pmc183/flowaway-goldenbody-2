@@ -110,7 +110,7 @@ const normalizeStartMenuConfigValue = function (value, fallback, allowedValues) 
   if (value === undefined || value === null || value === "") {
     return fallback;
   }
-  const normalized = String(value).trim().toLowerCase();
+  const normalized = String(value).toLowerCase();
   if (allowedValues && allowedValues.indexOf(normalized) === -1) {
     return fallback;
   }
@@ -131,13 +131,13 @@ const getConfiguredSortOrder = function () {
 const getConfiguredSortSections = function () {
   const config = window.protectedGlobals._startMenuConfig || {};
   if (typeof config.sortSections === "boolean") return config.sortSections;
-  const value = String(config.sortSections || "").trim().toLowerCase();
+  const value = String(config.sortSections || "").toLowerCase();
   return value === "true" || value === "yes" || value === "1";
 };
 
 const getAppSortLabel = function (app) {
   const label = app && (app.label || app.id || app.name || "");
-  return String(label || "").trim();
+  return String(label || "");
 };
 
 const compareAppLabels = function (a, b, order) {
@@ -153,7 +153,7 @@ const compareAppLabels = function (a, b, order) {
 const getAllAppsSearchQuery = function () {
   const input = document.getElementById("allAppsSearchInput");
   if (!input) return "";
-  return String(input.value || "").trim().toLowerCase();
+  return String(input.value || "").toLowerCase();
 };
 
 const updateStartMenuBodyPosition = function () {
@@ -686,9 +686,7 @@ window.addEventListener("brightness-state-updated", () => {
 ensureBrightnessOverlay();
 
 const cycleFocusedWindow = window.protectedGlobals.cycleFocusedWindow = function (reverse, modKey = "Alt") {
-  if ((window.protectedGlobals.cycleWindowFocus)) {
-    window.protectedGlobals.cycleWindowFocus(!!reverse, modKey);
-  }
+  window.protectedGlobals.cycleWindowFocus(!!reverse, modKey);
 }
 
 const launchFocusedAppWindow = window.protectedGlobals.launchFocusedAppWindow = function () {
@@ -699,7 +697,7 @@ const launchFocusedAppWindow = window.protectedGlobals.launchFocusedAppWindow = 
 
 const closeFocusedAppWindow = window.protectedGlobals.closeFocusedAppWindow = function () {
   if (!window.protectedGlobals.atTop) return;
-  var targetAppId = String(window.protectedGlobals.atTop || "").trim();
+  var targetAppId = String(window.protectedGlobals.atTop || "");
   if (!targetAppId) return;
 
   var roots = Array.from(document.querySelectorAll(".app-window-root"));
@@ -731,13 +729,13 @@ const closeFocusedAppWindow = window.protectedGlobals.closeFocusedAppWindow = fu
     if (window[appObj.globalVarObjectString]) {
       var arrayKeys = [];
       if (typeof appObj.allAppArrayString === "string") {
-        var single = appObj.allAppArrayString.trim();
+        var single = appObj.allAppArrayString;
         if (single) arrayKeys.push(single);
       } else if (Array.isArray(appObj.allAppArrayString)) {
         for (var ak = 0; ak < appObj.allAppArrayString.length; ak++) {
           var normalized =
             typeof appObj.allAppArrayString[ak] === "string"
-              ? appObj.allAppArrayString[ak].trim()
+              ? appObj.allAppArrayString[ak]
               : "";
           if (normalized && arrayKeys.indexOf(normalized) === -1) {
             arrayKeys.push(normalized);
@@ -804,8 +802,8 @@ const renderQuickActionsGrid = async function () {
   container.innerHTML = '';
 
   const actions = [
-    ['Open new window', 'Ctrl+N', () => launchFocusedAppWindow()],
-    ['Close focused window', 'Ctrl+W', () => closeFocusedAppWindow()],
+    ['Open new window', 'Ctrl+Shift+N', () => launchFocusedAppWindow()],
+    ['Close focused window', 'Ctrl+Shift+W', () => closeFocusedAppWindow()],
     ['Take Screenshot', 'Ctrl+Shift+S', () => {
       startMenu.style.display = 'none';
       window.protectedGlobals.takeScreenshot();
@@ -904,7 +902,7 @@ const renderAllAppsGrid = async function () {
     const groups = new Map();
     for (const app of filteredApps) {
       const label = getAppSortLabel(app);
-      const firstLetter = label ? label.trim()[0].toUpperCase() : '#';
+      const firstLetter = label ? label[0].toUpperCase() : '#';
       const groupKey = /[A-Z]/.test(firstLetter) ? firstLetter : '#';
       if (!groups.has(groupKey)) groups.set(groupKey, []);
       groups.get(groupKey).push(app);

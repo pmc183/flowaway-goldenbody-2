@@ -25,7 +25,7 @@
   }
 
   function normalizeShortcutPath(value) {
-    return String(value || "").replace(/\\/g, "/").trim();
+    return String(value || "").replace(/\\/g, "/");
   }
 
   function getDesktopBounds() {
@@ -107,17 +107,17 @@
       }
     }
 
-    const label = String(raw.label || raw.appId || "").trim();
+    const label = String(raw.label || raw.appId || "");
     const item = {
-      id: String(raw.id || raw.appId || path || label || `shortcut-${crypto.randomUUID()}`).trim() || `shortcut-${crypto.randomUUID()}`,
+      id: String(raw.id || raw.appId || path || label || `shortcut-${crypto.randomUUID()}`) || `shortcut-${crypto.randomUUID()}`,
       type: finalType,
       label,
       path,
-      appId: String(raw.appId || raw.id || "").trim(),
-      name: String(raw.name || label).trim(),
+      appId: String(raw.appId || raw.id || ""),
+      name: String(raw.name || label),
       x: safeNumber(raw.x, 24),
       y: safeNumber(raw.y, 24),
-      fileName: String(raw.fileName || "").trim(),
+      fileName: String(raw.fileName || ""),
     };
 
     if (finalType !== "app") {
@@ -348,7 +348,7 @@
   }
 
   function getShortcutDeletePath(shortcut) {
-    const fileName = String(shortcut.fileName || `shortcut-${crypto.randomUUID()}.json`).trim();
+    const fileName = String(shortcut.fileName || `shortcut-${crypto.randomUUID()}.json`);
     return `${DESKTOP_DIR}/${fileName}`;
   }
 
@@ -360,7 +360,7 @@
     const existingIndex = globalEntries.findIndex((item) => item.id === shortcut.id);
     const previousShortcut = existingIndex !== -1 ? globalEntries[existingIndex] : null;
     const previousFileName = previousShortcut && previousShortcut.fileName ? previousShortcut.fileName : "";
-    const preferredFileName = String(shortcut.fileName || previousFileName || `shortcut-${crypto.randomUUID()}.json`).trim() || `shortcut-${crypto.randomUUID()}.json`;
+    const preferredFileName = String(shortcut.fileName || previousFileName || `shortcut-${crypto.randomUUID()}.json`) || `shortcut-${crypto.randomUUID()}.json`;
 
     const duplicateFileName = globalEntries.some((item) => item.id !== shortcut.id && item.fileName && item.fileName === preferredFileName);
     const fileName = duplicateFileName ? `shortcut-${crypto.randomUUID()}.json` : preferredFileName;
@@ -441,7 +441,7 @@
   function getShortcutLabel(shortcut) {
     if (shortcut.type === "app") {
       const app = (window.protectedGlobals.apps || []).find((c) => c.id === shortcut.appId);
-      const customLabel = String(shortcut.label || shortcut.name || "").trim();
+      const customLabel = String(shortcut.label || shortcut.name || "");
 
       if (customLabel) return customLabel;
       return (app && app.label) || "App";
@@ -451,12 +451,12 @@
   }
 
   function getShortcutDisplayLabel(shortcut, fallback = "Shortcut") {
-    const fullLabel = String(getShortcutLabel(shortcut) || fallback).trim() || fallback;
+    const fullLabel = String(getShortcutLabel(shortcut) || fallback) || fallback;
     return fullLabel.length > 25 ? `${fullLabel.slice(0, 25)}...` : fullLabel;
   }
 
   function isProtectedSensitiveFilePath(filePath) {
-    const normalized = String(filePath || "").replace(/\\/g, "/").trim();
+    const normalized = String(filePath || "").replace(/\\/g, "/");
     const safePath = normalized.startsWith("/") ? normalized : `/${normalized}`;
 
     if (safePath === "/systemfiles/userprofile/jsApiKey.txt") return true;
@@ -474,7 +474,7 @@
           ? app.openfileCapability
           : String(app.openfileCapability || "")
               .split(",")
-              .map((part) => part.trim().toLowerCase())
+              .map((part) => part.toLowerCase())
               .filter(Boolean);
 
         if (!capability.length) return false;
@@ -526,7 +526,7 @@
       if (finished) return;
       finished = true;
 
-      const nextValue = input.value.trim() || oldValue;
+      const nextValue = input.value || oldValue;
       const nextLabel = document.createElement("div");
 
       nextLabel.className = "desktop-shortcut-label";

@@ -94,7 +94,7 @@ async function syncAppJsKey(appDirPath, masterKey) {
 }
 
 function normalizeValue(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '').toLowerCase();
 }
 
 async function collectSystemAppDefinitions(appsRoot) {
@@ -402,7 +402,7 @@ async function restoreSystemAppJsKeys(options = {}) {
   const targetAppsRoot = appsRoot || path.join(userRoot, 'systemfiles', 'runtime', 'apps');
   const sourceAppsRoot = sampleAppsRoot || path.join(sampleRoot, 'systemfiles', 'runtime', 'apps');
   const masterKeyPath = path.join(userRoot, 'systemfiles', 'userprofile', 'jsApiKey.txt');
-  const masterKey = options.masterKey || ((await pathExists(masterKeyPath)) ? (await fs.promises.readFile(masterKeyPath, 'utf8')).trim() : '');
+  const masterKey = options.masterKey || ((await pathExists(masterKeyPath)) ? (await fs.promises.readFile(masterKeyPath, 'utf8')) : '');
 
   if (!sourceAppsRoot || !(await pathExists(sourceAppsRoot))) return { restoredCount: 0, apps: [] };
 
@@ -464,7 +464,7 @@ async function resetSystemApp(options = {}) {
   await copyDirRecursive(sourceAppDir, targetAppDir);
 
   const masterKeyPath = path.join(userRoot, 'systemfiles', 'userprofile', 'jsApiKey.txt');
-  const masterKey = (await pathExists(masterKeyPath)) ? (await fs.promises.readFile(masterKeyPath, 'utf8')).trim() : '';
+  const masterKey = (await pathExists(masterKeyPath)) ? (await fs.promises.readFile(masterKeyPath, 'utf8')) : '';
   if (await appRequestsAdminPerm(targetAppDir)) {
     await syncAppJsKey(targetAppDir, masterKey);
   }
@@ -524,7 +524,7 @@ function getUserPaths(username) {
     throw new Error('invalid username');
   }
 
-  const safeUsername = String(username).trim();
+  const safeUsername = String(username);
   const shard = getUserShard(safeUsername);
 
   const baseDir = path.resolve(__dirname, 'zmcdfiles');
@@ -603,9 +603,9 @@ function handleSystemRecoveryRequest(req, res) {
   }
 
   parseJsonBody(req).then(async (payload) => {
-    const username = String(payload.username || '').trim();
-    const password = String(payload.password || '').trim();
-    const action = String(payload.action || payload.systemRecoveryAction || '').trim();
+    const username = String(payload.username || '');
+    const password = String(payload.password || '');
+    const action = String(payload.action || payload.systemRecoveryAction || '');
     let userPaths;
 
     try {
