@@ -1,8 +1,25 @@
 ## WHAT THIS IS
 flowaway goldenbody is an OS-like webpage built with vanilla js and a node server. 
+FlowAway GoldenBody
+FlowAway GoldenBody is a browser-based, OS-like operating environment built with vanilla JavaScript and Node.js. It provides a modular runtime, virtual filesystem, application management system, terminal, and developer APIs.
 
-## DEVELOPER DOCS
-This is copied directly from the dev docs in the settings app
+## Features
+- Virtual filesystem: Cloud-based file management with support for file operations, streaming, permissions, and file watchers.
+- Application runtime: Installable applications with window management, launch arguments, and background workers.
+- Application sandboxing: Restricted iframe applications with permission-controlled access to system APIs.
+- Developer APIs: Interfaces for filesystem operations, application communication, window management, and more.
+- Terminal: Command execution and application-provided commands backed by JavaScript workers.
+- System management: Settings, application permissions, recovery tools, and other operating environment features.
+
+## Technology
+- Vanilla JavaScript
+- Node.js
+- HTML and CSS
+- The project is independently developed and maintained. Its architecture is designed to let applications and system components work together through a shared runtime and documented interfaces.
+
+# Developer Documentation
+The following documentation describes the application package format, runtime APIs, permissions, sandboxing, and worker system. Please note that this is an overview, to access the latest most accurate docs please make an account on the official FlowAway GoldenBody website and find it in the settings app!
+
 <h2>App Developer Docs</h2>
 <h3>App package layout</h3>
 <p>
@@ -13,10 +30,10 @@ This is copied directly from the dev docs in the settings app
 </p>
 <h3><code>entry.json</code> fields</h3>
 <ul>
-    <li><code>id</code> - unique app identifier.</li>
-    <li><code>jsFile</code> - entry script file relative to the app folder.</li>
-    <li><code>label</code> - display name for the app.</li>
-    <li><code>iconFile</code> - icon asset path relative to the app folder.</li>
+    <li><code>id</code> - required unique app identifier.</li>
+    <li><code>jsFile</code> - required entry script file path relative to the app folder.</li>
+    <li><code>label</code> - required display name unless <code>headless</code> is <code>true</code>.</li>
+    <li><code>iconFile</code> - required icon asset path relative to the app folder unless <code>headless</code> is <code>true</code>.</li>
     <li><code>pngEnabled</code> - boolean flag to render <code>iconFile</code> as a PNG image.</li>
     <li><code>hiddenDragstrip</code> - boolean flag to hide the drag/resize strip on the app window.</li>
     <li>
@@ -39,7 +56,7 @@ This is copied directly from the dev docs in the settings app
     <li>
         <code>openfileCapability</code> - optional list of VFS file/folder patterns or capabilities used by File
         Explorer to determine if a file extension can be opened by this app. (extension is the .something behind a
-        file), (VFS aka. cloud storage)
+        file), (VFS aka. cloud storage) '*' means all files.
     </li>
     <li><code>enableDebugging</code> - boolean flag to enable debugging features for the app.</li>
     <li><code>cmd</code> or <code>commands</code> - array of command objects for the app.</li>
@@ -47,16 +64,15 @@ This is copied directly from the dev docs in the settings app
     <p>Non iframe headless apps can choose to not have a window, but if it is an iframe app, it will still have a window, but it will not show on the taskbar and will not have a start menu entry.</p>
     <p>You can make it appear to be headless by setting "startupPos": { "minimize": true } in the entry.json, which will make it start minimized and not show.</p>
     <p>Headless apps can be used for background tasks, services, file operations, or other non-interactive functionality.</p>
-    <li><code>functionName</code> - name of the globally exported launch function. (admin app only)</li>
-    <li><code>globalVarObjectString</code> - name of the global object for app instances. (admin app only)</li>
+    <li><code>functionName</code> - required name of the globally exported launch function when <code>requestAdminPerm</code> is <code>true</code>.</li>
+    <li><code>globalVarObjectString</code> - required name of the global object used for app instances when <code>requestAdminPerm</code> is <code>true</code>.</li>
     <li>
-        <code>allAppArrayString</code> - array name under the global object for tracking instances. (admin app only)
+        <code>allAppArrayString</code> - required name of the array under the global object used to track app instances when <code>requestAdminPerm</code> is <code>true</code>.
     </li>
     <li><code>cmf</code> and <code>cmfl1</code> - app button context menu hooks. (admin app only)</li>
 </ul>
 <p>
-    These icon fields are used by start menu, taskbar, and runtime window rendering logic in <code>startMenu.js</code>,
-    <code>goldenbody.js</code>, and <code>runtimeWindowSystem.js</code>. They determine whether the icon is rendered as
+    These icon fields are used by start menu, taskbar, and runtime window rendering. They determine whether the icon is rendered as
     text or PNG.
 </p>
 <h3>Entry file example</h3>
@@ -64,8 +80,7 @@ This is copied directly from the dev docs in the settings app
 <h3>App types and permissions</h3>
 <h4>Sandboxed iframe apps</h4>
 <p>
-    When <code>requestAdminPerm</code> is <code>false</code>, the app runs inside a sandboxed iframe using
-    <code>untrustedIframePatch.js</code>. That iframe has:
+    When <code>requestAdminPerm</code> is <code>false</code>, the app runs inside a sandboxed iframe. That iframe has:
 </p>
 <ul>
     <li><code>sandbox="allow-scripts allow-pointer-lock"</code></li>
@@ -126,30 +141,28 @@ This is copied directly from the dev docs in the settings app
 </p>
 <h3>App launch arguments &amp; iframe behavior</h3>
 <p>
-    The iframe launcher created in <code>appLoader.js</code> (see <code>createIframeContainerAppFunction</code>)
-    registers a global function named by <code>entryObj.functionName</code>. Its signature is:
+    The iframe launcher registers a global function named by <code>entryObj.functionName</code>. If it is an iframe app its function name is a uuid. Its signature is:
 </p>
-<pre><code>window[entryObj.functionName] = async function(path, verify, argObj, posX = 50, posY = 50) { ... }</code></pre>
+<pre><code>window[functionnamegenerated] = async function(path, verify, argObj, posX = 50, posY = 50) { ... }</code></pre>
 <p>
     Pass structured input via <code>argObj</code>. The loader injects <code>window.__args</code> into the iframe, so the app can read it. For example, if you launch an app with:
 </p>
 <pre><code>// launch an app and pass args await __goldenbodyAPI.launchApp('myApp', [{ view: 'recent', id: 42 }, { obj2: 'favorites' }]);
 // it can also be used to launch package installer to update your app
-await __goldenbodyAPI.launchApp('App Installer', "/downloads/yourpackage.zip");
+await __goldenbodyAPI.launchApp('App Installer', ["/downloads/yourpackage.zip"]);
 you can also compute your own dir path and pass it to the app, like this:
-const apps = await __goldenbodyAPI.getAvaliableAppsToLaunch();
+const apps = await __goldenbodyAPI.getAvailableAppsToLaunch();
 const myApp = apps.find(app => app.id === 'myApp');
 if (myApp) {
   const appPath = \`/systemfiles/runtime/apps/\${myApp.id}\`;
-  await __goldenbodyAPI.launchApp("App Installer", appPath + '/yourpackage.zip');
+  await __goldenbodyAPI.launchApp("App Installer", [appPath + '/yourpackage.zip']);
 }
 // inside iframe script
 const args = window.__args; // [{ view: 'recent', id: 42 }, { obj2: 'favorites' }]
 </code></pre>
 <h3>Background worker apps</h3>
 <p>
-    To make an app run a worker in the background, provide <code>headlessJsFile</code>. The loader in
-    <code>appLoader.js</code> will start the worker automatically once the app is discovered, and it stores it in
+    To make an app run a worker in the background, (this worker is not the same as a terminal worker as it has very limited capabilities). The app must provide <code>headlessJsFile</code>. The loader will start the worker automatically once the app is discovered, and it stores it in
     <code>window.protectedGlobals.workers[entryObj.id]</code>.
 </p>
 <pre><code>{ "id": "watcherApp", "label": "Watcher App", "headless": true, "headlessJsFile": "headlessWorker.js", "iconFile": "icon.txt", "jsFile": "script.js" }</code></pre>
@@ -161,7 +174,7 @@ const args = window.__args; // [{ view: 'recent', id: 42 }, { obj2: 'favorites' 
     The worker is able to launch its gui through <code>postMessage({ type: 'launchApp' })</code> to the main runtime.
     HeadlessJsFile can also exist if an app is not headless, it will still be launched as a worker in the background.
     The worker is not allowed to interact with anything in the VFS, it can only complete communication by sharing a server with the main app instance and use the 3rd party server as a bridge.
-    It may also choose to use minimized or 0 by 0 windows at startup to stimulate a background service, but the service requires a user interation (launch the app in file explorer by opening a file or terminal) to start.
+    It may also choose to use minimized or 0 by 0 windows at startup to stimulate a background service, but the app instance requires a user interation (launch the app in file explorer by opening a file or terminal) to start, just like any other app.
 </p>
 
 <h3>Admin app GUI framework</h3>
@@ -209,12 +222,12 @@ let dragTarget = instance.titlebarElement;
 </p>
 <pre><code>{ "id": "demoApp", "label": "Demo App", "jsFile": "script.js", "iconFile": "icon.txt", "cmd": [ { "name": "workerTest", "src": "workerTest.js", "receive_onkill_handler": true }, { "name": "doThing", "src": "doThing.js" } ] }</code></pre>
 <p>This is the same pattern used by <code>testIframeApp/entry.json</code>. The terminal app supports invoking it as:</p>
-<pre><code>demoApp workerTest --mode=fast --count=3 # or workerTest </code></pre>
+<pre><code>demoApp workerTest --example-flag --mode=fast --count=3 # or workerTest </code></pre>
 <p>
     When the command is backed by a JS file, the runtime reads the file, creates a worker, passes the argument object as
     <code>self.args</code> / <code>self._startArgs</code>, and then calls the worker with a runtime
-    <code>start</code> message. The arguments are parsed from the terminal command line as JSON or key/value pairs when
-    possible.
+    <code>start</code> message. The arguments are parsed from the terminal command line as key=value pairs when
+    possible. bare flags are treated as boolean true. such as the --example-flag in the example above.
 </p>
 <p>
     <code>receive_onkill_handler</code> tells the runtime to treat <code>onkill</code> as graceful shutdown logic and
@@ -225,7 +238,7 @@ let dragTarget = instance.titlebarElement;
 <p>Two new runtime APIs are available to worker scripts:</p>
 <h4><code>api.cwd()</code></h4>
 <p>
-    Returns an string representing the current working directory of the worker. This is useful for resolving relative paths in the VFS.
+    Returns a string representing the current working directory of the worker. This is useful for resolving relative paths in the VFS.
 </p>
 <pre
     style="
@@ -321,8 +334,8 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
 <h2>Iframe App API</h2>
 <h3>Iframe API reference</h3>
 <p>
-    Sandboxed apps should call <code>window.__goldenbodyAPI</code>. Every method returns a promise, so await it in async
-    code. (note: some methods have options objects that are for later use, methods such as renameFile/renameFolder and deleteFile/deleteFolder, have options objects that are not used yet but may be used in the future)
+    Sandboxed apps should call <code>window.__goldenbodyAPI</code>. Most methods return a promise, so await it in async
+    code. (note: some methods have options objects that are for later use, options objects this docs does not cover, are not used yet but may be used in the future)
 </p>
 <p>API summary:</p>
 <ul>
@@ -338,7 +351,7 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>pasteFolder(destinationOrHandle, clipboard, options)</code> - copy or move a folder payload into a destination.</li>
     <li><code>folderExists(pathOrHandle, options)</code> - check whether a path is a folder.</li>
     <li><code>fileExists(pathOrHandle, options)</code> - check whether a path is a file.</li>
-    <li><code>showOpenFilePicker(options)</code> - let the user pick a file or folder and return a permission handle. If <code>multiple: true</code>, return an array of handles.</li>
+    <li><code>showOpenFilePicker(options)</code> - let the user pick a file and return a permission handle. If <code>multiple: true</code>, return an array of handles.</li>
     <li><code>showSaveFilePicker(options)</code> - let the user choose a save target and return a handle.</li>
     <li><code>showDirectoryPicker(options)</code> - let the user pick a directory and return a handle. If <code>multiple: true</code>, return an array of handles.</li>
     <li><code>watchFile(pathOrHandle, callback, options)</code> - watch a file for changes, renames, and deletes.</li>
@@ -352,7 +365,7 @@ const edited = await api.prompt('Edit file contents', { prefill: existingText, m
     <li><code>setDragThreshold({ px })</code> - change the pointer drag threshold for the current instance.</li>
     <li><code>setDragstripHeight({ percent || px })</code> - change the titlebar/dragstrip height for the current instance.</li>
     <li><code>setDragstripVisibility(visible)</code> - show or hide the dragstrip for the current instance.</li>
-    <li><code>getAvaliableAppsToLaunch()</code> - get a list of apps that can be launched from this instance.</li>
+    <li><code>getAvailableAppsToLaunch()</code> - get a list of apps that can be launched from this instance.</li>
     <li><code>setTitlebarVisibility(visible)</code> - show or hide the titlebar for the current instance.</li>
     <li><code>message(message, toInstance)</code> - send a message to another instance or '*' to broadcast to all instances. toInstance is an integer representing the instance index.</li>
     <li><code>messageToWorker(message)</code> - relay a message to the app worker for this instance. If any</li>
@@ -423,7 +436,7 @@ const watch = window.__goldenbodyAPI.watchFile('./notes.txt', (event) => {
 });
 // close the watcher
 watch.close();
-
+// both watch.close() and window.__goldenbodyAPI.closeWatch(watch.id) are valid ways to stop the watcher.
 // admin app / trusted runtime app
 const adminWatch = window.protectedGlobals.WatchFolder('./data', (event) => {
     console.log('folder event', event);
@@ -575,7 +588,6 @@ alert('Hello, this is a notification!');
         upload.
     </li>
     <li><code>{ retrytimeout: ms }</code> — per-chunk timeout used for retries (default set by runtime).</li>
-    <li><code>{ password: '...' }</code> — forwarded for server-side protected writes when supported.</li>
 </ul>
 <p>The runtime uploads large files in ~10MB chunks with robust retry logic. Example:</p>
 <pre><code>// small text write await window.__goldenbodyAPI.writeFile('/notes.txt', 'hello world', { replace: true });
@@ -594,9 +606,9 @@ await window.__goldenbodyAPI.writeFile(savedHandle, fileBytes, { replace: true }
 <h4>Exists, Delete, Rename</h4>
 <ul>
     <li><code>fileExists(pathOrHandle)</code> / <code>folderExists(pathOrHandle)</code> — resolves boolean.</li>
-    <li><code>deleteFile(pathOrHandle)</code>, <code>deleteFolder(pathOrHandle)</code> — remove targets.</li>
+    <li><code>deleteFile(pathOrHandle, { permanent: true|false })</code>, <code>deleteFolder(pathOrHandle, { permanent: true|false })</code> — remove targets.</li>
     <li>
-        <code>renameFile(pathOrHandle, newName)</code>, <code>renameFolder(pathOrHandle, newName)</code> — rename
+        <code>renameFile(pathOrHandle, newName)</code> and <code>renameFolder(pathOrHandle, newName)</code> — rename
         entries.
     </li>
 </ul>
@@ -674,8 +686,6 @@ currentText + '\n\nappended by the app',
     first argument whenever you want to operate inside that directory.
 </p>
 <pre><code>const folderHandle = await window.__goldenbodyAPI.showDirectoryPicker();
-
-// read the folder contents
 const listing = await window.__goldenbodyAPI.readFolder(folderHandle, { detail: true });
 console.log(listing);
 
@@ -728,8 +738,7 @@ console.log(children);
     <li><code>window.__path__</code> - the VFS path of the file the user opened.</li>
     <li><code>window.__filehandle__</code> - an internal permission key string for that file.</li>
     <li>
-        <code>window.userPickedFileHandle</code> - a convenience <code>{ path, key }</code> handle created from the
-        above values (available inside the iframe after load).
+        <code>window.userPickedFileHandle</code> - This is a handle assigned if the app is launched via the File Explorer.
     </li>
 </ul>
 <p>Because this is a runtime-provided handle (not a picker promise), you can use it directly. Example:</p>
@@ -743,9 +752,6 @@ window.userPickedFileHandle,
 { text: true }
 );
 }
-
-// if you need the raw path or key you can also inspect:
-// window.path (string) and window.filehandle (permission key)
 </code></pre>
 <h3>/downloads — shared space</h3>
 <p>
@@ -818,18 +824,18 @@ clipboard
 <p>
     There are no hidden files or directories anywhere in cloud storage. You can edit <code>systemfiles</code> to change
     how the client behaves. If you break it, you can restore the system tree from the login page and remove broken
-    non-system apps there. A copy of broken files will also be stored in your cloud storage.
+    non-system apps there. A copy of broken files will also be stored in your cloud storage. A complete app example will not be shown in this docs. To explore details this docs has not mentioned about the apps, you can inspect the files of existing apps. (note: only system app that aren't using admin perm mode is zipUtils, it is the only iframe app already installed in the system)
 </p>
 
 ## BACKEND SERVER ADMIN SETUP
 
-- Requirements: Node.js (latest recommended, v24+). IDK if bun works... prob not.
-- Install libraries/dependencies the server (aka. the rammerhead server) needs via npm install:
+- Requirements: Node.js (latest recommended, v24+).
+- Install libraries the server needs via npm install:
 ```bash
 npm install
 ```
 
-- Because of how the proxy is set up, the 1st time you start the server you need to run
+- The 1st time you start the server you need to run
 ```bash
 npm run build
 ```
@@ -846,16 +852,6 @@ npm start
 ```
 
 - You need to make an account named ServerAdmin as that is the server admin account. Its password is used to ban IPs in http(s)://your-url.ext/moderation (localhost: http://localhost:8080/moderation)
-- THE BACKEND IS BASED ON ""aka (copied from)"" RAMMERHEAD SINCE THE PURPOSE OF THIS THING USED TO BE A PROXY:
-- Configure Rammerhead `src/config.js` to override defaults.
-
-
-- If you want external access, `cloudflared` is a good option to host it.
-
-- Just so yall know you can run this server in about 10 minutes after you get a new rpi or any device including an android phone. If you need longer than that there must be some stuff u did wrong!
-
--!!!IMPORTANT!!! if you are hosting on termux change config.js to this
-`const enableWorkers = false;` on line 7 of config.js
 
 ## CONTACT
 

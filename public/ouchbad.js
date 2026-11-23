@@ -45,6 +45,7 @@ window.protectedGlobals.zmcdata = null;
 window.protectedGlobals.firstlogin = false;
 
 (() => {
+  let succeeded = false;
   document.body.style.background = '#0f0f0f';
   document.body.style.color = '#fff';
   document.body.style.fontFamily = 'Arial, sans-serif';
@@ -250,12 +251,9 @@ window.protectedGlobals.firstlogin = false;
     const message = (() => {
       if (!result || typeof result !== 'object') return 'Failed to update system';
       if (result.updated) return 'System updated successfully.';
-      if (result.reason === 'autoupdate_disabled') return 'System updates are disabled for this account.';
       if (result.reason === 'unauthorized') return 'Authentication failed.';
       if (result.reason === 'missing_username') return 'Missing username.';
       if (result.reason === 'server_error') return 'Server error while updating system.';
-      if (result.reason === 'missing_user_root') return 'User root not found.';
-      if (result.reason === 'missing_template_systemfiles') return 'System template files are missing.';
       return result.reason || 'Failed to update system';
     })();
 
@@ -409,6 +407,7 @@ window.protectedGlobals.firstlogin = false;
 
         msg.textContent = 'Success! Waiting for system to load...';
         msg.style.color = 'lime';
+        succeeded = true;
         await fetch('/server/updatesystem', {
           method: 'POST',
           headers: {
@@ -422,7 +421,7 @@ window.protectedGlobals.firstlogin = false;
         }
         setTimeout(() => {
           window.protectedGlobals.isRebuilding = false;
-        }, 5000);
+        }, 2000);
         startUp();
       })
       .catch((err) => {
@@ -433,12 +432,29 @@ window.protectedGlobals.firstlogin = false;
   }
 
   const disableButtons = () => {
-    document.getElementById('zmc-login').disabled = true;
-    document.getElementById('zmc-register').disabled = true;
+    const login = document.getElementById('zmc-login');
+    login.style.cursor = 'not-allowed';
+    login.style.opacity = '0.6';
+    login.textContent = 'Please wait...';
+    login.disabled = true;
+    const register = document.getElementById('zmc-register');
+    register.style.cursor = 'not-allowed';
+    register.style.opacity = '0.6';
+    register.disabled = true;
   };
   const enableButtons = () => {
-    document.getElementById('zmc-login').disabled = false;
-    document.getElementById('zmc-register').disabled = false;
+    if (succeeded) {
+      return;
+    }
+    const login = document.getElementById('zmc-login');
+    login.disabled = false;
+    login.style.cursor = 'pointer';
+    login.style.opacity = '1';
+    login.textContent = 'LOG IN';
+    const register = document.getElementById('zmc-register');
+    register.style.cursor = 'pointer';
+    register.style.opacity = '1';
+    register.disabled = false;
   }
   document.getElementById('zmc-login').onclick = async () => {
     disableButtons();
@@ -459,7 +475,76 @@ window.protectedGlobals.firstlogin = false;
     }
   };
 
+  function confirmAccountDeletion() {
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(0,0,0,0.72);';
+
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+      dialog.setAttribute('aria-labelledby', 'zmc-delete-title');
+      dialog.style.cssText = 'width:min(360px,calc(100vw - 32px));box-sizing:border-box;padding:18px;border-radius:12px;background:#34383d;color:#f4f7fa;border:1px solid rgba(255,255,255,0.12);box-shadow:0 18px 48px rgba(0,0,0,0.55);';
+
+      dialog.innerHTML = `
+        <h2 id="zmc-delete-title" style="margin:0 0 8px;font-size:18px;line-height:1.3;">Delete account?</h2>
+        <p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#e2e6ea;">This permanently deletes the account and its data. This action cannot be undone.</p>
+        <div style="display:flex;gap:8px;">
+          <button id="zmc-delete-cancel" type="button" style="flex:1;height:38px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;background:#50555b;color:#fff;font-weight:700;cursor:pointer;">Cancel</button>
+          <button id="zmc-delete-confirm" type="button" style="flex:1;height:38px;border:none;border-radius:8px;background:#dc3545;color:#fff;font-weight:800;cursor:pointer;">Delete Account</button>
+        </div>
+      `;
+
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+
+      const cancelButton = dialog.querySelector('#zmc-delete-cancel');
+      const confirmButton = dialog.querySelector('#zmc-delete-confirm');
+
+      const handleKeyDown = (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          finish(false);
+        }
+      };
+
+      const finish = (confirmed) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', handleKeyDown);
+        overlay.remove();
+        resolve(confirmed);
+      };
+
+      cancelButton.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        finish(false);
+      };
+      confirmButton.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        finish(true);
+      };
+      overlay.onclick = (event) => {
+        if (event.target === overlay) finish(false);
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+      cancelButton.focus();
+    });
+  }
+
   document.getElementById('recovery-delete').onclick = async () => {
+    const confirmed = await confirmAccountDeletion();
+    if (!confirmed) {
+      setStatusMessage(msg, 'Account deletion cancelled.', '#ffd166');
+      return;
+    }
+
     setStatusMessage(msg, 'Sending recovery request...', '#ffd166');
     const result = await sendRecoveryRequest('deleteAccount');
     if (result && result.success) {

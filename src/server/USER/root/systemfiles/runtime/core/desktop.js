@@ -419,7 +419,6 @@
     if (!target) return false;
 
     const filePath = getShortcutDeletePath(target);
-    await window.protectedGlobals.DeleteFile(filePath).catch(() => {});
 
     const targetIds = new Set(getShortcutIdentityIds(target));
     const remainingSelection = (getDesktopShortcutSelection() || []).filter((id) => !targetIds.has(id));
@@ -435,6 +434,7 @@
     if (existingNode) existingNode.remove();
 
     syncShortcutSelectionVisualState();
+    await window.protectedGlobals.DeleteFile(filePath).catch(() => {});
     return true;
   }
 

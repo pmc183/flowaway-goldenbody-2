@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
 const fsp = require("fs/promises");
-const { getUserUsage } = require("./storageQuota");
 const { withUserLock, writeFileWithQuota, createDirectoryWithQuota, deletePathWithQuota, copyPathWithQuota } = require("./quotaFs");
 const crypto = require("crypto");
 
@@ -58,7 +57,7 @@ function sendSafeError(res, err, fallbackStatus = 500) {
     message = "Invalid operation";
   } else if (err?.code === "QUOTA_EXCEEDED") {
     status = 413;
-    message = "Out of storage";
+    message = "Storage Exceeded";
   }
 
   console.error("Filesystem operation failed:", err);
@@ -231,14 +230,16 @@ async function getDirRealSizeBytes(root) {
     let entries;
 
     try {
-      entries = await limit(() => fsp.readdir(dir, { withFileTypes: true }));
+      entries = await limit(() =>
+        fsp.readdir(dir, { withFileTypes: true })
+      );
     } catch {
-      return 0;
+      return { real: 0, disk: MIN_ENTRY_SIZE_BYTES };
     }
 
     const sizes = await Promise.all(
       entries.map(async (entry) => {
-        const full = safeResolve(dir, entry.name);
+        const full = path.join(dir, entry.name);
 
         if (entry.isDirectory()) {
           return walk(full);
@@ -246,18 +247,28 @@ async function getDirRealSizeBytes(root) {
 
         if (entry.isFile()) {
           try {
-            const stat = await limit(() => fsp.lstat(full));
-            return stat.size;
+            const stat = await limit(() => fsp.stat(full));
+
+            return {
+              real: stat.size,
+              disk: getEntryDiskSizeBytes(stat.size),
+            };
           } catch {
-            return 0;
+            return { real: 0, disk: 0 };
           }
         }
 
-        return 0;
+        return { real: 0, disk: 0 };
       })
     );
 
-    return sizes.reduce((a, b) => a + b, 0);
+    return sizes.reduce(
+      (total, size) => ({
+        real: total.real + size.real,
+        disk: total.disk + size.disk,
+      }),
+      { real: 0, disk: MIN_ENTRY_SIZE_BYTES }
+    );
   }
 
   return walk(root);
@@ -439,9 +450,9 @@ async function handleRawFileUpload(req, res) {
   const rawBody = getRawBody(req);
 
   return withUserLock(username, async () => {
-    const { loadTreeRequired } = await writeFileWithQuota(username, userRoot, filePath, rawBody, replace);
+    await writeFileWithQuota(username, userRoot, filePath, rawBody, replace);
     res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ success: true, loadTreeRequired }));
+    return res.end(JSON.stringify({ success: true }));
   });
 }
 
@@ -651,9 +662,9 @@ async function handleFetchfiles(req, res) {
               if (type === "folder") {
                 const folderPath = safeResolve(fullPath, d.name);
                 if (data.directoryDetail) {
-                  const folderRealSize = await getDirRealSizeBytes(folderPath);
-                  result.size = folderRealSize;
-                  result.sizeOnDisk = getEntryDiskSizeBytes(folderRealSize);
+                  const folderSize = await getDirRealSizeBytes(folderPath);
+                  result.size = folderSize.real;
+                  result.sizeOnDisk = folderSize.disk;
                 }
               }
             } catch {}
@@ -1003,12 +1014,7 @@ async function handleFetchfiles(req, res) {
               try {
                 await copyPathWithQuota(username, userRoot, src, dest);
               } catch (err) {
-                if (err?.code === "QUOTA_EXCEEDED") {
-                  success = false;
-                  error = "Out of storage";
-                } else {
-                  throw err;
-                }
+                throw err; // Let the outer try/catch handle quota and other errors
               }
 
               continue;

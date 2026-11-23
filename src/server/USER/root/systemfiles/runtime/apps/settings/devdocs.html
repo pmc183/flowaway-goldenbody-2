@@ -1,0 +1,538 @@
+<div class="devdocs-shell">
+  <style>
+    .devdocs-shell { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 16px; color: inherit; font-family: inherit; }
+    .devdocs-shell input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+    .devdocs-nav { position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 3px; }
+    .devdocs-nav label { display: block; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--muted-color, inherit); }
+    .devdocs-nav label:hover { background: rgba(127,127,127,.12); }
+    .devdocs-main { min-width: 0; }
+    .devdocs-page { display: none; }
+    #dev-tab-build:checked ~ .devdocs-nav label[for="dev-tab-build"],
+    #dev-tab-entry:checked ~ .devdocs-nav label[for="dev-tab-entry"],
+    #dev-tab-iframes:checked ~ .devdocs-nav label[for="dev-tab-iframes"],
+    #dev-tab-admin:checked ~ .devdocs-nav label[for="dev-tab-admin"],
+    #dev-tab-files:checked ~ .devdocs-nav label[for="dev-tab-files"],
+    #dev-tab-windows:checked ~ .devdocs-nav label[for="dev-tab-windows"],
+    #dev-tab-workers:checked ~ .devdocs-nav label[for="dev-tab-workers"],
+    #dev-tab-package:checked ~ .devdocs-nav label[for="dev-tab-package"],
+    #dev-tab-permissions:checked ~ .devdocs-nav label[for="dev-tab-permissions"],
+    #dev-tab-troubleshooting:checked ~ .devdocs-nav label[for="dev-tab-troubleshooting"] {
+      color: var(--text-color, inherit); background: rgba(127,127,127,.18); font-weight: 600;
+    }
+    #dev-tab-build:checked ~ .devdocs-main #dev-page-build,
+    #dev-tab-entry:checked ~ .devdocs-main #dev-page-entry,
+    #dev-tab-iframes:checked ~ .devdocs-main #dev-page-iframes,
+    #dev-tab-admin:checked ~ .devdocs-main #dev-page-admin,
+    #dev-tab-files:checked ~ .devdocs-main #dev-page-files,
+    #dev-tab-windows:checked ~ .devdocs-main #dev-page-windows,
+    #dev-tab-workers:checked ~ .devdocs-main #dev-page-workers,
+    #dev-tab-package:checked ~ .devdocs-main #dev-page-package,
+    #dev-tab-permissions:checked ~ .devdocs-main #dev-page-permissions,
+    #dev-tab-troubleshooting:checked ~ .devdocs-main #dev-page-troubleshooting { display: block; }
+    .devdocs-page h2 { margin: 0 0 10px; }
+    .devdocs-page h3 { margin: 20px 0 8px; }
+    .devdocs-page h4 { margin: 14px 0 6px; }
+    .devdocs-page p, .devdocs-page li { line-height: 1.55; }
+    .devdocs-page ul, .devdocs-page ol { padding-left: 20px; }
+    .devdocs-page code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size: 0.92em; background: rgba(127,127,127,.14); border-radius: 3px; padding: 1px 4px; }
+    .devdocs-page pre { margin: 8px 0 12px; padding: 10px; overflow: auto; border: 1px solid rgba(127,127,127,.28); border-radius: 6px; background: rgba(127,127,127,.09); white-space: pre-wrap; }
+    .devdocs-page pre code { padding: 0; background: transparent; }
+    .devdocs-callout, .devdocs-step { border-left: 3px solid rgba(127,127,127,.55); padding: 8px 10px; margin: 10px 0; background: rgba(127,127,127,.08); }
+    .devdocs-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+    .devdocs-card { border: 1px solid rgba(127,127,127,.28); border-radius: 7px; padding: 10px; }
+    .devdocs-card h4 { margin-top: 0; }
+    @media (max-width: 680px) { .devdocs-shell { grid-template-columns: 1fr; } .devdocs-nav { position: static; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); } .devdocs-grid { grid-template-columns: 1fr; } }
+  </style>
+
+  <input id="dev-tab-build" type="radio" name="devdocs-tab" checked>
+  <input id="dev-tab-entry" type="radio" name="devdocs-tab">
+  <input id="dev-tab-iframes" type="radio" name="devdocs-tab">
+  <input id="dev-tab-admin" type="radio" name="devdocs-tab">
+  <input id="dev-tab-files" type="radio" name="devdocs-tab">
+  <input id="dev-tab-windows" type="radio" name="devdocs-tab">
+  <input id="dev-tab-workers" type="radio" name="devdocs-tab">
+  <input id="dev-tab-package" type="radio" name="devdocs-tab">
+  <input id="dev-tab-permissions" type="radio" name="devdocs-tab">
+  <input id="dev-tab-troubleshooting" type="radio" name="devdocs-tab">
+
+  <nav class="devdocs-nav" aria-label="App developer documentation">
+    <label for="dev-tab-build">Build an app</label>
+    <label for="dev-tab-entry">entry.json</label>
+    <label for="dev-tab-iframes">Normal apps</label>
+    <label for="dev-tab-admin">Admin apps</label>
+    <label for="dev-tab-files">Files & handles</label>
+    <label for="dev-tab-windows">Windows & messages</label>
+    <label for="dev-tab-workers">Workers & commands</label>
+    <label for="dev-tab-package">Packaging & install</label>
+    <label for="dev-tab-permissions">Permissions</label>
+    <label for="dev-tab-troubleshooting">Troubleshooting</label>
+  </nav>
+
+  <main class="devdocs-main">
+    <section class="devdocs-page" id="dev-page-build">
+      <h2>App Developer Guide</h2>
+      <p>This guide assumes the runtime already creates the app folder and installs the files for you. During development, use the existing apps under <code>/systemfiles/runtime/apps</code> as working examples.</p>
+
+      <h3>Start with a small app</h3>
+      <div class="devdocs-grid">
+        <div class="devdocs-card"><h4>1. Choose the app model</h4><p><strong>Normal app</strong> is the safest default. <strong>Admin app</strong> has direct runtime access and requires matching API keys. <strong>Headless</strong> hides an app from the start menu, taskbar, and Alt+Tab menu.</p></div>
+        <div class="devdocs-card"><h4>2. Create the package files</h4><p>Put <code>entry.json</code>, one executable entry file, and every icon/script/asset the app needs in one source folder.</p></div>
+        <div class="devdocs-card"><h4>3. Define behavior</h4><p>Use <code>window.__goldenbodyAPI</code> for a normal app, <code>window.protectedGlobals</code> for a verified admin app, or <code>self.api</code> for a terminal worker.</p></div>
+        <div class="devdocs-card"><h4>4. Package and install</h4><p>Make a ZIP with your app folder, open App Installer, and install the ZIP.</p></div>
+      </div>
+
+      <h3>Recommended first package</h3>
+<pre><code>hello-app.zip
+└── hello-app/
+    ├── entry.json
+    ├── script.js
+    └── icon.txt</code></pre>
+<p>The ZIP must contain exactly one top-level app folder. All app files, including entry.json, must be inside that folder.</p>
+
+      <h3>Minimal normal-app entry</h3>
+<pre><code>{
+  "id": "helloApp",
+  "label": "Hello App",
+  "jsFile": "script.js",
+  "iconFile": "icon.txt",
+  "pngEnabled": false,
+  "requestAdminPerm": false,
+  "openfileCapability": [],
+  "headless": false
+}</code></pre>
+
+      <h3>Minimal normal-app script</h3>
+<pre><code>
+document.body.innerHTML = `&lt;main style="padding: 16px"&gt;
+  &lt;h2&gt;Hello App&lt;/h2&gt;
+  &lt;p&gt;Your app is running.&lt;/p&gt;
+&lt;/main&gt;`;</code></pre>
+
+      <h3>Before shipping</h3>
+      <ul>
+        <li>Keep all package paths relative to <code>entry.json</code>.</li>
+        <li>Use a unique, stable <code>id</code>. The id becomes the package folder name after sanitization.</li>
+        <li>Test with <code>requestAdminPerm: false</code> first.</li>
+        <li>Include an icon for apps that appear in the interface.</li>
+      </ul>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-entry">
+      <h2>entry.json</h2>
+      <p><code>entry.json</code> is the package and launch manifest. It must be located at /yourapp/entry.json.</p>
+
+      <h3>Common fields</h3>
+      <ul>
+        <li><code>id</code> — (Required) unique package/app identifier.</li>
+        <li><code>jsFile</code> — (Required) executable file path relative to the app folder.</li>
+        <li><code>label</code> — (Potentially required) display name; required unless <code>headless</code> is true.</li>
+        <li><code>iconFile</code> — (Potentially required) icon path relative to the app folder; required unless <code>headless</code> is true.</li>
+        <li><code>pngEnabled</code> — (Potentially required) render <code>iconFile</code> as a PNG. The icon can instead be text if this is set to false.</li>
+        <li><code>requestAdminPerm</code> — (Required) true for direct runtime access, false for a normal app. The js API key must be inside this app folder otherwise the app will not be able to be parsed.</li>
+        <li><code>openfileCapability</code> — (Optional) extensions or patterns that File Explorer uses for “Open with,” for example <code>[".txt", ".md"]</code>; <code>"*"</code> means all files.</li>
+        <li><code>enableDebugging</code> — (Optional) enables devtools inside the app, useful when your device does not support native devtools.</li>
+        <li><code>headless</code> — (Optional) hide the app from the start menu, taskbar, and Alt+Tab menu. It does not remove the app window, instead you need to put { minimize: true } in the startupPos if you want to hide the window. (see below)</li>
+        <li><code>startupPos</code> — (Optional) initial window position and size; supports <code>x</code>, <code>y</code>, <code>width</code>, <code>height</code>, <code>maximize</code>, and <code>minimize</code>.</li>
+        <li><code>hiddenDragstrip</code> — (Optional) hide the iframe drag/resize strip.</li>
+        <li><code>hiddenTitlebar</code> — (Optional) hide the iframe titlebar.</li>
+        <li><code>createShortcutUponInstallation</code> — (Optional) create a desktop shortcut after installation.</li>
+      </ul>
+
+      <h3>Complete normal-app entry</h3>
+<pre><code>{
+  "id": "notesApp",
+  "label": "Notes",
+  "jsFile": "script.js",
+  "iconFile": "icon.txt",
+  "pngEnabled": false,
+  "requestAdminPerm": false,
+  "openfileCapability": [".txt", ".md"],
+  "enableDebugging": true,
+  "hiddenTitlebar": false,
+  "hiddenDragstrip": false,
+  "createShortcutUponInstallation": true,
+  "startupPos": { "x": 120, "y": 80, "width": 760, "height": 500 },
+  "headless": false
+}</code></pre>
+
+      <h3>Admin-only fields</h3>
+      <ul>
+        <li><code>functionName</code> — global launcher function name.</li>
+        <li><code>globalVarObjectString</code> — global object holding app state.</li>
+        <li><code>allAppArrayString</code> — property on that object tracking app instances.</li>
+        <li><code>cmf</code> and <code>cmfl1</code> — app context-menu hooks.</li>
+      </ul>
+
+      <h3>Command fields</h3>
+      <p>Use <code>cmd</code> or <code>commands</code>; commands take precedence if both exist. Command names are normalized to lowercase letters only: the runtime lowercases names and removes spaces, numbers, and symbols, then drops names that become empty.</p>
+<pre><code>"cmd": [
+  { "name": "backup", "src": "workers/backup.js", "receive_onkill_handler": true },
+  { "name": "cleanCache", "src": "workers/clean.js" }
+]</code></pre>
+<p>For example, <code>cleanCache</code> becomes <code>cleancache</code>, and <code>Backup 2!</code> becomes <code>backup</code>.</p>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-iframes">
+      <h2>Normal apps</h2>
+      <p>Set <code>requestAdminPerm</code> to false for normal apps.</p>
+
+      <h3>Launch arguments</h3>
+      <p>The runtime places launch arguments in <code>window.__args</code>. Use values that belong to the app, such as an object or a display mode.</p>
+<pre><code>// launch another app with structured arguments
+await window.__goldenbodyAPI.launchApp('notesApp', [
+  { view: 'recent', id: 42 }
+]);
+
+// inside notesApp
+const args = window.__args;
+const view = args[0].view;</code></pre>
+
+      <h3>Opening a file immediately</h3>
+      <p>When launched from File Explorer, the runtime provides <code>window.userPickedFileHandle</code>.</p>
+<pre><code>
+  // the handle is created even when no file is picked so check its path property
+  if (window.userPickedFileHandle.path) {
+  const result = await window.__goldenbodyAPI.readFile(
+    window.userPickedFileHandle,
+    { text: true }
+  );
+  const text = result.fileContent;
+}</code></pre>
+
+      <h3>File access</h3>
+      <div class="devdocs-callout">An app can access files inside its app folder and shared files under <code>/downloads</code>. For files or folders elsewhere, use a picker and keep the returned handle and key.</div>
+      <h3>Notifications</h3>
+      <p>Notifications can be invoked by alert() only when the app has notification permission.</p>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-admin">
+      <h2>Admin apps</h2>
+      <p>An app is only loaded with direct privileges when <code>requestAdminPerm: true</code> is paired with matching API keys from <code>&lt;app-folder&gt;/jsKey.txt</code> and <code>/systemfiles/userprofile/jsApiKey.txt</code>. Packages automatically receive the js api key during installation. Though the user will see a warning.</p>
+
+      <h3>Required entry fields</h3>
+<pre><code>{
+  "id": "myAdminApp",
+  "label": "My Admin App",
+  "jsFile": "app.js",
+  "iconFile": "icon.png",
+  "pngEnabled": true,
+  "requestAdminPerm": true,
+  "functionName": "myAdminAppLauncher",
+  "globalVarObjectString": "myAdminAppGlobals",
+  "allAppArrayString": "instances",
+  "cmf": "",
+  "cmfl1": "",
+  "headless": false
+}</code></pre>
+
+      <h3>Launcher and instance tracking</h3>
+<pre><code>window.myAdminAppGlobals = { instances: [] };
+
+window.myAdminAppLauncher = function (posX = 50, posY = 50) {
+  const appId = "myAdminApp";
+  const pos = posX === 50 && posY === 50
+    ? window.protectedGlobals.getNextWindowXY()
+    : { x: posX, y: posY };
+
+  const instance = window.protectedGlobals.apptools.api.createAppInstance({
+    appId,
+    posX: pos.x,
+    posY: pos.y,
+    width: 800,
+    height: 520
+  });
+
+  window.protectedGlobals.apptools.api.trackInstance(instance, appId);
+
+  const root = instance.rootElement;
+  root.textContent = "Trusted app content";
+};</code></pre>
+      <p><code>createAppInstance</code> creates the runtime window shell. <code>trackInstance</code> registers minimize, maximize, show, hide, close, and instance behavior.</p>
+      <div class="devdocs-callout">Admin mode is for trusted system and developer apps that need direct runtime access. Normal apps should use the runtime API.</div>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-files">
+      <h2>File system API</h2>
+      <p>Normal apps call <code>window.__goldenbodyAPI</code> for file system operations. Also note that fs API can also return server errors.</p>
+
+      <h3>Complete normal-app FS API</h3>
+      <ul>
+        <li><code>readFile(pathOrHandle, options)</code> — read text, ArrayBuffer, stream, or direct content.</li>
+        <li><code>writeFile(pathOrHandle, content, options)</code> — replace or append file content.</li>
+        <li><code>readFolder(pathOrHandle, options)</code> — list a directory.</li>
+        <li><code>writeFolder(pathOrHandle, options)</code> — create a directory.</li>
+        <li><code>fileExists(pathOrHandle, options)</code> / <code>folderExists(pathOrHandle, options)</code> — test whether a file or folder exists.</li>
+        <li><code>deleteFile(pathOrHandle, options)</code> / <code>deleteFolder(pathOrHandle, options)</code> — delete or permanently delete a target.</li>
+        <li><code>renameFile(pathOrHandle, newName, options)</code> / <code>renameFolder(pathOrHandle, newName, options)</code> — rename a target.</li>
+        <li><code>pasteFile(destinationOrHandle, clipboard, options)</code> / <code>pasteFolder(destinationOrHandle, clipboard, options)</code> — copy or move clipboard entries.</li>
+        <li><code>watchFile(pathOrHandle, callback, options)</code> / <code>watchFolder(pathOrHandle, callback, options)</code> — observe file or folder changes.</li>
+        <li><code>closeWatch(watchId)</code> / <code>clearAllWatchers()</code> — close one or all normal-app watchers.</li>
+        <li><code>showOpenFilePicker(options)</code> — select an existing file and return an <code>FShandle</code>.</li>
+        <li><code>showSaveFilePicker(options)</code> — choose a save destination and return an <code>FShandle</code>.</li>
+        <li><code>showDirectoryPicker(options)</code> — select a directory and return an <code>FShandle</code>.</li>
+      </ul>
+
+      <h3>Reads and writes</h3>
+<pre><code>const result = await window.__goldenbodyAPI.readFile('/demo/notes.txt', {
+  text: true
+});
+
+await window.__goldenbodyAPI.writeFile('/demo/notes.txt',
+  'updated text',
+  { replace: true, text: true }
+);
+
+const entries = await window.__goldenbodyAPI.readFolder('/demo', {
+  detail: true
+});</code></pre>
+
+      <h3>Read options</h3>
+      <ul><li><code>{ text: true }</code> — String.</li><li><code>{ buffer: true }</code> — ArrayBuffer.</li><li><code>{ stream: true }</code> — ReadableStream.</li><li><code>{ direct: true }</code> — raw response value.</li></ul>
+
+      <h3>Write options</h3>
+      <ul><li><code>{ replace: true }</code> — replace the file; this is the default.</li><li><code>{ replace: false }</code> — append content.</li><li><code>{ stream: true }</code> — upload a supplied ReadableStream or Blob.</li><li><code>{ retrytimeout: ms }</code> — chunk retry timeout.</li></ul>
+
+      <h3>Handles</h3>
+      <p>A picker handle is the permission record for a user-selected file or folder. Normal-app FS methods accept either a path or a handle. Keep a handle for later operations. It contains <code>path</code>, <code>key</code>, <code>kind</code>, and <code>name</code>.</p>
+<pre><code>const handle = await window.__goldenbodyAPI.showOpenFilePicker();
+const result = await window.__goldenbodyAPI.readFile(handle, { text: true });
+await window.__goldenbodyAPI.writeFile(handle, result.fileContent + '\nadded', {
+  replace: true,
+  text: true
+});</code></pre>
+
+      <h3>Directory picker</h3>
+<pre><code>const folder = await window.__goldenbodyAPI.showDirectoryPicker();
+const child = {
+  path: folder.path + '/notes.txt',
+  key: folder.key
+};
+await window.__goldenbodyAPI.writeFile(child, 'hello', { text: true });</code></pre>
+      <p>The folder handle itself is not a directory context. Append a child name to <code>folder.path</code> and reuse <code>folder.key</code> for each child operation.</p>
+
+      <h3>Save picker</h3>
+<pre><code>const destination = await window.__goldenbodyAPI.showSaveFilePicker({
+  suggestedName: 'notes.txt'
+});
+await window.__goldenbodyAPI.writeFile(destination, 'Saved text', {
+  replace: true,
+  text: true
+});</code></pre>
+
+      <h3>Other operations</h3>
+<pre><code>await window.__goldenbodyAPI.writeFolder('/demo/new-folder');
+await window.__goldenbodyAPI.renameFile('/demo/a.txt', 'b.txt');
+await window.__goldenbodyAPI.renameFolder('/demo/new-folder', 'archive');
+await window.__goldenbodyAPI.deleteFile('/demo/b.txt', { permanent: true });
+await window.__goldenbodyAPI.deleteFolder('/demo/archive', { permanent: true });
+await window.__goldenbodyAPI.pasteFile('/dest', { path: '/source/a.txt' });
+await window.__goldenbodyAPI.pasteFolder('/dest', { path: '/source/folder' }, { move: true });</code></pre>
+
+      <h3>/downloads</h3>
+      <p><code>/downloads</code> is the shared application area. Normal apps can use paths beneath it for shared assets and inter-app data, not secrets.</p>
+
+      <h3>Watchers</h3>
+<pre><code>const watch = await window.__goldenbodyAPI.watchFile('./notes.txt', (event) => {
+  if (!event || event.closed) return;
+  console.log(event.changeType, event.path);
+});
+watch.close();
+
+const folderWatch = await window.__goldenbodyAPI.watchFolder('/demo', (event) => {
+  if (!event || event.closed) return;
+  console.log(event.changeType, event.path);
+});
+folderWatch.close();</code></pre>
+      <p>A watch can close for auth, rate-limit, network, or server reasons. Store and release stale watchers; do not assume automatic reconnection.</p>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-windows">
+      <h2>Windows and messages</h2>
+
+      <h3>Window controls</h3>
+<pre><code>const bounds = await window.__goldenbodyAPI.getBounds();
+window.__goldenbodyAPI.setBounds({ x: 120, y: 80, width: 900, height: 620 });
+window.__goldenbodyAPI.setBounds({ maximize: true });
+window.__goldenbodyAPI.setBounds({ minimize: true });
+window.__goldenbodyAPI.setInstanceTitle('Document Editor');
+window.__goldenbodyAPI.setTitlebarVisibility(false);
+window.__goldenbodyAPI.setDragstripVisibility(true);
+await window.__goldenbodyAPI.closeWindow(false); // false asks normally if askuserbeforeclose is true, see examples below</code></pre>
+
+      <h3>Close confirmation</h3>
+<pre><code>await window.__goldenbodyAPI.setAskUserBeforeClose(true);
+await window.__goldenbodyAPI.closeWindow(true); // force close</code></pre>
+
+      <h3>Inter-instance messages</h3>
+<pre><code>
+// observer can use to observe theme changes and messages from other instances
+const observer = window.__goldenbodyAPI.Observer((event) => {
+  console.log(event.message);
+}, 'message');
+
+// this can normally be used to sync theme with default system theme
+const themeObserver = window.__goldenbodyAPI.Observer((event) => {
+  console.log(event.darkTheme); // true or false
+}, 'theme');
+
+await window.__goldenbodyAPI.message({ type: 'refresh' }, '*');
+await window.__goldenbodyAPI.message({ type: 'save' }, 2);
+
+// calling disconnect() stops the observer from receiving messages
+observer.disconnect();
+themeObserver.disconnect();
+</code></pre>
+      <p><code>toInstance</code> is an integer instance index, or <code>*</code> for broadcast. Use <code>getCurInstanceNum()</code>, and <code>getLiveInstanceIndex()</code> to identify instances.</p>
+
+      <h3>Theme</h3>
+<pre><code>const theme = await window.__goldenbodyAPI.getTheme(); // dark or light
+window.__goldenbodyAPI.setTheme('auto');
+window.__goldenbodyAPI.setTheme('dark');
+window.__goldenbodyAPI.setTheme('light');
+</code></pre>
+
+      <h3>Launch another app</h3>
+<pre><code>
+const apps = await window.__goldenbodyAPI.getAvailableAppsToLaunch();
+await window.__goldenbodyAPI.launchApp('notesApp', [{ view: 'edit' }]);
+</code></pre>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-workers">
+      <h2>Workers and terminal commands</h2>
+
+      <h3>Terminal commands</h3>
+<pre><code>"cmd": [
+  { "name": "workerTest", "src": "workerTest.js", "receive_onkill_handler": true },
+  { "name": "doThing", "src": "doThing.js" }
+]</code></pre>
+      <p>Command names are normalized to lowercase <code>[a-z]</code>: spaces, numbers, and symbols are removed and uppercase letters are lowercased. For example, <code>Worker-Test 2</code> becomes <code>workertest</code>. Names that contain no lowercase letters after normalization are skipped.</p>
+      <p><code>receive_onkill_handler</code> enables graceful worker termination. When set to <code>true</code>, the runtime sends an <code>onkill</code> message before terminating the worker. The worker can handle it by defining <code>self.onkill = function (event) { ... }</code>; <code>event.graceMs</code> is 3000 (3 seconds).</p>
+      <p>The first kill request starts the 3-second grace period and sends <code>onkill</code>. Further kill requests show the remaining countdown and the third repeated kill request force-terminates the worker immediately. The runtime otherwise terminates it automatically after the grace period if it is still running.</p>
+
+      <h3>Worker API</h3>
+      <p>Terminal-worker FS methods accept path strings. Relative paths resolve from the worker's app folder. Except for <code>/systemfiles</code>, which they can only check existence or list entries, terminal workers can access files and folders throughout the virtual filesystem. Reads and mutations under <code>/systemfiles</code> are blocked; only directory listing and existence checks are available there.</p>
+      <ul>
+        <li><code>api.cwd()</code> — returns the terminal worker's current working directory.</li>
+        <li><code>api.readFile(path, options)</code> — reads text, buffer, stream, or direct content from a path.</li>
+        <li><code>api.writeFile(path, content, options)</code> — writes file content.</li>
+        <li><code>api.readFolder(path, options)</code> — lists a directory.</li>
+        <li><code>api.writeFolder(path)</code> — creates a directory.</li>
+        <li><code>api.fileExists(path)</code> — reports whether a file exists.</li>
+        <li><code>api.folderExists(path)</code> — reports whether a folder exists.</li>
+        <li><code>api.deleteFile(path, options)</code> — deletes a file; options can request permanent deletion.</li>
+        <li><code>api.deleteFolder(path, options)</code> — deletes a folder; options can request permanent deletion.</li>
+        <li><code>api.renameFile(path, newName)</code> — renames a file.</li>
+        <li><code>api.renameFolder(path, newName)</code> — renames a folder.</li>
+        <li><code>api.pasteFile(destination, clipboard)</code> — copies a file entry at the destination.</li>
+        <li><code>api.pasteFolder(destination, clipboard)</code> — copies a folder entry at the destination.</li>
+        <li><code>api.launchApp(appId, args)</code> — launches another app with an arguments array.</li>
+        <li><code>api.watchFile(path, callback, options)</code> — creates a file watcher and invokes the callback for watch events.</li>
+        <li><code>api.watchFolder(path, callback, options)</code> — creates a folder watcher and invokes the callback for watch events.</li>
+        <li><code>api.closeWatch(watchId)</code> — closes one watcher; it may also close through the watch object's <code>close()</code> method.</li>
+        <li><code>api.clearAllWatchers()</code> — closes every watcher owned by the terminal worker.</li>
+        <li><code>api.setAskUserBeforeClose(value)</code> — enables or disables confirmation before the terminal instance closes.</li>
+        <li><code>api.writeline(text, font, color, size)</code> — creates a live terminal output line. Its returned handle supports <code>update()</code> and <code>rewriteLine()</code>.</li>
+        <li><code>api.prompt(message, options)</code> — opens an interactive terminal prompt and resolves to the entered text.</li>
+        <li><code>api.getStartArgs()</code> — returns the worker's launch arguments object. <code>self.args</code> provides the same parsed arguments.</li>
+      </ul>
+
+      <h3>Prompt and live output</h3>
+<pre><code>const text = await api.prompt('Edit file contents', {
+  prefill: existingText,
+  multiline: true
+});
+
+const status = await api.writeline('Working...', 'ui-monospace', '#3ddc97', 14);
+status.update('Working... 50%');
+status.rewriteLine('Finished', 'ui-monospace', '#3ddc97', 16);</code></pre>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-package">
+      <h2>Packaging and installation</h2>
+
+<h3>Required ZIP layout</h3>
+<pre><code>helloApp.zip
+└── helloApp/
+    ├── entry.json
+    ├── script.js
+    ├── icon.txt
+    ├── styles.css
+    └── assets/
+        └── logo.png</code></pre>
+
+<p>The ZIP must contain exactly one top-level folder. That folder must contain entry.json and all app files. A ZIP with entry.json directly at its root will not install.</p>
+
+<p>The installer expects the app files to be contained inside a single top-level folder. It locates entry.json inside that folder and installs the package contents into the app directory named from the entry id.</p>
+      <h3>How installation works</h3>
+      <ol>
+        <li>The installer validates JSON and requires a non-empty <code>id</code>.</li>
+        <li>The package becomes <code>/systemfiles/runtime/apps/&lt;sanitized-id&gt;</code>.</li>
+        <li>The installer creates folders and writes every archive file beneath that app folder.</li>
+        <li>If <code>requestAdminPerm</code> is true, it writes <code>jsKey.txt</code>.</li>
+        <li>The runtime validates the entry and loads the app.</li>
+      </ol>
+
+      <h3>Path rules</h3>
+      <ul>
+        <li>Use forward-slash relative paths in <code>entry.json</code>.</li>
+        <li><code>jsFile</code>, <code>iconFile</code>, and command <code>src</code> are relative to the installed app folder.</li>
+        <li>Do not package absolute <code>/systemfiles/runtime/apps</code> paths inside source assets.</li>
+      </ul>
+
+      <h3>Installing and updating</h3>
+      <p>Open App Installer and provide the ZIP path or launch it with <code>["/downloads/yourpackage.zip"]</code>. Launching a package with an existing app id performs an update where the runtime already recognizes that app.</p>
+<pre><code>await window.__goldenbodyAPI.launchApp('App Installer', [
+  '/downloads/helloApp.zip'
+]);</code></pre>
+
+      <h3>Archive checklist</h3>
+      <ul>
+        <li>One valid <code>entry.json</code> in the package.</li>
+        <li>Every manifest path exists.</li>
+        <li>Admin packages include or receive a matching key before being trusted.</li>
+      </ul>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-permissions">
+      <h2>Permissions and app settings</h2>
+      <p>Settings app permissions cover storage, notifications, and launching other apps:</p>
+      <ul>
+        <li><code>storage</code> — allow, deny, or ask before writes outside user-picked handles; reads do not require write permission.</li>
+        <li><code>notification</code> — allow, deny, or ask before notification access.</li>
+        <li><code>launchApp</code> — allow, deny, or ask before launching another app.</li>
+      </ul>
+
+      <h3>Read versus write</h3>
+      <p>For user-picked content, use the returned handle and key for every read or write operation. Reads generally do not require the storage write permission, including reads from app-owned and shared locations. Normal apps require storage permission for write, delete, rename, folder creation, and paste operations when targeting paths outside user-picked handles; terminal workers can perform file operations without an app storage prompt.</p>
+
+      <h3>Picker capability</h3>
+      <p>When the user grants a file or folder through a picker, pass the returned handle and keep its key for later read or write operations.</p>
+      <div class="devdocs-callout">Every operation on user-picked content uses the handle. Keep the handle and its key; do not replace it with a plain path.</div>
+
+      <h3>Open with capability</h3>
+      <p>The manifest's <code>openfileCapability</code> controls which file types File Explorer offers to the app. Examples:</p>
+<pre><code>"openfileCapability": [".txt", ".md"]
+"openfileCapability": ["*"]</code></pre>
+
+      <h3>Admin trust</h3>
+      <p>Verified admin apps are trusted developer apps with direct runtime access. Only include admin access when the app truly needs direct runtime control.</p>
+    </section>
+
+    <section class="devdocs-page" id="dev-page-troubleshooting">
+      <h2>Troubleshooting</h2>
+
+      <h3>The app is missing from the start menu</h3>
+      <ul><li>Check that <code>id</code>, <code>jsFile</code>, and <code>label</code> exist and that JSON is valid.</li><li>If <code>headless</code> is true, an absent start-menu entry is expected.</li><li>Confirm <code>iconFile</code> exists for apps that appear in the interface.</li></ul>
+
+      <h3>Package installer says entry.json is missing</h3>
+      <ul><li>Place <code>entry.json</code> inside the ZIP, not beside a folder on the local desktop.</li><li>Confirm the file is named exactly <code>entry.json</code>, name matching is case-sensitive.</li></ul>
+
+      <h3>The admin app does not launch</h3>
+      <ul><li>Verify <code>jsKey.txt</code> exists in the app folder.</li><li>Verify it matches <code>/systemfiles/userprofile/jsApiKey.txt</code>.</li><li>Check <code>functionName</code>, <code>globalVarObjectString</code>, and <code>allAppArrayString</code>.</li><li>Ensure none of the identifiers collide with existing app identifiers.</li></ul>
+
+      <h3>A write fails</h3>
+      <ul><li>Use a path inside the app folder or under <code>/downloads</code>.</li><li>Check file and folder permissions.</li><li>For a picker handle, ensure the key is not lost between operations.</li></ul>
+    </section>
+  </main>
+</div>

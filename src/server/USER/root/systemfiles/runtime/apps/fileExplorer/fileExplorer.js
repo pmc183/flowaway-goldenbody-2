@@ -6,8 +6,24 @@ window.explorerGlobals.allExplorers = [];
 window.explorerGlobals.goldenbodyId = 0;
 // clipboard is an array of entries: { node, path, name, isFolder }
 window.explorerGlobals.clipboard = [];
+window.explorerGlobals.clipboardMode = "copy";
 
 window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
+  // Centralized function to retrieve an entry path
+  function getEntryPath(item) {
+    const metadataPath = String(item?.path || "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+|\/+$/g, "");
+    if (metadataPath) return metadataPath;
+
+    const name = String(item?.name || item?.filename || "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+|\/+$/g, "")
+      .split("/")
+      .filter(Boolean)
+      .pop() || "";
+    return name;
+  }
   let initalized = false;
   let needRefresh = false;
   if (posX == 50 && posY == 50) {
@@ -428,14 +444,13 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
   });
   window.protectedGlobals.applyStyles();
   let selectedItem = null; // single right-click selection
-  let selectedItems = []; // array for multi-select / drag & drop
-  let dragItems = []; // temporary array for drag operation
+  let selectedItems = []; // array for multi-select
   let directions = [];
 
   // --- CONFIG ---
   const username = window.protectedGlobals.data.username;
   let currentPath = ["/"];
-  let treeData = window.protectedGlobals.treeData;
+  let treeData = null; // Used only for the explicit full-filesystem global search.
   // UI state: sort and display modes
   let profile = {};
   try {
@@ -471,7 +486,6 @@ window.fileExplorer = async function (path = '/', posX = 50, posY = 50) {
   let refreshBtn = null;
   let uploadBtn = null;
   let homeBtn = null;
-  let saveBtn = null;
   let trashBtn = null;
   let emptyTrashBtn = null;
   let createFolderBtn = null;
@@ -509,8 +523,6 @@ const ICONS = {
   upload: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"> <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /> </svg>`,
 
   home: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"> <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /> </svg>`,
-
-  save: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <!-- Cloud --> <path d="M18 18a4 4 0 0 0 .3-8A6 6 0 0 0 6.7 8.2 4.5 4.5 0 0 0 7 18h11z"/> <!-- Download arrow --> <path d="M12 9v6"/> <path d="M9.5 12.5 12 15l2.5-2.5"/> </svg>`,
 
   trash: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"> <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /> </svg>`,
 
@@ -605,13 +617,6 @@ function makeIcon(type, size = 16) {
   homeBtn.appendChild(document.createTextNode('Home'));
   styleSidebarButton(homeBtn);
   sidebar.appendChild(homeBtn);
-
-  saveBtn = document.createElement("button");
-  saveBtn.innerHTML = '';
-  saveBtn.appendChild(makeIcon('save',16));
-  saveBtn.appendChild(document.createTextNode('Save'));
-  styleSidebarButton(saveBtn);
-  sidebar.appendChild(saveBtn);
 
   trashBtn = document.createElement("button");
   trashBtn.innerHTML = '';
@@ -742,18 +747,18 @@ function makeIcon(type, size = 16) {
 
   function setUploadError(title, status, sessionId = uploadState.sessionId) {
     const session = uploadState.activeSessions.get(sessionId);
-    if (!session) return;
-    session.title = title || "Upload failed";
-    session.status = status || "";
-    session.error = true;
-    session.doneBytes = Math.max(session.doneBytes, session.totalBytes);
-    renderUploadProgress();
+    if (session) {
+      session.title = title || "Upload failed";
+      session.status = status || "";
+      session.error = true;
+      session.doneBytes = Math.max(session.doneBytes, session.totalBytes);
+    }
     if (uploadState.hideTimer) clearTimeout(uploadState.hideTimer);
-    uploadState.hideTimer = setTimeout(() => {
-      if (uploadState.activeSessions.size > 0) return;
-      uploadState.visible = false;
-      renderUploadProgress();
-    }, 1000);
+    uploadState.activeSessions.delete(sessionId);
+    uploadProgress.style.display = "none";
+    uploadState.visible = false;
+    uploadState.error = false;
+    renderUploadProgress();
   }
 
   function hideUploadProgress(delay = 700, sessionId = uploadState.sessionId) {
@@ -816,7 +821,7 @@ function makeIcon(type, size = 16) {
       contextMenu.style.color = isDark ? "#e6eef8" : "#111";
       contextMenu.style.boxShadow = isDark ? "0 8px 30px rgba(0,0,0,0.6)" : "0 8px 20px rgba(0,0,0,0.08)";
     }
-    [refreshBtn, uploadBtn, homeBtn, saveBtn, trashBtn, emptyTrashBtn, createFolderBtn, createFileBtn].forEach(styleSidebarButton);
+    [refreshBtn, uploadBtn, homeBtn, trashBtn, emptyTrashBtn, createFolderBtn, createFileBtn].forEach(styleSidebarButton);
     // Apply theme to search inputs if they exist
     if (currentDirSearchInput) {
       currentDirSearchInput.style.border = isDark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(0,0,0,0.08)";
@@ -1063,12 +1068,9 @@ function makeIcon(type, size = 16) {
       const query = currentDirSearchInput.value;
       if (!query) return;
       
-      const node = findNode(treeData, currentPath);
-      if (!node || !node[1]) return;
-      
-      const items = node[1];
+      const items = currentEntries;
       const queryLower = query.toLowerCase();
-      const matching = items.filter(item => item[0].toLowerCase().includes(queryLower));
+      const matching = items.filter(item => getEntryName(item).toLowerCase().includes(queryLower));
       
       selectedItems = matching;
       lastSelectedIndex = matching.length - 1;
@@ -1082,14 +1084,24 @@ function makeIcon(type, size = 16) {
   globalSearchInput.addEventListener("input", (e) => {
     clearTimeout(globalSearchTimeout);
     const query = e.target.value;
-    
+
     if (!query) {
       autocompleteHints.style.display = "none";
       autocompleteHints.innerHTML = "";
       return;
     }
 
-    globalSearchTimeout = setTimeout(() => {
+    globalSearchTimeout = setTimeout(async () => {
+      try {
+        const data = await window.protectedGlobals.filePost({ initFE: true });
+        if (!data || !data.tree) return;
+        treeData = data.tree;
+        window.protectedGlobals.annotateTreeWithPaths(treeData);
+      } catch (err) {
+        console.warn("File Explorer global search tree load failed", err);
+        return;
+      }
+
       const results = searchTreeForNodes(query);
       const sortedResults = sortByRelevance(results, query);
       
@@ -1132,52 +1144,54 @@ function makeIcon(type, size = 16) {
           hint.style.background = "transparent";
         });
         
-        hint.addEventListener("click", () => {
-          // Navigate to the item
+        hint.addEventListener("click", async () => {
+          // Navigate to the item via the modern directory API.
           if (result.isFolder) {
-            // Go to the parent of the folder and select it
-            currentPath = result.fullPath.slice(0, -1);
+            currentPath = result.fullPath.slice();
           } else {
-            // Go to the file's parent and select it
             currentPath = result.fullPath.slice(0, -1);
           }
-          setTimeout(() => {
-          selectedItems = [result.node];
-          render({ scroll: true });
-          }, 50);
+          await refreshCurrentFolder({ scroll: true });
+          const node = currentEntries.find((entry) => getEntryName(entry) === result.name);
+          selectedItems = node ? [node] : [];
           lastSelectedIndex = 0;
           globalSearchInput.value = "";
           autocompleteHints.style.display = "none";
+          render({ scroll: true });
         });
         
         autocompleteHints.appendChild(hint);
       });
       
       autocompleteHints.style.display = "block";
-    }, 150);
+    }, 1000); // debounce for 1000ms
   });
 
   // Handle Enter key on global search
-  globalSearchInput.addEventListener("keydown", (e) => {
+  globalSearchInput.addEventListener("keydown", async (e) => {
     if (e.key === "Enter") {
       const query = globalSearchInput.value;
       if (!query) return;
-      
+
+      const data = await window.protectedGlobals.filePost({ initFE: true }).catch(() => null);
+      if (!data || !data.tree) return;
+      treeData = data.tree;
+      window.protectedGlobals.annotateTreeWithPaths(treeData);
+
       const results = searchTreeForNodes(query);
       const sortedResults = sortByRelevance(results, query);
-      
+
       if (sortedResults.length > 0) {
         const first = sortedResults[0];
-        if (first.isFolder) {
-          currentPath = first.fullPath.slice(0, -1);
-        } else {
-          currentPath = first.fullPath.slice(0, -1);
-        }
-        selectedItems = [first.node];
+        currentPath = first.isFolder
+          ? first.fullPath.slice()
+          : first.fullPath.slice(0, -1);
+        await refreshCurrentFolder({ scroll: true });
+        const node = currentEntries.find((entry) => getEntryName(entry) === first.name);
+        selectedItems = node ? [node] : [];
         lastSelectedIndex = 0;
         globalSearchInput.value = "";
         autocompleteHints.style.display = "none";
-        render();
       }
     }
   });
@@ -1241,58 +1255,104 @@ function makeIcon(type, size = 16) {
   };
 
   // --- RENDER ---
-  let onlyloadTree = async function (path) {
-    const data = await window.protectedGlobals.filePost({ initFE: true });
-    window.protectedGlobals.treeData = data.tree;
-    treeData = window.protectedGlobals.treeData;
-    window.protectedGlobals.annotateTreeWithPaths(window.protectedGlobals.treeData);
-    // Restore clipboard from server
-    if (data.clipboard && Array.isArray(data.clipboard)) {
-      window.explorerGlobals.clipboard = data.clipboard;
-    }
-    // If a startup `path` was provided to fileExplorer(posX,posY,path),
-    // try to resolve it to an existing folder in `treeData` and set
-    // `currentPath` accordingly. If the path points to a file, use its
-    // parent folder. If nothing is found, fall back to root.
-    try {
-      if (path !== "/" && path) {
-        // normalize and split, strip leading/trailing slashes
-        let parts = path.replace(/^\/+|\/+$/g, "").split("/").filter(Boolean);
+  let currentEntries = [];
 
-        // build candidate search array starting with '/'
-        let candidate = ["/", ...parts];
-
-        // walk backwards until we find an existing node in treeData
-        while (candidate.length > 1) {
-          const nodeFound = findNode(treeData, candidate);
-          if (nodeFound) {
-            // if it's a folder, use it; if it's a file, use its parent
-            if (Array.isArray(nodeFound[1])) {
-              currentPath = candidate.slice();
-              break;
-            } else {
-              candidate.pop();
-              currentPath = candidate.slice();
-              break;
-            }
-          }
-          candidate.pop();
-        }
+  function normalizeReadFolderEntries(files) {
+    const folderApiPath = getCurrentFolderApiPath();
+    return (Array.isArray(files) ? files : []).map((file) => {
+      if (typeof file === "string") {
+        const name = String(file).replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").split("/").filter(Boolean).pop() || "";
+        if (!name) return null;
+        const path = folderApiPath === "/" ? name : `${folderApiPath}/${name}`;
+        return {
+          name,
+          type: "file",
+          path,
+          size: 0,
+          sizeOnDisk: 4096,
+          mtime: 0,
+        };
       }
-    } catch (e) {
-      console.warn("fileExplorer: failed to set startup path", e);
-    }
-    initalized = true;
-    render();
-    statusDiv.textContent = "All Files Loaded.";
-  };
-  function findNode(node, path) {
-    let current = node;
-    for (let i = 1; i < path.length; i++) {
-      if (!current[1]) return null;
-      current = current[1].find((c) => c[0] === path[i]);
-    }
-    return current;
+
+      const name = String(file.name || file.filename || file.path || "")
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .split("/")
+        .filter(Boolean)
+        .pop() || "";
+      if (!name) return null;
+
+      const type = String(file.type || file.kind || "").toLowerCase();
+      const isFolder = type === "folder" || file.folder === true || file.isFolder === true;
+      const size = Number(file.size) || 0;
+      const path = folderApiPath === "/" ? name : `${folderApiPath}/${name}`;
+      return {
+        ...file,
+        name,
+        type: isFolder ? "folder" : "file",
+        path,
+        size,
+        sizeOnDisk: Number(file.sizeOnDisk) || (isFolder ? 4096 : getEntryOnDiskSize(size)),
+        mtime: Number(file.mtime ?? file.modified ?? file.lastModified) || 0,
+      };
+    }).filter(Boolean);
+  }
+
+  function getCurrentFolderApiPath(pathArray = currentPath) {
+    const parts = (Array.isArray(pathArray) ? pathArray : ["/"]).slice(1).filter(Boolean);
+    return parts.length ? parts.join("/") : "/";
+  }
+
+  function getEntryName(entry) {
+    return String(entry?.name || "").replace(/\\/g, "/").split("/").filter(Boolean).pop() || "";
+  }
+
+  function isFolderEntry(entry) {
+    return entry?.type === "folder" || entry?.isFolder === true || entry?.folder === true;
+  }
+
+  async function refreshCurrentFolder(options = {}) {
+    return withOperationStatus("Loading folder...", async () => {
+      const apiPath = getCurrentFolderApiPath();
+      const files = await window.protectedGlobals.ReadFolder(apiPath, {
+        detail: true,
+        directoryDetail: false,
+      }).catch(() => []);
+
+      currentEntries = normalizeReadFolderEntries(files);
+      initalized = true;
+      render(options);
+      await updateStorageDisplay();
+      return currentEntries;
+    }, "All Files Loaded.", { noUpdate: true });
+  }
+
+  async function onlyLoadFolder(path) {
+    return withOperationStatus("Loading folder...", async () => {
+      let startupPath = path;
+      if (startupPath && startupPath !== "/") {
+        const normalized = String(startupPath).replace(/^\/+|\/+$/g, "");
+        currentPath = ["/", ...normalized.split("/").filter(Boolean)];
+      } else {
+        currentPath = ["/"];
+      }
+
+      const apiPath = getCurrentFolderApiPath();
+      const files = await window.protectedGlobals.ReadFolder(apiPath, {
+        detail: true,
+        directoryDetail: false,
+      }).catch(() => null);
+
+      if (!Array.isArray(files) && startupPath && startupPath !== "/") {
+        currentPath = ["/"];
+        await refreshCurrentFolder();
+        return;
+      }
+
+      currentEntries = normalizeReadFolderEntries(files);
+      initalized = true;
+      render();
+    });
   }
 
   function formatSize(bytes) {
@@ -1321,19 +1381,12 @@ function makeIcon(type, size = 16) {
       span.textContent = i === 0 ? "Home" : " / " + truncateDisplayName(p);
       span.title = i === 0 ? "Home" : p;
       span.style.cursor = "pointer";
-      span.onclick = () => {
+      span.onclick = async () => {
         currentPath = currentPath.slice(0, i + 1);
-        render();
+        await refreshCurrentFolder();
       };
       breadcrumbs.appendChild(span);
     });
-  }
-  function getNodeSize(node) {
-    if (!node) return 0; // safety
-    if (node[1] === null) return node[2]?.size || 0; // file
-    if (!Array.isArray(node[1])) return 0; // invalid folder
-
-    return node[1].reduce((sum, child) => sum + getNodeSize(child), 0);
   }
 
   function getEntryOnDiskSize(bytes) {
@@ -1341,86 +1394,101 @@ function makeIcon(type, size = 16) {
     return Math.max(0, size) + 4096;
   }
 
-  function getNodeStorageUsed(node) {
-    if (!node) return 0;
-    if (node[1] === null) {
-      return Number(node[2]?.sizeOnDisk ?? getEntryOnDiskSize(node[2]?.size || 0));
-    }
-    if (!Array.isArray(node[1])) return 4096;
 
-    return Number(node[2]?.sizeOnDisk ?? (4096 + node[1].reduce((sum, child) => sum + getNodeStorageUsed(child), 0)));
+  function isOutOfStorageError(value) {
+    const message = String(
+      value?.error || value?.message || value?.body?.error || value?.body?.message || value || ""
+    ).toLowerCase();
+    return message.includes("storage exceeded") || message.includes("quota exceeded");
   }
 
   // Update the storage display element in the sidebar.
-  function updateStorageDisplay() {
+  async function updateStorageDisplay() {
     try {
-      if (typeof storageDiv === "undefined") return;
-      if (!treeData) {
-        storageDiv.textContent = "Storage used: —";
-        return;
+
+      async function calculateFolderUsage(folderPath) {
+        const entries = await window.protectedGlobals.ReadFolder(folderPath, {
+          detail: true,
+          directoryDetail: true,
+        }).catch(() => []);
+
+        let total = 0;
+        for (const entry of Array.isArray(entries) ? entries : []) {
+          const sizeOnDisk = Number(entry?.sizeOnDisk);
+          if (Number.isFinite(sizeOnDisk) && sizeOnDisk > 0) {
+            total += sizeOnDisk;
+          } else {
+            const size = Number(entry?.size) || 0;
+            total += getEntryOnDiskSize(size);
+          }
+        }
+        return total;
       }
-      const total = getNodeStorageUsed(treeData);
+
+      const total = await calculateFolderUsage("/");
       storageDiv.textContent = `Storage used: ${formatSize(total)}/${window.protectedGlobals.data.maxSpace} GB`;
     } catch (e) {
       console.error("updateStorageDisplay error:", e);
+      storageDiv.textContent = "Storage used: —";
     }
-  }
-
-  function recalculateTreeStorage(node) {
-    if (!node) return 0;
-
-    if (node[1] === null) {
-      const size = Number(node[2]?.size || 0);
-      const sizeOnDisk = getEntryOnDiskSize(size);
-      node[2] = { ...(node[2] || {}), size, sizeOnDisk };
-      return sizeOnDisk;
-    }
-
-    if (!Array.isArray(node[1])) {
-      const sizeOnDisk = 4096;
-      node[2] = { ...(node[2] || {}), size: 0, sizeOnDisk };
-      return sizeOnDisk;
-    }
-
-    let total = 0;
-    for (const child of node[1]) {
-      total += recalculateTreeStorage(child);
-    }
-
-    const sizeOnDisk = 4096 + total;
-    node[2] = { ...(node[2] || {}), size: getNodeSize(node), sizeOnDisk };
-    return sizeOnDisk;
-  }
-
-  function removeNodeFromTree(node, pathParts) {
-    if (!node || !Array.isArray(node[1])) return false;
-
-    const [target, ...rest] = pathParts;
-
-    for (let i = 0; i < node[1].length; i++) {
-      const child = node[1][i];
-
-      if (child[0] === target) {
-        if (rest.length === 0) {
-          node[1].splice(i, 1); // delete node
-          return true;
-        } else {
-          return removeNodeFromTree(child, rest); // go deeper
-        }
-      }
-    }
-
-    return false; // not found
   }
 
   let lastSelectedIndex = null;
 
+  function selectEntriesByNames(names, options = {}) {
+    const requestedNames = new Set(
+      (Array.isArray(names) ? names : [names])
+        .map((name) => String(name ?? ""))
+        .filter(Boolean)
+    );
+
+    selectedItems = currentEntries.filter((entry) =>
+      requestedNames.has(getEntryName(entry))
+    );
+
+    if (selectedItems.length) {
+      selectedItem = selectedItems[selectedItems.length - 1];
+      lastSelectedIndex = currentEntries.indexOf(selectedItem);
+    } else {
+      selectedItem = null;
+      lastSelectedIndex = null;
+    }
+
+    // Always render first, then apply selection to the completed DOM.  This
+    // keeps selection in sync with the sorted/filtered render and tiles/list
+    // view modes that use a separate item index.
+    render({ scroll: false });
+    requestAnimationFrame(() => {
+      if (disposed || !root) return;
+      refreshSelectionUI(currentEntries);
+      if (options.scroll !== false) scrollToSelected();
+    });
+  }
+
   function refreshSelectionUI(items) {
+    const selectedNames = new Set(selectedItems.map((item) => getEntryName(item)));
     const rows = fileArea.querySelectorAll("[data-fs-item]");
+
     rows.forEach((row) => {
-      const idx = Number(row.dataset.index);
-      const rowItem = items?.[idx];
-      row.style.background = rowItem && selectedItems.includes(rowItem)
+      const nameNode = row.querySelector("[data-fs-item-name]");
+      const rowName = nameNode?.dataset?.fsItemName || "";
+
+      // Prefer names because renderFiles sorts entries before assigning row
+      // indexes.  Fallback to the original index-based lookup for older rows
+      // or custom callers that do not include a name node.
+      let rowItem = rowName ? (items || []).find((item) => getEntryName(item) === rowName) : null;
+      if (!rowItem) {
+        const idx = Number(row.dataset.index);
+        rowItem = items?.[idx] || null;
+      }
+
+      const isSelected = rowName
+        ? selectedNames.has(rowName)
+        : !!(rowItem && selectedItems.includes(rowItem));
+
+      if (isSelected) row.setAttribute("data-selected", "true");
+      else row.removeAttribute("data-selected");
+      row.style.background = isSelected
         ? (isDark ? "rgba(59,130,246,0.24)" : "#d0e6ff")
         : "";
     });
@@ -1457,44 +1525,14 @@ function makeIcon(type, size = 16) {
       // Single click
       selectedItems = [item];
       lastSelectedIndex = index;
-    } 
+    }
 
     selectedItem = item;
     refreshSelectionUI(items);
   }
 
   // ──────────────────────────────
-  // GET ITEM PATH RELATIVE TO ROOT
-  // ──────────────────────────────
-  function getItemPath(item, node = treeData, current = []) {
-    if (!node[1]) return null;
-    for (const child of node[1]) {
-      if (child === item) return [...current, child[0]].join("/");
-      if (Array.isArray(child[1])) {
-        const path = getItemPath(item, child, [...current, child[0]]);
-        if (path) return path;
-      }
-    }
-    return null;
-  }
-
-  // ──────────────────────────────
-  // FIND PARENT PATH OF ITEM
-  // ──────────────────────────────
-  function findParentPath(targetItem, node = treeData, path = ["/"]) {
-    if (!node[1]) return null;
-    for (const item of node[1]) {
-      if (item === targetItem) return path;
-      if (Array.isArray(item[1])) {
-        const res = findParentPath(targetItem, item, [...path, item[0]]);
-        if (res) return res;
-      }
-    }
-    return null;
-  }
-
-  // ──────────────────────────────
-  // RENDER FILES + MULTISELECT + DRAG
+  // RENDER FILES + MULTISELECT
   // ──────────────────────────────
   function truncateDisplayName(name, maxLen = 50) {
     const text = String(name ?? "");
@@ -1504,9 +1542,28 @@ function makeIcon(type, size = 16) {
 
   function renderFiles() {
     fileArea.innerHTML = "";
-    const node = findNode(treeData, currentPath);
-    if (!node || !node[1]) return;
-    const items = node[1];
+    const items = currentEntries.slice().sort((a, b) => {
+      const aFolder = isFolderEntry(a);
+      const bFolder = isFolderEntry(b);
+      if (aFolder !== bFolder) return aFolder ? -1 : 1;
+
+      const direction = profile.sortOrder === "desc" ? -1 : 1;
+      let aValue;
+      let bValue;
+      if (profile.sortMode === "size") {
+        aValue = Number(a.size) || 0;
+        bValue = Number(b.size) || 0;
+      } else if (profile.sortMode === "date") {
+        aValue = Number(a.mtime) || 0;
+        bValue = Number(b.mtime) || 0;
+      } else {
+        aValue = getEntryName(a).toLowerCase();
+        bValue = getEntryName(b).toLowerCase();
+      }
+      if (aValue < bValue) return -1 * direction;
+      if (aValue > bValue) return 1 * direction;
+      return getEntryName(a).localeCompare(getEntryName(b));
+    });
 
     if (profile.displayMode === "tiles") {
       const grid = document.createElement("div");
@@ -1517,7 +1574,7 @@ function makeIcon(type, size = 16) {
       grid.style.padding = "6px";
 
       items.forEach((item, index) => {
-        const isFolder = Array.isArray(item[1]);
+        const isFolder = isFolderEntry(item);
         const tile = document.createElement("div");
         tile.dataset.index = index;
         tile.dataset.fsItem = "true";
@@ -1541,7 +1598,13 @@ function makeIcon(type, size = 16) {
         }
 
         tile.onclick = (e) => handleSelection(e, item, items, index);
-        tile.ondblclick = () => { if (isFolder) { selectedItems = []; currentPath.push(item[0]); render(); } };
+        tile.ondblclick = async () => {
+          if (isFolder) {
+            selectedItems = [];
+            currentPath.push(getEntryName(item));
+            await refreshCurrentFolder();
+          }
+        };
         tile.oncontextmenu = (e) => { e.preventDefault(); if (selectedItems.length == 0) { handleSelection(e, item, items, index); } showContextMenu(e.clientX, e.clientY, isFolder); };
 
         const icon = document.createElement("div");
@@ -1551,8 +1614,8 @@ function makeIcon(type, size = 16) {
         tile.appendChild(icon);
 
         const name = document.createElement("div");
-        name.dataset.fsItemName = item[0];
-        name.textContent = truncateDisplayName(item[0]);
+        name.dataset.fsItemName = getEntryName(item);
+        name.textContent = truncateDisplayName(getEntryName(item));
         name.style.width = "100%";
         name.style.textAlign = "center";
         name.style.whiteSpace = "nowrap";
@@ -1562,13 +1625,13 @@ function makeIcon(type, size = 16) {
         tile.appendChild(name);
 
         const size = document.createElement("div");
-        size.textContent = formatSize(isFolder ? getNodeSize(item) : item[2]?.size);
+        size.textContent = isFolder ? "--" : formatSize(item?.size);
         size.style.fontSize = "12px";
         size.style.opacity = "0.8";
         tile.appendChild(size);
 
         const date = document.createElement("div");
-        date.textContent = formatDate(item[2]?.mtime);
+        date.textContent = formatDate(item?.mtime);
         date.style.fontSize = "12px";
         date.style.opacity = "0.8";
         tile.appendChild(date);
@@ -1579,7 +1642,7 @@ function makeIcon(type, size = 16) {
       fileArea.appendChild(grid);
     } else {
       items.forEach((item, index) => {
-        const isFolder = Array.isArray(item[1]);
+        const isFolder = isFolderEntry(item);
         const div = document.createElement("div");
 
         // Metadata
@@ -1594,6 +1657,7 @@ function makeIcon(type, size = 16) {
         div.style.cursor = "pointer";
         div.style.color = isDark ? "#e6eef8" : "#111";
         if (!isFolder) {div.addEventListener('dblclick', () => alert('Open file by right clicking on the file and select the app you want to do so in Open With'));} // placeholder, will implement default opening soon
+
         // Highlight selected
         if (selectedItems.includes(item)) {
           div.setAttribute('data-selected', 'true');
@@ -1604,11 +1668,11 @@ function makeIcon(type, size = 16) {
         div.onclick = (e) => handleSelection(e, item, items, index);
 
         // Double-click folder open (or file open in text editor)
-        div.ondblclick = () => {
+        div.ondblclick = async () => {
           if (isFolder) {
             selectedItems = [];
-            currentPath.push(item[0]);
-            render();
+            currentPath.push(getEntryName(item));
+            await refreshCurrentFolder();
           }
         };
 
@@ -1622,28 +1686,6 @@ function makeIcon(type, size = 16) {
           showContextMenu(e.clientX, e.clientY, isFolder);
         };
 
-        // Drag start
-        div.ondragstart = (e) => {
-          dragItems = [...(selectedItems.length ? selectedItems : [item])];
-
-          // Serialize for cross-window / iframe
-          const dragData = dragItems.map((it) => ({
-            name: it[0],
-            isFolder: Array.isArray(it[1]),
-            path: getItemPath(it),
-          }));
-          e.dataTransfer.setData("application/json", JSON.stringify(dragData));
-
-          // Optional drag image
-          const dragIcon = document.createElement("div");
-          dragIcon.textContent = `${dragData.length} item(s)`;
-          dragIcon.style.padding = "4px 8px";
-          dragIcon.style.background = "#d0e6ff";
-          dragIcon.style.border = "1px solid #aaa";
-          document.body.appendChild(dragIcon);
-          e.dataTransfer.setDragImage(dragIcon, -10, -10);
-          setTimeout(() => document.body.removeChild(dragIcon), 0);
-        };
 
         // Icon
         const icon = document.createElement("div");
@@ -1652,10 +1694,12 @@ function makeIcon(type, size = 16) {
         div.appendChild(icon);
 
         // Name
-        const nameDiv = document.createElement("div");
-        nameDiv.dataset.fsItemName = item[0];
-        nameDiv.textContent = truncateDisplayName(item[0]);
-        nameDiv.title = item[0];
+                            
+                            
+                             const nameDiv = document.createElement("div");
+        nameDiv.dataset.fsItemName = getEntryName(item);
+        nameDiv.textContent = truncateDisplayName(getEntryName(item));
+        nameDiv.title = getEntryName(item);
         nameDiv.style.overflow = "hidden";
         nameDiv.style.whiteSpace = "nowrap";
         nameDiv.style.flex = "1";
@@ -1664,9 +1708,7 @@ function makeIcon(type, size = 16) {
 
         // Size
         const sizeDiv = document.createElement("div");
-        sizeDiv.textContent = formatSize(
-          isFolder ? getNodeSize(item) : item[2]?.size,
-        );
+        sizeDiv.textContent = isFolder ? "--" : formatSize(item?.size);
         sizeDiv.style.width = "100px";
         sizeDiv.style.flexShrink = "0";
         sizeDiv.style.textAlign = "right";
@@ -1674,8 +1716,18 @@ function makeIcon(type, size = 16) {
         div.appendChild(sizeDiv);
 
         // Date
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
         const dateDiv = document.createElement("div");
-        dateDiv.textContent = formatDate(item[2]?.mtime);
+        dateDiv.textContent = formatDate(item?.mtime);
         dateDiv.style.minWidth = "180px";
         dateDiv.style.flexShrink = "0";
         dateDiv.style.textAlign = "right";
@@ -1698,94 +1750,8 @@ function makeIcon(type, size = 16) {
     fileArea.appendChild(document.createElement("br"));
     fileArea.appendChild(document.createElement("br"));
     fileArea.appendChild(document.createElement("br"));
-
-    // Blank area drop
-    fileArea.ondragover = (e) => e.preventDefault();
-    fileArea.ondrop = async (e) => {
-      e.preventDefault();
-      const raw = e.dataTransfer.getData("application/json");
-      if (!raw) return;
-
-      const items = JSON.parse(raw);
-      const targetNode = findNode(treeData, currentPath);
-
-      for (const item of items) {
-        const srcNode = findNodeByPath(item.path);
-        if (srcNode) {
-          // Remove from old parent
-          const parent = findNode(treeData, findParentPath(srcNode));
-          if (parent && parent[1])
-            parent[1] = parent[1].filter((n) => n !== srcNode);
-          // Add to new location
-          targetNode[1].push(srcNode);
-        } else {
-          // Dragged from external window/iframe: implement copy/upload if needed
-          console.warn("External drag not fully implemented", item);
-        }
-      }
-
-      dragItems = [];
-      render({ scroll: true });
-    };
   }
 
-  // ──────────────────────────────
-  // HELPER: FIND NODE BY PATH
-  // ──────────────────────────────
-  function findNodeByPath(relPath) {
-    const parts = relPath.split("/");
-    let current = treeData;
-    for (let i = 1; i < parts.length; i++) {
-      if (!current[1]) return null;
-      current = current[1].find((c) => c[0] === parts[i]);
-    }
-    return current;
-  }
-
-  // --- SORT HELPERS ---
-  function sortChildren(node) {
-    if (!node || !Array.isArray(node[1])) return;
-    // Sort children according to sortMode/sortOrder
-    node[1].sort((a, b) => {
-      const aIsFolder = Array.isArray(a[1]);
-      const bIsFolder = Array.isArray(b[1]);
-      // Keep folders first
-      if (aIsFolder && !bIsFolder) return -1;
-      if (!aIsFolder && bIsFolder) return 1;
-
-      const getKey = (item) => {
-        if (profile.sortMode === "name") return String(item[0] || "").toLowerCase();
-        if (profile.sortMode === "size") {
-          return Number(item[1] === null ? (item[2] && item[2].size) || 0 : getNodeSize(item)) || 0;
-        }
-        if (profile.sortMode === "date") {
-          // Accept multiple date keys
-          const meta = item[2] || {};
-          return Number(meta.mtime || 0) || 0;
-        }
-        return String(item[0] || "").toLowerCase();
-      };
-
-      const ka = getKey(a);
-      const kb = getKey(b);
-      if (ka < kb) return profile.sortOrder === "asc" ? -1 : 1;
-      if (ka > kb) return profile.sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
-    // Recurse into folders to ensure deep sort
-    for (const child of node[1]) {
-      if (Array.isArray(child[1])) sortChildren(child);
-    }
-  }
-
-  function sortTree() {
-    try {
-      if (!treeData) return;
-      sortChildren(treeData);
-    } catch (e) {
-      console.error("sortTree error", e);
-    }
-  }
 
   function scrollToSelected() {
     const selectedElement = fileArea.querySelector('[data-selected="true"]');
@@ -1800,11 +1766,8 @@ function makeIcon(type, size = 16) {
 
   function render(options = {}) {
     if (!initalized) return;
-    // Always keep treeData sorted before rendering so the UI is alphabetical
-    sortTree();
     renderBreadcrumbs();
     renderFiles();
-    updateStorageDisplay();
     hideContextMenu();
     if (options.scroll) scrollToSelected();
     // Show Empty Trash button only when inside .trash
@@ -1880,7 +1843,7 @@ function makeIcon(type, size = 16) {
 
     btnRow.appendChild(cancelBtn);
     btnRow.appendChild(confirmBtn);
-    box.appendChild(title);
+    box.prepend(title);
     box.appendChild(desc);
     box.appendChild(input);
     box.appendChild(btnRow);
@@ -1890,125 +1853,178 @@ function makeIcon(type, size = 16) {
   }
   // --- CREATE FOLDER ---
   // --- PROPERTIES DIALOG ---
-  function showProperties(item) {
+  async function showProperties(item) {
     if (!item) return;
-    const isFolder = Array.isArray(item[1]);
-    const meta = item[2] || {};
-    const overlay = document.createElement("div");
-    overlay.style.cssText = "position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:9500;display:flex;align-items:center;justify-content:center;";
 
-    const box = document.createElement("div");
-    box.className = "misc";
-    box.style.cssText = "padding:18px 20px;border-radius:8px;min-width:320px;max-width:520px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.35);";
-    // adapt background/text for dark theme
-    if (window.protectedGlobals.data.dark) {
-      box.style.background = "#0b0b0b";
-      box.style.color = "#e6eef8";
-    } else {
-      box.style.background = "white";
-      box.style.color = "#111";
-    }
+    await withOperationStatus("Calculating properties...", async () => {
+      const isFolder = isFolderEntry(item);
+      const meta = item || {};
 
-    const title = document.createElement("div");
-    title.textContent = "Properties";
-    title.style.fontSize = "16px";
-    title.style.fontWeight = "700";
+      function normalizeRootPath(path) {
+        // Only normalize separators. Never trim whitespace: file and folder names
+        // may consist entirely of spaces, including leading or trailing spaces.
+        const normalized = String(path || "")
+          .replace(/\\/g, "/")
+          .replace(/^\/+/, "")
+          .replace(/\/+$/, "");
+        return normalized ? `/${normalized}` : "/";
+      }
 
-    const rows = [];
-    const addRow = (label, value) => {
-      const row = document.createElement("div");
-      row.style.display = "flex";
-      row.style.justifyContent = "space-between";
-      row.style.gap = "12px";
-      const lab = document.createElement("div"); lab.textContent = label; lab.style.opacity = "0.85";
-      const val = document.createElement("div"); val.textContent = value; val.style.opacity = "0.9"; val.style.textAlign = "right"; val.style.wordBreak = "break-word";
-      row.appendChild(lab);
-      row.appendChild(val);
-      box.appendChild(row);
-      rows.push(row);
-    };
+      function formatPropertiesValue(value) {
+        const text = String(value ?? "");
+        // Quoting boundary whitespace makes it unambiguous while keeping the
+        // underlying path/name unchanged.
+        if (/^\s/.test(text) || /\s$/.test(text)) return `"${text}"`;
+        return text;
+      }
 
-    addRow("Name", item[0]);
-    addRow("Type", isFolder ? "Folder" : "File");
-    addRow("Size", isFolder ? formatSize(getNodeSize(item)) : formatSize(meta.size));
-    addRow("Size on disk", formatSize(meta.sizeOnDisk ?? getEntryOnDiskSize(meta.size || 0)));
-    addRow("Modified", formatDate(meta.mtime));
-    addRow("Path", getItemPath(item) || getFullPathFromNode(item));
+      async function getDetailedFolderUsage(folderPath) {
+        const rootPath = normalizeRootPath(folderPath);
+        let size = 0;
+        let sizeOnDisk = 4096;
+        const entries = await window.protectedGlobals.ReadFolder(rootPath, {
+          detail: true,
+          directoryDetail: true,
+        }).catch(() => []);
 
-    const btnRow = document.createElement("div");
-    btnRow.style.display = "flex";
-    btnRow.style.justifyContent = "flex-end";
+        for (const entry of entries) {
+          size += entry.size;
+          sizeOnDisk += entry.sizeOnDisk;
+        }
 
-    const ok = document.createElement("button");
-    ok.textContent = "OK";
-    ok.style.padding = "6px 12px";
-    ok.onclick = () => { if (root.contains(overlay)) root.removeChild(overlay); };
+        return { size, sizeOnDisk };
+      }
 
-    btnRow.appendChild(ok);
-    box.prepend(title);
-    box.appendChild(btnRow);
-    overlay.appendChild(box);
+      const rawItemPath = getEntryPath(item);
+      const itemPath = normalizeRootPath(rawItemPath);
+      const folderUsage = isFolder ? await getDetailedFolderUsage(itemPath) : null;
 
-    // Close when clicking outside the box
-    overlay.addEventListener("pointerdown", (e) => {
-      if (e.target === overlay) {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:absolute;inset:0;background:rgba(0,0,0,0.35);z-index:9500;display:flex;align-items:center;justify-content:center;";
+
+      const box = document.createElement("div");
+      box.className = "misc";
+      box.style.cssText = "padding:18px 20px;border-radius:8px;min-width:320px;max-width:520px;display:flex;flex-direction:column;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.35);";
+      if (window.protectedGlobals.data.dark) {
+        box.style.background = "#0b0b0b";
+        box.style.color = "#e6eef8";
+      } else {
+        box.style.background = "white";
+        box.style.color = "#111";
+      }
+
+      const title = document.createElement("div");
+      title.textContent = "Properties";
+      title.style.fontSize = "16px";
+      title.style.fontWeight = "700";
+
+      const addRow = (label, value) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.gap = "12px";
+        const lab = document.createElement("div");
+        lab.textContent = label;
+        lab.style.opacity = "0.85";
+        const val = document.createElement("div");
+        val.textContent = formatPropertiesValue(value);
+        val.title = String(value ?? "");
+        val.style.opacity = "0.9";
+        val.style.textAlign = "right";
+        val.style.whiteSpace = "pre-wrap";
+        val.style.overflowWrap = "anywhere";
+        val.style.wordBreak = "break-word";
+        val.style.maxWidth = "70%";
+        row.appendChild(lab);
+        row.appendChild(val);
+        box.appendChild(row);
+      };
+
+      addRow("Name", getEntryName(item));
+      addRow("Type", isFolder ? "Folder" : "File");
+      addRow("Size", isFolder ? formatSize(folderUsage.size) : formatSize(meta.size));
+      addRow("Size on disk", isFolder
+        ? formatSize(folderUsage.sizeOnDisk)
+        : formatSize(meta.sizeOnDisk ?? getEntryOnDiskSize(meta.size || 0)));
+      addRow("Modified", formatDate(meta.mtime));
+      addRow("Path", itemPath);
+
+      const btnRow = document.createElement("div");
+      btnRow.style.display = "flex";
+      btnRow.style.justifyContent = "flex-end";
+
+      const ok = document.createElement("button");
+      ok.textContent = "OK";
+      ok.style.padding = "6px 12px";
+      ok.onclick = () => {
         if (root.contains(overlay)) root.removeChild(overlay);
-      }
-    });
+      };
 
-    // Append to root (not body)
-    root.appendChild(overlay);
-    requestAnimationFrame(() => ok.focus());
+      btnRow.appendChild(ok);
+      box.prepend(title);
+      box.appendChild(btnRow);
+      overlay.appendChild(box);
+
+      overlay.addEventListener("pointerdown", (e) => {
+        if (e.target === overlay) {
+          if (root.contains(overlay)) root.removeChild(overlay);
+        }
+      });
+
+      root.appendChild(overlay);
+      requestAnimationFrame(() => ok.focus());
+    }, "Properties loaded.");
   }
-  function getUniqueName(nameOrBase, ext = "", existingChildren) {
-    // Accept optional `existingChildren` array (e.g. node[1]) to check uniqueness
-    const node = Array.isArray(existingChildren)
-      ? { 1: existingChildren }
-      : findNode(treeData, currentPath);
-    const children = (node && node[1]) || [];
+  function getUniqueName(nameOrBase, ext = "", existingChildren, reservedNames = null) {
+    const children = Array.isArray(existingChildren) ? existingChildren : currentEntries;
 
-    // If folder structure is not ready, just return the original name (with normalized ext if provided)
-    if (!children || !Array.isArray(children) || children.length === 0) {
-      if (ext) {
-        const e = ext.startsWith(".") ? ext : "." + ext;
-        return nameOrBase + e;
-      }
-      return nameOrBase;
-    }
-
-    // Determine base and extension similar to server's getUniquePath
     let base = nameOrBase;
     let extension = ext || "";
     if (!extension) {
       const idx = nameOrBase.lastIndexOf(".");
-      // treat a dot at position 0 (e.g., ".bashrc") as part of the name, not an extension
       if (idx > 0) {
         base = nameOrBase.slice(0, idx);
-        extension = nameOrBase.slice(idx); // includes the dot
+        extension = nameOrBase.slice(idx);
       }
-    } else {
-      if (!extension.startsWith(".")) extension = "." + extension;
+    } else if (!extension.startsWith(".")) {
+      extension = "." + extension;
     }
 
-    // Remove any leading "(n) " prefix from the base so we don't nest prefixes
+    const names = new Set();
+    for (const child of children) {
+      const name = typeof child === "string" ? child : getEntryName(child);
+      if (name) names.add(name);
+    }
+    if (reservedNames instanceof Set) {
+      for (const name of reservedNames) {
+        if (name) names.add(String(name));
+      }
+    } else if (Array.isArray(reservedNames)) {
+      for (const name of reservedNames) {
+        if (name) names.add(String(name));
+      }
+    }
+
     const leadMatch = base.match(/^\((\d+)\)\s*(.*)$/);
-    if (leadMatch) {
-      base = leadMatch[2] || "";
+    const originalName = leadMatch ? `${base}${extension}` : `${base}${extension}`;
+
+    if (!names.has(originalName)) {
+      return originalName;
     }
 
-    const compareName = base + extension;
+    const compareName = leadMatch
+      ? `${leadMatch[2] || ""}${extension}`
+      : originalName;
 
-    // Compute the highest existing numeric prefix for this exact base+ext (treat plain name as prefix 0)
     let found = false;
     let maxNum = -Infinity;
-    for (const child of children) {
-      const name = Array.isArray(child) ? child[0] : child || "";
-      if (!name) continue;
-      if (name === compareName) {
-        found = true;
-        maxNum = Math.max(maxNum, 0);
-        continue;
-      }
+
+    if (names.has(compareName)) {
+      found = true;
+      maxNum = Math.max(maxNum, 0);
+    }
+
+    for (const name of names) {
       const m = name.match(/^\((\d+)\)\s*(.*)$/);
       if (m && m[2] === compareName) {
         found = true;
@@ -2017,49 +2033,42 @@ function makeIcon(type, size = 16) {
       }
     }
 
-    if (!found) return compareName;
-
-    return `(${maxNum + 1}) ${base}${extension}`;
+    if (!found) return originalName;
+    return `(${maxNum + 1}) ${compareName}`;
   }
   async function createFolder() {
-    const sizeOnDisk = 4096;
-    if (getNodeStorageUsed(treeData) + sizeOnDisk > STORAGE_QUOTA_BYTES) {
-      alert("Cannot create folder — storage quota would be exceeded.");
-      return;
-    }
-    const folderName = getUniqueName("New Folder");
-    const node = findNode(treeData, currentPath);
-    if (!node || !node[1]) return;
-
-    node[1].push([folderName, [], { size: 0, sizeOnDisk, mtime: Date.now() }]);
-    render();
-    const targetPath = [...currentPath];
-    directions.push({
-      addFolder: true,
-      path: targetPath.join("/"),
-      name: folderName,
-    });
-    triggerAutosave();
+    await withOperationStatus("Creating folder...", async () => {
+      const folderName = getUniqueName("New Folder");
+      const parentPath = getCurrentFolderApiPath();
+      const result = await window.protectedGlobals.WriteFolder(
+        parentPath === "/" ? folderName : `${parentPath}/${folderName}`,
+      ).catch((error) => ({ error: String(error) }));
+      if (result?.error || result?.success === false) {
+        const error = new Error(result.error || "Could not create folder");
+        error.result = result;
+        throw error;
+      }
+      await refreshCurrentFolder();
+      selectEntriesByNames([folderName]);
+      return result;
+    }, "Folder created.").catch(() => {});
   }
 
   async function createFile() {
-    const sizeOnDisk = 4096;
-    if (getNodeStorageUsed(treeData) + sizeOnDisk > STORAGE_QUOTA_BYTES) {
-      alert("Cannot create file — storage quota would be exceeded.");
-      return;
-    }
-    const fileName = getUniqueName("New File.txt");
-    const node = findNode(treeData, currentPath);
-    if (!node || !node[1]) return;
-
-    node[1].push([fileName, null, { size: 0, sizeOnDisk, mtime: Date.now() }]);
-    render();
-    const targetPath = [...currentPath];
-    directions.push({
-      addFile: true,
-      path: targetPath.join("/") + "/" + fileName,
-    });
-    triggerAutosave();
+    await withOperationStatus("Creating file...", async () => {
+      const fileName = getUniqueName("New File.txt");
+      const parentPath = getCurrentFolderApiPath();
+      const filePath = parentPath === "/" ? fileName : `${parentPath}/${fileName}`;
+      const result = await window.protectedGlobals.WriteFile(filePath, "", { replace: true, text: true }).catch((error) => ({ error: String(error) }));
+      if (result?.error || result?.success === false) {
+        const error = new Error(result.error || "Could not create file");
+        error.result = result;
+        throw error;
+      }
+      await refreshCurrentFolder();
+      selectEntriesByNames([fileName]);
+      return result;
+    }, "File created.").catch(() => {});
   }
 
   // --- ADD BUTTONS ---
@@ -2090,6 +2099,44 @@ function makeIcon(type, size = 16) {
   statusDiv.style.color = isDark ? "#cbd5e1" : "#334155";
   statusDiv.textContent = "All Files Loaded.";
   sidebar.appendChild(statusDiv);
+
+  // Centralized status tracking helpers
+  let activeStatusOperations = 0;
+
+  function setOperationStatus(text) {
+    if (statusDiv) statusDiv.textContent = text;
+  }
+
+  function beginOperationStatus(text) {
+    activeStatusOperations += 1;
+    setOperationStatus(text);
+  }
+
+  function endOperationStatus(text = "All Files Loaded.") {
+    activeStatusOperations = Math.max(0, activeStatusOperations - 1);
+    if (activeStatusOperations === 0) setOperationStatus(text);
+  }
+
+  async function withOperationStatus(text, operation, successText = "All Files Loaded.", options = {}) {
+    beginOperationStatus(text);
+    try {
+      const result = await operation();
+      endOperationStatus(successText);
+      return result;
+    } catch (error) {
+      if (isOutOfStorageError(error?.result || error?.body || error)) {
+        endOperationStatus("Storage Exceeded.");
+      } else {
+        endOperationStatus(error);
+      }
+      throw error;
+    } finally {
+      if (!options.noUpdate) {
+        updateStorageDisplay();
+      }
+    }
+  }
+
   applyExplorerTheme();
   // Client-side quota (bytes). Prefer server-provided `window.protectedGlobals.data.maxSpace` (GB) if available.
   const maxSpaceGb = Number(window.protectedGlobals.data.maxSpace);
@@ -2108,10 +2155,7 @@ function makeIcon(type, size = 16) {
       selectedItems = [];
       selectedItem = null;
 
-      const node = findNode(treeData, currentPath);
-      if (node && node[1]) {
-        refreshSelectionUI(node[1]);
-      }
+      refreshSelectionUI(currentEntries);
     }
 
     const tag = String((e.target && e.target.tagName) || "").toUpperCase();
@@ -2126,11 +2170,6 @@ function makeIcon(type, size = 16) {
       } catch (err) {}
     }
   });
-  function getFullPathFromNode(node, pathArray = []) {
-    if (!node) return pathArray.join("/");
-    pathArray.push(node[0]);
-    return pathArray.join("/");
-  }
   let handlepaste = async (e) => {
     if (e !== "cmp") {
       if (!e || !e.target || !root.contains(e.target)) return;
@@ -2141,66 +2180,64 @@ function makeIcon(type, size = 16) {
       if (e && e.preventDefault) e.preventDefault();
       if (e && e.stopPropagation) e.stopPropagation();
 
-      const targetPath = [...currentPath];
-
-      let currentUsed = getNodeStorageUsed(treeData);
-      let clipboardTotal = 0;
-
-      for (const item of window.explorerGlobals.clipboard) {
-        clipboardTotal += getNodeStorageUsed(item.node);
-      }
-
-      if (currentUsed + clipboardTotal > STORAGE_QUOTA_BYTES) {
-        alert("Cannot paste — storage quota would be exceeded.");
+      const isCut = window.explorerGlobals.clipboardMode === "cut";
+      if (!window.explorerGlobals.clipboard.length) {
+        setOperationStatus("Clipboard is empty.");
         return;
       }
+      await withOperationStatus(isCut ? "Moving files..." : "Pasting files...", async () => {
+        const reservedNames = new Set(currentEntries.map((entry) => getEntryName(entry)).filter(Boolean));
+        const pastedNames = [];
+        let allMoved = isCut;
+        try {
+          for (const item of window.explorerGlobals.clipboard) {
+            const sourceFullPath = String(item.path || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+            const sourceName = item.name || sourceFullPath.split("/").pop();
 
-      for (const item of window.explorerGlobals.clipboard) {
-        // Use the clipboard's actual source path, not just the entry name.
-        const sourceFullPath = (item.path || "")
-          .replace(/\\/g, "/")
-          .replace(/^\/+|\/+$/g, "");
+            // Cutting and pasting in the source folder is a no-op.
+            if (isCut) {
+              const sameFolderPath = getCurrentFolderApiPath() === "/"
+                ? sourceName
+                : `${getCurrentFolderApiPath()}/${sourceName}`;
+              if (sourceFullPath === sameFolderPath.replace(/^\/+|\/+$/g, "")) {
+                pastedNames.push(sourceName);
+                continue;
+              }
+            }
 
-        const targetFullPath = targetPath.join("/");
+            const destinationName = getUniqueName(sourceName, "", currentEntries, reservedNames);
+            reservedNames.add(destinationName);
+            const destinationFullPath = getCurrentFolderApiPath() === "/"
+              ? destinationName
+              : `${getCurrentFolderApiPath()}/${destinationName}`;
 
-        // Prevent pasting a folder into itself or one of its descendants.
-        if (
-          item.isFolder &&
-          (targetFullPath === sourceFullPath ||
-            targetFullPath.startsWith(sourceFullPath + "/"))
-        ) {
-          alert(
-            `Cannot paste folder "${item.name}" into itself or a subfolder.`,
-          );
-          continue;
-        }
-
-        const node = findNode(treeData, targetPath);
-        if (!node || !node[1]) continue;
-
-        const newNode = JSON.parse(JSON.stringify(item.node));
-
-        newNode[2] = newNode[2] || {};
-        newNode[2].mtime = Date.now();
-
-        newNode[0] = getUniqueName(newNode[0], "", node[1]);
-        node[1].push(newNode);
-
-        const pasteTarget = [...targetPath];
-        pasteTarget.splice(0, 1);
-        pasteTarget.push(newNode[0]);
-
-        directions.push({
-          paste: true,
-          path: pasteTarget.join("/"),
-          clipboard: {
-            path: sourceFullPath
+            if (item.isFolder) {
+              const result = await window.protectedGlobals.PasteFolder(destinationFullPath, { path: sourceFullPath, type: "folder" }, { move: isCut });
+              if (result?.error || result?.success === false) {
+                const error = new Error(result.error || "Could not paste folder");
+                error.result = result;
+                throw error;
+              }
+            } else {
+              const result = await window.protectedGlobals.PasteFile(destinationFullPath, { path: sourceFullPath, type: "file" }, { move: isCut });
+              if (result?.error || result?.success === false) {
+                const error = new Error(result.error || "Could not paste file");
+                error.result = result;
+                throw error;
+              }
+            }
+            pastedNames.push(destinationName);
           }
-        });
-      }
 
-      render();
-      triggerAutosave();
+          if (isCut) {
+            window.explorerGlobals.clipboard = [];
+            window.explorerGlobals.clipboardMode = "copy";
+          }
+        } finally {
+          await refreshCurrentFolder();
+          if (pastedNames.length) selectEntriesByNames(pastedNames);
+        }
+      }, isCut ? "Move complete." : "Paste complete.").catch(() => null);
     }
   };
   let handlecopy = (e) => {
@@ -2209,21 +2246,37 @@ function makeIcon(type, size = 16) {
       if (e.repeat) return;
     }
     if ((e.ctrlKey && e.key.toLowerCase() === "c") || e == "copy") {
-      if (e && (e.preventDefault)) e.preventDefault();
-      if (e && (e.stopPropagation)) e.stopPropagation();
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
       window.explorerGlobals.clipboard = selectedItems.map((item) => ({
         node: item,
-        path: getCurrentFolderPath() + item[0],
-        name: item[0],
-        isFolder: Array.isArray(item[1])
+        path: getEntryPath(item),
+        name: getEntryName(item),
+        isFolder: isFolderEntry(item)
       }));
-      const targetPath = [...currentPath]; // current folder path array
-      // Store clipboard items locally; actual copy operations happen at paste time.
-      // We still prepare client-side pending UI changes in the paste handler.
+      window.explorerGlobals.clipboardMode = "copy";
+    }
+  };
+  let handlecut = (e) => {
+    if (e !== "cut") {
+      if (!e || !e.target || !root.contains(e.target)) return;
+      if (e.repeat) return;
+    }
+    if ((e.ctrlKey && e.key.toLowerCase() === "x") || e == "cut") {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      window.explorerGlobals.clipboard = selectedItems.map((item) => ({
+        node: item,
+        path: getEntryPath(item),
+        name: getEntryName(item),
+        isFolder: isFolderEntry(item)
+      }));
+      window.explorerGlobals.clipboardMode = "cut";
     }
   };
   root.addEventListener("keydown", handlepaste);
   root.addEventListener("keydown", handlecopy);
+  root.addEventListener("keydown", handlecut);
 
   // --- SELECT ALL (Ctrl+A) ---
   let handleSelectAll = (e) => {
@@ -2232,9 +2285,7 @@ function makeIcon(type, size = 16) {
     if (e.ctrlKey && e.key.toLowerCase() === "a") {
       e.preventDefault();
       e.stopPropagation();
-      const node = findNode(treeData, currentPath);
-      if (!node || !node[1]) return;
-      const items = node[1];
+      const items = currentEntries.slice();
       selectedItems = items.slice();
       lastSelectedIndex = items.length - 1;
       refreshSelectionUI(items);
@@ -2313,9 +2364,7 @@ function makeIcon(type, size = 16) {
     // Blank area menu items (Select All, New File, New Folder)
     if (isBlank) {
       addItem("Select All", () => {
-        const node = findNode(treeData, currentPath);
-        if (!node || !node[1]) return;
-        const items = node[1];
+        const items = currentEntries.slice();
         selectedItems = items.slice();
         lastSelectedIndex = items.length - 1;
         refreshSelectionUI(items);
@@ -2341,77 +2390,77 @@ function makeIcon(type, size = 16) {
     // Delete / Delete Permanently for multi-select
     if (!isBlank && selectedItems.length) {
       if (inTrash) {
-        // ── Inside .trash: permanently delete with confirmation dialog ──
         addItem("Delete Permanently", () => {
-          showPermanentDeleteDialog(selectedItems.length, () => {
-            const targetPath = [...currentPath];
-            for (const item of selectedItems) {
-              directions.push({
-                permanentDelete: true,
-                path: targetPath.join("/") + "/" + item[0],
-              });
-              const deletePath = [...currentPath.slice(1), item[0]];
-              removeNodeFromTree(treeData, deletePath);
-              recalculateTreeStorage(treeData);
-            }
-            selectedItems = [];
-            selectedItem = null;
-            render();
-            triggerAutosave();
+          showPermanentDeleteDialog(selectedItems.length, async () => {
+            await withOperationStatus("Deleting permanently...", async () => {
+              for (const item of selectedItems) {
+                const itemPath = `${getCurrentFolderApiPath() === "/" ? "" : getCurrentFolderApiPath() + "/"}${getEntryName(item)}`;
+                const result = await window.protectedGlobals.DeleteFile(itemPath, { permanent: true }).catch(() => null);
+                if (result?.error || result?.success === false) {
+                  const error = new Error(result.error || "Could not permanently delete item");
+                  error.result = result;
+                  selectedItems = [];
+                  selectedItem = null;
+                  await refreshCurrentFolder();
+                  throw error;
+                }
+              }
+              selectedItems = [];
+              selectedItem = null;
+              await refreshCurrentFolder();
+            }, "Permanent delete complete.").catch(() => null);
           });
         });
 
-        // ── Restore: move item back to root ──
         addItem("Restore", async () => {
-          const targetPath = [...currentPath];
-          for (const item of selectedItems) {
-            directions.push({
-              restore: true,
-              path: targetPath.join("/") + "/" + item[0],
-            });
-            const deletePath = [...currentPath.slice(1), item[0]];
-            removeNodeFromTree(treeData, deletePath);
-            render();
-          }
-          selectedItems = [];
-          selectedItem = null;
-          render();
-          triggerAutosave();
+          await withOperationStatus("Restoring files...", async () => {
+            const rootEntries = normalizeReadFolderEntries(await window.protectedGlobals.ReadFolder("/", {
+              detail: true,
+              directoryDetail: false,
+            }).catch(() => []));
+            const reservedNames = new Set(rootEntries.map((entry) => getEntryName(entry)).filter(Boolean));
+            for (const item of selectedItems) {
+              const result = await window.protectedGlobals.filePost({
+                saveSnapshot: true,
+                directions: [{ path: getEntryPath(item), restore: true }]
+              })
+              if (result?.error || result?.success === false) {
+                const error = new Error(result.error || "Could not restore item");
+                error.result = result;
+                selectedItems = [];
+                selectedItem = null;
+                await refreshCurrentFolder();
+                throw error;
+              }
+            }
+            selectedItems = [];
+            selectedItem = null;
+            await refreshCurrentFolder();
+          }, "Restore complete.").catch(() => null);
         });
       } else {
-        // ── Normal delete: move to .trash ──
-        addItem("Delete", () => {
-          const targetPath = [...currentPath]; // current folder path array
-          for (const item of selectedItems) {
-            directions.push({
-              delete: true,
-              path: targetPath.join("/") + "/" + item[0],
-            });
-
-            // Remove from local tree
-            const deletePath = [...currentPath.slice(1), item[0]];
-            // slice(1) removes "/" if treeData is the root node
-            removeNodeFromTree(treeData, deletePath);
-            needRefresh = true;
-            // If window.explorerGlobals.clipboard is an array, remove any entries that reference this deleted path.
-            if (!Array.isArray(window.explorerGlobals.clipboard))
-              window.explorerGlobals.clipboard = [];
-            const rel = deletePath.join("/");
-            const isFolder = Array.isArray(item[1]);
-            window.explorerGlobals.clipboard = window.explorerGlobals.clipboard.filter(
-              (c) => {
-                if (!c || typeof c.path !== "string") return true;
-                if (isFolder) {
-                  return !(c.path === rel || c.path.startsWith(rel + "/"));
-                }
-                return c.path !== rel;
-              },
-            );
-          }
-          selectedItems = [];
-          selectedItem = null;
-          render();
-          triggerAutosave();
+        addItem("Delete", async () => {
+          await withOperationStatus("Deleting files...", async () => {
+            for (const item of selectedItems) {
+              const itemPath = getCurrentFolderApiPath() === "/"
+                ? getEntryName(item)
+                : `${getCurrentFolderApiPath()}/${getEntryName(item)}`;
+              const result = await (isFolderEntry(item)
+                ? window.protectedGlobals.DeleteFolder(itemPath, { permanent: false })
+                : window.protectedGlobals.DeleteFile(itemPath, { permanent: false })).catch(() => null);
+              if (result?.error || result?.success === false) {
+                const error = new Error(result.error || "Could not delete item");
+                error.result = result;
+                selectedItems = [];
+                selectedItem = null;
+                await refreshCurrentFolder();
+                throw error;
+              }
+            }
+            selectedItems = [];
+            selectedItem = null;
+            await refreshCurrentFolder();
+          }, "Delete complete.").catch(() => null);
         });
       }
     }
@@ -2420,26 +2469,26 @@ function makeIcon(type, size = 16) {
     if (!isBlank && selectedItem && selectedItems.length <= 1) {
       if(isFolder) {
       addItem("Open in Terminal", () => {
-        const path = getItemPath(selectedItem);
+        const path = getEntryPath(selectedItem);
         if (path) {
           window.terminal(path);
         }
       });
       }
       addItem("Create Shortcut", () => {
-        const filePath = getItemPath(selectedItem);
+        const filePath = getEntryPath(selectedItem);
         if (!filePath) return;
         const itemPath = String(filePath).replace(/^\//, "").replace(/^$/, "/");
         const record = {
           type: isFolder ? "folder" : "file",
-          label: selectedItem[0],
-          name: selectedItem[0],
+          label: getEntryName(selectedItem),
+          name: getEntryName(selectedItem),
           path: itemPath.startsWith("/") ? itemPath : `/${itemPath}`
         };
         window.protectedGlobals.createDesktopShortcut(record);
       });
       addItem("Rename", () => {
-        const oldName = selectedItem[0];
+        const oldName = getEntryName(selectedItem);
 
         const row = Array.from(fileArea.querySelectorAll('[data-fs-item]')).find((el) => {
           const directMatch = el.dataset.fsItemName === oldName;
@@ -2467,87 +2516,40 @@ function makeIcon(type, size = 16) {
         input.focus();
         input.select();
         let newName;
-        const finish = () => {
+        const finish = async () => {
           newName = input.value;
           if (!newName || newName === oldName) {
             render();
             return;
           }
 
-          // Ensure new name is unique among siblings
-          const existingRows = Array.from(fileArea.querySelectorAll('[data-fs-item]'));
-          for (let i = 0; i < existingRows.length; i++) {
-            try {
-              const candidateName = Array.from(existingRows[i].children).map(c => (c.textContent||"")).find(t => t);
-              if (candidateName === newName) newName = getUniqueName(newName);
-            } catch (e) {}
-          }
-
-          // Update treeData locally
-          selectedItem[0] = newName;
-
-          // If part of a folder, also update the tree node's reference
-          const node = findNode(treeData, currentPath);
-          if (node && node[1]) {
-            const child = node[1].find((c) => c === selectedItem);
-            if (child) child[0] = newName;
-          }
-
-          // Update local window.explorerGlobals.clipboard entries that reference this path (files or nested inside folders)
-          try {
-            const oldRel = [...currentPath.slice(1), oldName].join("/");
-            const newRel = [...currentPath.slice(1), newName].join("/");
-            if (!Array.isArray(window.explorerGlobals.clipboard))
-              window.explorerGlobals.clipboard = [];
-            window.explorerGlobals.clipboard = window.explorerGlobals.clipboard.map((c) => {
-              if (!c || typeof c.path !== "string") return c;
-              if (c.path === oldRel) {
-                const updated = { ...c, path: newRel };
-                if (updated.name) updated.name = newName;
-                if (updated.node && updated.node === selectedItem)
-                  updated.node[0] = newName;
-                return updated;
-              }
-              if (c.path.startsWith(oldRel + "/")) {
-                return { ...c, path: newRel + c.path.slice(oldRel.length) };
-              }
-              return c;
-            });
-
-            // Update any pending copy/delete directions that reference the old path
-            for (const d of directions) {
-              if (d && d.copy && Array.isArray(d.directions)) {
-                d.directions = d.directions.map((p) => {
-                  if (!p || typeof p.path !== "string") return p;
-                  if (p.path === oldRel) return { ...p, path: newRel };
-                  if (p.path.startsWith(oldRel + "/"))
-                    return { ...p, path: newRel + p.path.slice(oldRel.length) };
-                  return p;
-                });
-              }
-              if (d && d.delete && typeof d.path === "string") {
-                // d.path could be "folder/file" or "folder/sub/file"
-                if (d.path === oldRel) d.path = newRel;
-                else if (d.path.startsWith(oldRel + "/"))
-                  d.path = newRel + d.path.slice(oldRel.length);
-                else if (d.path.endsWith("/" + oldName)) {
-                  d.path =
-                    d.path.slice(0, d.path.length - oldName.length) + newName;
-                }
+          await withOperationStatus("Renaming...", async () => {
+            // Ensure new name is unique among current directory entries.
+            for (const entry of currentEntries) {
+              if (entry !== selectedItem && getEntryName(entry) === newName) {
+                newName = getUniqueName(newName, "", currentEntries);
+                break;
               }
             }
-          } catch (e) {
-            // ignore update errors
-          }
 
-          render();
-          const targetPath = [...currentPath]; // current folder path array
-          directions.push({
-            rename: true,
-            path: targetPath.join("/") + "/" + oldName,
-            newName: newName,
-          });
-          triggerAutosave();
+            const oldPath = getCurrentFolderApiPath() === "/"
+              ? oldName
+              : `${getCurrentFolderApiPath()}/${oldName}`;
+            const result = await (isFolder
+              ? window.protectedGlobals.RenameFolder(oldPath, newName)
+              : window.protectedGlobals.RenameFile(oldPath, newName));
+
+            if (result?.error || result?.success === false) {
+              const error = new Error(result.error || "Could not rename item");
+              error.result = result;
+              throw error;
+            }
+
+            await refreshCurrentFolder();
+            // selectEntriesByNames checks whether the predicted name is really
+            // available in the refreshed folder before applying selection.
+            selectEntriesByNames([newName]);
+          }, "Rename complete.").catch(() => null);
         };
 
         input.onblur = finish;
@@ -2571,6 +2573,7 @@ function makeIcon(type, size = 16) {
     // Copy / Cut (works for multi-select)
     if (!isBlank && selectedItems.length) {
       addItem("Copy", () => handlecopy("copy"));
+      addItem("Cut", () => handlecut("cut"));
     }
 
     if (isBlank && window.explorerGlobals.clipboard.length) {
@@ -2619,9 +2622,9 @@ function makeIcon(type, size = 16) {
         submenu.style.minWidth = "170px";
         const toOpen = selectedItems.length ? selectedItems.slice() : [selectedItem];
         const selectedExtensions = toOpen
-          .filter((node) => node && !Array.isArray(node[1]))
+          .filter((node) => node && !isFolderEntry(node))
           .map((node) => {
-            const candidatePath = node[2].path;
+            const candidatePath = getEntryPath(node);
             return String(candidatePath || "");
           })
           .map((path) => {
@@ -2652,14 +2655,14 @@ function makeIcon(type, size = 16) {
 
         function isProtectedKeyFilePath(filePath) {
           const normalized = normalizeProtectedPath(filePath).toLowerCase();
-          if (normalized === "/systemfiles/userprofile/jsApiKey.txt") return true;
+          if (normalized === "/systemfiles/userprofile/jsapikey.txt") return true;
           return /^\/systemfiles\/runtime\/apps\/[^/]+\/jskey\.txt$/i.test(normalized);
         }
 
         function appCanOpenSelectedFiles(app) {
           const selectedPaths = toOpen
-            .filter((node) => node && !Array.isArray(node[1]))
-            .map((node) => String(node[2]?.path || ""));
+            .filter((node) => node && !isFolderEntry(node))
+            .map((node) => getEntryPath(node));
 
           const containsProtectedFile = selectedPaths.some((path) => isProtectedKeyFilePath(path));
           if (containsProtectedFile) {
@@ -2724,8 +2727,8 @@ function makeIcon(type, size = 16) {
               try {
                 // 2nd layer protection, can be removed
                 const blockedByKeyProtection = toOpen.some((node) => {
-                  if (!node || Array.isArray(node[1])) return false;
-                  return isProtectedKeyFilePath(node[2]?.path || "");
+                  if (!node || isFolderEntry(node)) return false;
+                  return isProtectedKeyFilePath(getEntryPath(node));
                 });
                 if (blockedByKeyProtection && app.requestAdminPerm !== true) {
                   console.warn("Blocked app from opening protected key file without admin permission:", app.functionName);
@@ -2734,8 +2737,8 @@ function makeIcon(type, size = 16) {
 
                 hideContextMenu();
                 for (const node of toOpen) {
-                  if (!node || Array.isArray(node[1])) continue;
-                  let path = node[2].path;
+                  if (!node || isFolderEntry(node)) continue;
+                  let path = getEntryPath(node);
                   console.log("Opening with app", app.functionName, path, node);
                   try {
                     const adminkey = await window.protectedGlobals.ReadFile('/systemfiles/userprofile/jsApiKey.txt', { text: true, direct: true });
@@ -2836,103 +2839,50 @@ function makeIcon(type, size = 16) {
     refreshBtn.appendChild(makeIcon('refresh',16));
     refreshBtn.appendChild(document.createTextNode('Refreshing...'));
     statusDiv.textContent = "Fetching Newest Files...";
-    await onlyloadTree();
+    await refreshCurrentFolder();
     refreshBtn.innerHTML = '';
     refreshBtn.appendChild(makeIcon('refresh',16));
     refreshBtn.appendChild(document.createTextNode('Refresh'));
   };
   uploadBtn.onclick = () => fileInput.click();
-  homeBtn.onclick = () => {
+  homeBtn.onclick = async () => {
     currentPath = ["/"];
-    render();
+    await refreshCurrentFolder();
   };
-  trashBtn.onclick = () => {
+  trashBtn.onclick = async () => {
     currentPath = ["/", ".trash"];
-    render();
+    await refreshCurrentFolder();
   };
   emptyTrashBtn.onclick = () => {
-    // Find all items currently in the .trash node
-    const trashNode = findNode(treeData, ["/", ".trash"]);
-    const trashItems = trashNode && trashNode[1] ? trashNode[1].slice() : [];
+    const trashItems = currentEntries.slice();
     const count = trashItems.length;
     if (!count) return;
-    showPermanentDeleteDialog(count, () => {
-      for (const item of trashItems) {
-        directions.push({
-          permanentDelete: true,
-          path: "/.trash/" + item[0],
-        });
-        removeNodeFromTree(treeData, ["/", ".trash", item[0]]);
-        recalculateTreeStorage(treeData);
-      }
-      render();
-      triggerAutosave();
+    showPermanentDeleteDialog(count, async () => {
+      await withOperationStatus("Emptying trash...", async () => {
+        for (const item of trashItems) {
+          const result = await window.protectedGlobals.DeleteFile(`.trash/${getEntryName(item)}`, { permanent: true }).catch(() => null);
+          if (result?.error || result?.success === false) {
+            const error = new Error(result.error || "Could not delete item");
+            error.result = result;
+            selectedItems = [];
+            selectedItem = null;
+            await refreshCurrentFolder();
+            throw error;
+          }
+        }
+        await refreshCurrentFolder();
+      }, "Trash emptied.").catch(() => null);
     });
   };
 
-  // Debounced autosave timer
-  let autosaveTimer = null;
-  const AUTOSAVE_DELAY = 800; // ms
-
-  let handlesave = async (e) => {
-    let saveFailed = false;
-    try {
-    // console.log(directions);
-    directions.push({ end: true });
-    saveBtn.innerHTML = '';
-    saveBtn.appendChild(makeIcon('save',16));
-    saveBtn.appendChild(document.createTextNode('Saving...'));
-    const response = await window.protectedGlobals.filePost({
-      saveSnapshot: true,
-      directions: directions,
-    });
-    } catch (e) {saveFailed = true;}
-    directions = [];
-    // // Restore window.explorerGlobals.clipboard from server response (keep existing if not returned)
-    // if (response.window.explorerGlobals.clipboard && Array.isArray(response.window.explorerGlobals.clipboard)) {
-    //   window.explorerGlobals.clipboard = response.window.explorerGlobals.clipboard;
-    // }
-    saveBtn.innerHTML = '';
-    saveBtn.appendChild(makeIcon('save',16));
-    saveBtn.appendChild(document.createTextNode(saveFailed ? 'Save Failed!' : 'Saved!'));
-    onlyloadTree(); // refresh treeData from server to ensure consistency
-    setTimeout(() => {
-      saveBtn.innerHTML = '';
-      saveBtn.appendChild(makeIcon('save',16));
-      saveBtn.appendChild(document.createTextNode('Save'));
-    }, 1000);
-  };
-
-  // Autosave on change with debounce
-  let triggerAutosave = () => {
-    if (directions.length === 0) return; // nothing to save
-    clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(() => handlesave(), AUTOSAVE_DELAY);
-  };
-
-  saveBtn.onclick = handlesave;
-  // root.addEventListener("pointerup", handlesave);
   // --- Upload helpers ---
   const CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB chunks for visible progress
 
   fileInput.addEventListener("change", async (e) => {
     const files = [...e.target.files];
-    const node = findNode(treeData, currentPath);
-    if (!node || !node[1]) return;
+    if (!Array.isArray(currentEntries)) return;
 
-    let currentUsed = getNodeStorageUsed(treeData);
-    const allowed = [];
-    for (const f of files) {
-      const effectiveSize = getEntryOnDiskSize(f.size);
-      if (currentUsed + effectiveSize > STORAGE_QUOTA_BYTES) {
-        alert(
-          `Cannot upload "${f.name}" — storage quota would be exceeded.`,
-        );
-        continue;
-      }
-      currentUsed += effectiveSize;
-      allowed.push(f);
-    }
+    const allowed = files.slice();
 
     if (!allowed.length) {
       e.target.value = "";
@@ -2942,6 +2892,7 @@ function makeIcon(type, size = 16) {
     const totalBytes = allowed.reduce((sum, file) => sum + file.size, 0);
     let uploadedBytes = 0;
     let uploadFailed = false;
+    let outOfStorage = false;
     const uploadSessionId = showUploadProgress(
       `Uploading ${allowed.length} file${allowed.length === 1 ? "" : "s"}`,
       `0/${allowed.length} ready`,
@@ -2949,19 +2900,23 @@ function makeIcon(type, size = 16) {
     );
 
     try {
+      const reservedNames = new Set(currentEntries.map((entry) => getEntryName(entry)).filter(Boolean));
+      const uploadedNames = [];
       for (let fileIndex = 0; fileIndex < allowed.length; fileIndex++) {
         const f = allowed[fileIndex];
-        const newName = getUniqueName(f.name);
-        node[1].push([newName, null, { size: f.size, sizeOnDisk: getEntryOnDiskSize(f.size), mtime: Date.now() }]);
-        const targetPath = [...currentPath];
-        const cp = targetPath.join("/");
+        const newName = getUniqueName(f.name, "", currentEntries, reservedNames);
+        reservedNames.add(newName);
+        const cp = getCurrentFolderApiPath();
+        const destinationPath = cp === "/" ? newName : `${cp}/${newName}`;
         const fileLabel = `${fileIndex + 1}/${allowed.length}: ${newName}`;
 
         try {
           if (f.size === 0) {
-            await window.protectedGlobals.WriteFile(cp + "/" + newName, new Uint8Array(0), { replace: true });
+            const result = await window.protectedGlobals.WriteFile(destinationPath, new Uint8Array(0), { replace: true });
+            if (result?.error || result?.success === false) throw result;
             uploadedBytes += f.size;
             updateUploadProgress(uploadedBytes, `Uploaded ${fileLabel}`, uploadSessionId);
+            uploadedNames.push(newName);
             continue;
           }
 
@@ -2980,14 +2935,22 @@ function makeIcon(type, size = 16) {
             }
 
             updateUploadProgress(uploadedBytes, progressLabel, uploadSessionId);
-            await window.protectedGlobals.WriteFile(cp + "/" + newName, chunk, { replace: i === 0 });
+            const result = await window.protectedGlobals.WriteFile(destinationPath, chunk, { replace: i === 0 });
+            if (result?.error || result?.success === false) throw result;
             uploadedBytes += chunkBytes;
             updateUploadProgress(uploadedBytes, `Uploaded ${fileLabel}`, uploadSessionId);
           }
+          uploadedNames.push(newName);
         } catch (err) {
           console.error(`Failed to upload ${newName}:`, err);
-          uploadState.activeSessions.delete(uploadSessionId);
-          setUploadError("Upload failed", `Failed to upload ${newName}`, uploadSessionId);
+          outOfStorage = isOutOfStorageError(err);
+          if (outOfStorage) {
+            setUploadError("Storage Exceeded", "Storage Exceeded: cannot upload this file", uploadSessionId);
+            setOperationStatus("Storage Exceeded.");
+          } else {
+            setUploadError("Upload failed", `Failed to upload ${newName}`, uploadSessionId);
+            setOperationStatus(`Upload failed: ${newName}`);
+          }
           uploadFailed = true;
           break;
         }
@@ -3002,16 +2965,20 @@ function makeIcon(type, size = 16) {
       }
     } catch (err) {
       console.error("upload failed", err);
-      uploadState.activeSessions.delete(uploadSessionId);
-      if (uploadState.activeSessions.size > 0) {
-        return;
-      }
-      setUploadError("Upload failed", err && (err.message || String(err)), uploadSessionId);
-      hideUploadProgress(2200, uploadSessionId);
+      uploadFailed = true;
+      outOfStorage = isOutOfStorageError(err);
+      setUploadError(
+        outOfStorage ? "Storage Exceeded" : "Upload failed",
+        outOfStorage ? "Storage Exceeded: cannot upload this file" : "Upload failed",
+        uploadSessionId,
+      );
+      setOperationStatus(outOfStorage ? "Storage Exceeded." : "Upload failed.");
     } finally {
       e.target.value = "";
-      render();
-      if (allowed.length) handlesave();
+      await refreshCurrentFolder();
+      selectEntriesByNames(uploadedNames);
+      await updateStorageDisplay();
+      endOperationStatus(outOfStorage ? "Storage Exceeded." : (uploadFailed ? "Upload failed." : "Upload complete."));
     }
   });
   const handleStyleApplied = () => {
@@ -3026,7 +2993,7 @@ function makeIcon(type, size = 16) {
 
   // --- INIT ---
   statusDiv.textContent = "Loading...";
-  onlyloadTree(path);
+  onlyLoadFolder(path);
 
   return {
     rootElement: root,

@@ -907,10 +907,6 @@ window.__goldenbodyAPI = {
     setBounds: (bounds) => {
         window.parent.postMessage({setBounds: true, bounds}, '*');
     },
-
-    messageToWorker: (message) => {
-        window.parent.postMessage({messageToWorker: true, message}, '*');
-    },
     
     setAskUserBeforeClose: (value) => {
         window.parent.postMessage({setAskUserBeforeClose: true, value}, '*');
@@ -929,9 +925,9 @@ window.__goldenbodyAPI = {
         window.parent.postMessage({setTheme: true, theme}, '*');
     },
 
-    getAvaliableAppsToLaunch: async () => {
+    getAvailableAppsToLaunch: async () => {
         let requestId = createRequestId();
-        window.parent.postMessage({getAvaliableAppsToLaunch: true, requestId}, '*');
+        window.parent.postMessage({getAvailableAppsToLaunch: true, requestId}, '*');
         return new Promise((resolve, reject) => {
             const handleMessage = createRequestMessageHandler(requestId, resolve, reject);
             window.addEventListener('message', handleMessage);
@@ -962,6 +958,8 @@ window.__goldenbodyAPI = {
         constructor(handle) {
             this.path = handle.path;
             this.key = handle.key;
+            this.name = handle.name;
+            this.kind = handle.kind;
         }
     }
 };

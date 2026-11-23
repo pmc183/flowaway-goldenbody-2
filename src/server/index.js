@@ -164,7 +164,7 @@ if (!config.enableWorkers || !cluster.isMaster) {
             logger.error('fetchfiles handler error: ' + e.message);
             try {
                 if (!res.headersSent) {
-                    if (e.message == 'Out of storage: cannot write file') {
+                    if (e.message == 'Storage Exceeded: cannot write file') {
                         res.writeHead(413, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: e.message }));
                     } else {

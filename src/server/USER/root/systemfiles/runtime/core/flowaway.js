@@ -1,6 +1,6 @@
 "use strict";
 (function () {
-  window.protectedGlobals.osVersion = "v2.8.0";
+  window.protectedGlobals.osVersion = "v2.8.1";
   window.alert = () => {};
   window.confirm = () => true;
   window.prompt = () => null;
@@ -39,7 +39,6 @@
 
   window.permGlobals = window.permGlobals || {};
   window.protectedGlobals.timerSpeed = 1;
-  window.protectedGlobals.workers = {};
 window.protectedGlobals.removeAllEventListenersInWindow = function() {
   for (const listener of window.protectedGlobals.____gbEventListners) {
     window.removeEventListener(listener.type, listener.handler, listener.options);

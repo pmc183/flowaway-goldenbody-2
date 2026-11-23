@@ -3,7 +3,7 @@
 window.protectedGlobals.activeWebSockets = window.protectedGlobals.activeWebSockets || new Set();
 window.protectedGlobals.serverErrorMsg = {
   400: "Bad request: the request was malformed or missing required parameters",
-  413: "Out of storage: free up space",
+  413: "Storage Exceeded: free up space",
   403: "Access denied: if you think this is a mistake, use perm readwrite in terminal to grant access",
   500: "Invalid Operation: usually because illegal processing of a file or folder, or a server-side error",
 };
@@ -313,16 +313,16 @@ window.protectedGlobals.WatchFile = function (relPath, callback, options = {}) {
       }
 
       if (event.code === 1009) {
-        callback({
-          error: event.reason || "Session expired",
-          code: event.code,
-          reason: event.reason || "",
-          closed: true,
-        });
         try {
-          await window.protectedGlobals.showSessionExpiredDialog().catch(() => false);
-        } catch (e) {}
-        reconnect();
+          await window.protectedGlobals.showSessionExpiredDialog();
+          reconnect();
+        } catch (e) {
+          callback({
+            error: "Session expired",
+            code: event.code,
+            closed: true,
+          });
+        }
         return;
       }
 
@@ -538,21 +538,17 @@ window.protectedGlobals.RenameFolder = async function (relPath, newName) {
 
 window.protectedGlobals.PasteFile = async function (destinationRelPath, clipboard, options = { move: false }) {
   const normalizedPath = window.protectedGlobals.normalizeFsPath(destinationRelPath, { allowRoot: true });
-  // Accept either a single clipboard object or an array; perform individual copy/paste requests per item.
-  const entries = Array.isArray(clipboard) ? clipboard : [clipboard];
-  if (!entries.length) return { success: true };
+  const entry = clipboard;
 
   let lastResult = null;
-  for (const entry of entries) {
-    entry.path = window.protectedGlobals.normalizeFsPath(entry.path, { allowRoot: true });
-    const directions = [
-      { paste: true, path: normalizedPath, clipboard: entry },
-      { end: true },
-    ];
-    lastResult = await window.protectedGlobals.filePost({ saveSnapshot: true, directions, move: !!options.move });
-    // If any operation returns an error, stop and return that result.
-    if (!lastResult || lastResult.error) return lastResult;
-  }
+  entry.path = window.protectedGlobals.normalizeFsPath(entry.path, { allowRoot: true });
+  const directions = [
+    { paste: true, path: normalizedPath, clipboard: entry },
+    { end: true },
+  ];
+  lastResult = await window.protectedGlobals.filePost({ saveSnapshot: true, directions, move: !!options.move });
+  // If any operation returns an error, stop and return that result.
+  if (!lastResult || lastResult.error) return lastResult;
   return lastResult;
 };
 
@@ -1063,7 +1059,6 @@ window.protectedGlobals.refreshBackground = async function refreshBackground(bac
     document.body.style.backgroundImage = "";
   }
 };
-window.protectedGlobals.setBodyBackground = window.protectedGlobals.refreshBackground;
 window.protectedGlobals.changeBackground = async function () {
   try {
     const selectedPath = await window.protectedGlobals.pickFile({ accept: "file", startPath: "/" }).catch((e) => {
@@ -2072,3 +2067,76 @@ window.protectedGlobals.sendMsgToAllThreads = (msg) => {
   window.protectedGlobals.fflateText = fflateText;
 })();
 window.addEventListener("contextmenu", (e) => {e.preventDefault();});
+
+// system error logs
+(() => {
+// Helper to safely extract and stringify any error or rejection reason
+function stringifyError(err) {
+  // 1. If it's a standard Error object (TypeError, ReferenceError, custom Error, etc.)
+  if (err instanceof Error) {
+    return JSON.stringify({
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      // Include any custom properties attached to the error
+      ...err 
+    });
+  }
+
+  // 2. If someone threw or rejected a plain object (e.g., Promise.reject({ code: 404 }))
+  if (typeof err === 'object' && err !== null) {
+    try {
+      return JSON.stringify(err);
+    } catch (e) {
+      // Fallback if the object has circular references
+      return String(err);
+    }
+  }
+
+  // 3. If someone threw a primitive (e.g., throw "Something went wrong")
+  return String(err);
+}
+
+// 1. Listen for synchronous runtime errors & resource load errors
+window.addEventListener('error', async (event) => {
+  let logPayload;
+
+  // Check if it's a failed HTML resource (like <img> or <script>)
+  if (event.target && event.target !== window) {
+    logPayload = {
+      type: 'ResourceError',
+      tag: event.target.tagName,
+      url: event.target.src || event.target.href || 'unknown',
+      timestamp: new Date().toISOString()
+    };
+  } else {
+    // Standard JS runtime error
+    logPayload = {
+      type: 'RuntimeError',
+      message: event.message,
+      file: event.filename,
+      line: event.lineno,
+      column: event.colno,
+      errorDetails: stringifyError(event.error),
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  const logString = JSON.stringify(logPayload);
+  const writeContent = `-------------------------\n\n${logString}\n\n`;
+  await window.protectedGlobals.WriteFile('/systemfiles/userprofile/logs/errorLogs.txt', writeContent, { replace: false, text: true }).catch(() => {});
+}, true); // 'true' enables capture phase so resource errors are caught too
+
+// 2. Listen for unhandled Promise rejections
+window.addEventListener('unhandledrejection', async (event) => {
+  const logPayload = {
+    type: 'UnhandledRejection',
+    reason: stringifyError(event.reason),
+    timestamp: new Date().toISOString()
+  };
+
+  const logString = JSON.stringify(logPayload);
+  const writeContent = `-------------------------\n\n${logString}\n\n`;
+  await window.protectedGlobals.WriteFile('/systemfiles/userprofile/logs/errorLogs.txt', writeContent, { replace: false, text: true }).catch(() => {});  
+});
+})();

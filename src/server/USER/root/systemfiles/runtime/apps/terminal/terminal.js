@@ -88,6 +88,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
     root.appendChild(container);
 
     // per-instance state (do not use globals)
+    let extern = {};
     let terminalBusy = false;
     let terminalWorker = null;
     let terminalWorkerGracefulKill = false;
@@ -175,15 +176,15 @@ window.terminal = function (path, posX = 50, posY = 50) {
       return Number(worker && worker.__terminalWorkerPid ? worker.__terminalWorkerPid : NaN) || null;
     }
 
-    function clearTerminalWorkerWatchers() {
-      const runtime = window.protectedGlobals;
-      if (runtime && runtime.__terminalWorkerWatches) {
-        for (const watch of Array.from(runtime.__terminalWorkerWatches.values())) {
+    function clearTerminalWorkerWatchers(worker) {
+      if (!(worker === terminalWorker)) return;
+      if (extern.terminalWorkerWatches) {
+        for (const watch of Array.from(extern.terminalWorkerWatches.values())) {
           try {
             if (watch && typeof watch.close === 'function') watch.close();
           } catch (e) {}
         }
-        runtime.__terminalWorkerWatches.clear();
+        extern.terminalWorkerWatches.clear();
       }
       if (terminalWorker && typeof terminalWorker.postMessage === 'function') {
         try {
@@ -196,10 +197,11 @@ window.terminal = function (path, posX = 50, posY = 50) {
       if (!worker) return;
       if (worker.__terminalFinalized) return;
       worker.__terminalFinalized = true;
-      clearTerminalWorkerWatchers();
+      clearTerminalWorkerWatchers(worker);
       const pid = getTrackedWorkerPid(worker);
       window.protectedGlobals.killProcess(pid, reason || 'terminal-worker-exit');
       if (terminalWorker === worker) {
+        URL.revokeObjectURL(worker.__objUrl);
         terminalBusy = false;
         terminalWorker = null;
         terminalWorkerGracefulKill = false;
@@ -293,6 +295,10 @@ window.terminal = function (path, posX = 50, posY = 50) {
           'Cancel',
         );
         if (!confirmed) return false;
+        else {
+          askUserBeforeClose = false;
+          instance.askUserBeforeClose = false;
+        }
       }
 
       const shouldGraceful = Boolean(graceful && terminalWorkerGracefulKill);
@@ -319,11 +325,16 @@ window.terminal = function (path, posX = 50, posY = 50) {
         terminalWorkerGracefulKillAttempts = 1;
         terminalWorkerGracefulKillDeadline = Date.now() + 3000;
         terminalWorker.postMessage({ type: 'onkill', graceMs: 3000, __fromRuntime: true });
+        const workerToKill = terminalWorker;
+
         terminalWorkerKillTimer = setTimeout(() => {
           try {
-            if (terminalWorker && typeof terminalWorker.terminate === 'function') terminalWorker.terminate();
+            if (workerToKill && typeof workerToKill.terminate === 'function') {
+              workerToKill.terminate();
+            }
           } catch (e) {}
-          finalizeTerminalWorker(terminalWorker, 'graceful-timeout');
+
+          finalizeTerminalWorker(workerToKill, 'graceful-timeout');
         }, 3000);
         return true;
       }
@@ -334,6 +345,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
       }
       terminalWorkerGracefulKillAttempts = 0;
       terminalWorkerGracefulKillDeadline = 0;
+      terminalWorkerGracefulKill = false;
       try {
         if (terminalWorker && typeof terminalWorker.terminate === 'function') terminalWorker.terminate();
       } catch (e) {}
@@ -589,21 +601,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
       return normalizeCloudPath(candidate);
     }
 
-    function getEffectiveMoveTarget(srcPath, destPathCandidate) {
-      const src = normalizeCloudPath(String(srcPath || '/'));
-      const dest = normalizeCloudPath(String(destPathCandidate || src));
-      if (dest === src || dest.startsWith(src + '/')) {
-        const lastSegment = dest.split('/').filter(Boolean).pop() || src.split('/').filter(Boolean).pop() || '';
-        const parent = src.split('/').filter(Boolean);
-        parent.pop();
-        const renameTarget = normalizeCloudPath((parent.length ? '/' + parent.join('/') : '/') + '/' + lastSegment);
-        if (renameTarget !== src && !renameTarget.startsWith(src + '/')) {
-          return renameTarget;
-        }
-      }
-      return dest;
-    }
-
     function toDisplayPath(absPath, baseDir = cwd) {
       const abs = normalizeCloudPath(absPath);
       const base = normalizeCloudPath(String(baseDir || '/'));
@@ -616,11 +613,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
       const raw = typeof pathValue === 'string' ? pathValue : '';
       if (!raw || raw === '/' || raw === '.') return '/';
       const normalized = normalizeCloudPath(raw);
-      const looksLikeFile = /\/[^/]+\.[^/]+$/i.test(normalized);
-      if (looksLikeFile) {
-        const parent = normalized.replace(/\/[^/]+$/, '') || '/';
-        return parent === '' ? '/' : parent;
-      }
       return normalized;
     }
 
@@ -631,6 +623,10 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
     function canAccessWorkerPath(target, appRoot, op = 'readFolder') {
       const normalizedTarget = normalizeCloudPath(target);
+      const normalizedAppRoot = normalizeCloudPath(appRoot && String(appRoot) ? getAppRootFromPath(appRoot) : '/');
+
+      // App-command workers may access their own package folder, including writes.
+      if (normalizedAppRoot !== '/' && isPathUnderRoot(normalizedTarget, normalizedAppRoot)) return true;
       const allowedOps = new Set(['readFolder', 'folderExists', 'fileExists']);
       if (isSystemFilesAccessiblePath(normalizedTarget) && !allowedOps.has(op)) return false;
       return true;
@@ -875,7 +871,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
             },
             getStartArgs: ()=>{ return self._startArgs || {}; },
             // provide cwd info for worker scripts (relative and full)
-            cwd: ()=>(currentWorkingDir || ''),
+            cwd: ()=>(self.currentWorkingDir || ''),
           };
           self.addEventListener('message', (ev)=>{
             const d = ev.data;
@@ -942,6 +938,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
       const blob = new Blob([full], { type: 'application/javascript' });
       const url = URL.createObjectURL(blob);
       const worker = new Worker(url, { source: 'Terminal' });
+      worker.__objUrl = url;
       const lineHandles = new Map();
 
       const startArgs = (initialArgs && typeof initialArgs === 'object' && !Array.isArray(initialArgs)) ? initialArgs : (Array.isArray(initialArgs) ? initialArgs : []);
@@ -1011,19 +1008,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
           }
           return;
         }
-        if (d.type === 'done') {
-          workerPrompt = null;
-          try { worker.terminate(); } catch (e) {}
-          if (terminalWorkerKillTimer) {
-            clearTimeout(terminalWorkerKillTimer);
-            terminalWorkerKillTimer = null;
-          }
-          terminalBusy = false;
-          terminalWorker = null;
-          terminalWorkerGracefulKill = false;
-          updatePromptVisibility();
-          return;
-        }
         if (d.type === 'api') {
           const id = d.id;
           const op = d.op;
@@ -1048,24 +1032,24 @@ window.terminal = function (path, posX = 50, posY = 50) {
                     worker.postMessage({ type: 'watchEvent', watchId: id, payload, __fromRuntime: true });
                   }, d.options || {});
 
-              if (!window.protectedGlobals.__terminalWorkerWatches) {
-                window.protectedGlobals.__terminalWorkerWatches = new Map();
+              if (!extern.terminalWorkerWatches) {
+                extern.terminalWorkerWatches = new Map();
               }
-              window.protectedGlobals.__terminalWorkerWatches.set(id, watchWrapper);
+              extern.terminalWorkerWatches.set(id, watchWrapper);
               result = { watchId: id };
             } else if (op === 'cancelWatch') {
-              const watch = window.protectedGlobals.__terminalWorkerWatches && window.protectedGlobals.__terminalWorkerWatches.get(d.watchId);
+              const watch = extern.terminalWorkerWatches && extern.terminalWorkerWatches.get(d.watchId);
               if (watch && typeof watch.close === 'function') watch.close();
-              if (window.protectedGlobals.__terminalWorkerWatches) {
-                window.protectedGlobals.__terminalWorkerWatches.delete(d.watchId);
+              if (extern.terminalWorkerWatches) {
+                extern.terminalWorkerWatches.delete(d.watchId);
               }
               result = { closed: true, watchId: d.watchId };
             } else if (op === 'clearAllWatchers') {
-              if (window.protectedGlobals.__terminalWorkerWatches) {
-                for (const watch of Array.from(window.protectedGlobals.__terminalWorkerWatches.values())) {
+              if (extern.terminalWorkerWatches) {
+                for (const watch of Array.from(extern.terminalWorkerWatches.values())) {
                   try { if (watch && typeof watch.close === 'function') watch.close(); } catch (e) {}
                 }
-                window.protectedGlobals.__terminalWorkerWatches.clear();
+                extern.terminalWorkerWatches.clear();
               }
               result = { cleared: true };
             } else {
@@ -1147,7 +1131,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
               }
               switch (op) {
                 case 'readFile': result = await window.protectedGlobals.ReadFile(resolved, d.opts || { text: true, direct: true }); break;
-                case 'writeFile': result = await window.protectedGlobals.WriteFile(resolved, d.content, { replace: true }); break;
+                case 'writeFile': result = await window.protectedGlobals.WriteFile(resolved, d.content, d.opts || { text: true, replace: true }); break;
                 case 'readFolder': result = await window.protectedGlobals.ReadFolder(resolved, d.opts || {}); break;
                 case 'fileExists': result = await window.protectedGlobals.FileExists(resolved); break;
                 case 'folderExists': result = await window.protectedGlobals.FolderExists(resolved); break;
@@ -1156,8 +1140,8 @@ window.terminal = function (path, posX = 50, posY = 50) {
                 case 'writeFolder': result = await window.protectedGlobals.WriteFolder(resolved); break;
                 case 'renameFile': result = await window.protectedGlobals.RenameFile(resolved, d.newName); break;
                 case 'renameFolder': result = await window.protectedGlobals.RenameFolder(resolved, d.newName); break;
-                case 'pasteFile': result = await window.protectedGlobals.PasteFile(resolved, { path: resolvedClipboard, type: d.clipboard.type }); break;
-                case 'pasteFolder': result = await window.protectedGlobals.PasteFolder(resolved, { path: resolvedClipboard, type: d.clipboard.type }); break;
+                case 'pasteFile': result = await window.protectedGlobals.PasteFile(resolved, { path: resolvedClipboard }, d.opts); break;
+                case 'pasteFolder': result = await window.protectedGlobals.PasteFolder(resolved, { path: resolvedClipboard }, d.opts); break;
                 case 'launchApp': {
                   const appId = d.appId ? String(d.appId) : '';
                   if (!appId) throw new Error('Missing appId');
@@ -1200,7 +1184,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
 
       // builtins
       if (cmd === "help") {
-        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm [-p|--permanent], rmdir, mkdir, mv, perm, getperm, apps, installedapps, open, worker, procs, killproc, killall, kill");
+        printLine("Built-in commands: help, echo, clear, cat, ls, read, write, rm [-p|--permanent], mkdir, mv, perm, getperm, apps, installedapps, open, worker, procs, killproc, killall, kill");
         // list custom app commands
         const appCmds = [];
         (window.protectedGlobals.apps || []).forEach(a => {
@@ -1456,17 +1440,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
         return;
       }
 
-      if (cmd === 'rmdir') {
-        const pathArg = parseQuotedPath(cmdline) || parts[1];
-        if (!pathArg) { printError('Usage: rmdir "<path>"'); return; }
-        try {
-          const targetPath = resolveTerminalPath(pathArg, cwd);
-          await waitForFsResponse(window.protectedGlobals.DeleteFolder(targetPath));
-          printLine('Deleted folder ' + targetPath);
-        } catch (e) { printError(e.message || String(e)); }
-        return;
-      }
-
       if (cmd === 'mkdir') {
         const pathArg = parseQuotedPath(cmdline) || parts[1];
         if (!pathArg) { printError('Usage: mkdir "<path>"'); return; }
@@ -1485,17 +1458,16 @@ window.terminal = function (path, posX = 50, posY = 50) {
         const srcArg = tokens[1];
         const destArg = tokens.slice(2).join(' ');
         const srcPath = resolveTerminalPath(srcArg, cwd);
-        const destPathCandidate = resolveTerminalPath(destArg, cwd);
-        const finalDestPath = getEffectiveMoveTarget(srcPath, destPathCandidate);
+        const destPath = resolveTerminalPath(destArg, cwd);
         try {
           const srcIsFile = await waitForFsResponse(window.protectedGlobals.FileExists(srcPath));
           const srcIsFolder = await waitForFsResponse(window.protectedGlobals.FolderExists(srcPath));
           if (!srcIsFile && !srcIsFolder) { printError('Source does not exist: ' + srcPath); return; }
           let result;
-          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPathCandidate, { path: srcPath }, { move: true }));
-          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPathCandidate, { path: srcPath }, { move: true }));
+          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPath, { path: srcPath }, { move: true }));
+          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPath, { path: srcPath }, { move: true }));
           if (!result.success) { printError(result.error || 'Failed to move file: ' + srcPath); return; }
-          printLine('Moved ' + toDisplayPath(srcPath, cwd) + ' -> ' + toDisplayPath(finalDestPath, cwd));
+          printLine('Moved ' + toDisplayPath(srcPath, cwd) + ' -> ' + toDisplayPath(destPath, cwd));
         } catch (e) { printError(e.message || String(e)); }
         return;
       }
@@ -1537,15 +1509,14 @@ window.terminal = function (path, posX = 50, posY = 50) {
         const destArg = tokens.slice(2).join(' ');
         try {
           const srcPath = resolveTerminalPath(srcArg, cwd);
-          const destPathCandidate = resolveTerminalPath(destArg, cwd);
-          const finalDestPath = getEffectiveMoveTarget(srcPath, destPathCandidate);
+          const destPath = resolveTerminalPath(destArg, cwd);
           const srcIsFile = await waitForFsResponse(window.protectedGlobals.FileExists(srcPath));
           const srcIsFolder = await waitForFsResponse(window.protectedGlobals.FolderExists(srcPath));
           let result;
-          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPathCandidate, { path: srcPath }));
-          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPathCandidate, { path: srcPath }));
+          if (srcIsFile) result = await waitForFsResponse(window.protectedGlobals.PasteFile(destPath, { path: srcPath }));
+          if (srcIsFolder) result = await waitForFsResponse(window.protectedGlobals.PasteFolder(destPath, { path: srcPath }));
           if (!result.success) { printError(result.error || 'Failed to copy file: ' + srcPath); return; }
-          printLine('Copied ' + toDisplayPath(srcPath, cwd) + ' -> ' + toDisplayPath(finalDestPath, cwd));
+          printLine('Copied ' + toDisplayPath(srcPath, cwd) + ' -> ' + toDisplayPath(destPath, cwd));
           return;
         } catch (e) { printError(e.message || String(e)); }
         return;
@@ -1566,6 +1537,9 @@ window.terminal = function (path, posX = 50, posY = 50) {
           let worker;
           const resolvedScriptPath = scriptPath ? resolveTerminalPath(scriptPath, cwd) : null;
           const txt = await window.protectedGlobals.ReadFile(resolvedScriptPath, { text: true, direct: true });
+          if (!root.isConnected) {
+            return;
+          }
           const workerStartArgs = parseJsonOrKvArgs(workerArgs.slice(1));
           // record explicit source for process listing
           try { instance.options = instance.options || {}; instance.options.source = workerPath || resolvedScriptPath; instance.options._sourceInferred = false; } catch (e) {}
@@ -1628,6 +1602,9 @@ window.terminal = function (path, posX = 50, posY = 50) {
               instance.askUserBeforeClose = false;
               terminalBusy = true;
               updatePromptVisibility();
+              if (!root.isConnected) {
+                return;
+              }
               terminalWorkerGracefulKill = Boolean(target.command.receive_onkill_handler);
               let worker;
               const appRoot = target.app && target.app.path ? target.app.path : getAppRootFromPath(scriptPath);
@@ -1649,6 +1626,10 @@ window.terminal = function (path, posX = 50, posY = 50) {
             printLine(`Launched ${target.app.id}`);
             return;
           } catch (e) {
+            terminalBusy = false;
+            terminalWorker = null;
+            terminalWorkerGracefulKill = false;
+            updatePromptVisibility();
             printError(e.message || String(e));
             return;
           }
@@ -1861,6 +1842,7 @@ window.terminal = function (path, posX = 50, posY = 50) {
       if (terminalWorker) {
         await killActiveProcess({ graceful: terminalWorkerGracefulKill });
       }
+      clearInterval(workerWatchInterval);
     };
 
     const workerWatchInterval = setInterval(() => {
@@ -1894,8 +1876,6 @@ window.terminal = function (path, posX = 50, posY = 50) {
       if (root && root.remove) root.remove();
       return true;
     };
-    window.addEventListener('beforeunload', () => { cleanupInstance(); }, { once: true });
-
     // clicking in the output usually focuses the prompt, but avoid stealing
     // focus when the user is selecting text. Use preventScroll to avoid
     // jumping the viewport.

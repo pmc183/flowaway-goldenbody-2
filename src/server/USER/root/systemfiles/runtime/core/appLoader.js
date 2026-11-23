@@ -147,7 +147,9 @@
   }
 
   let getFilesFromFolder = async function (relPath) {
-    const folderContents = await window.protectedGlobals.ReadFolder(relPath, { detail: true });
+    let folderContents = await window.protectedGlobals.ReadFolder(relPath, { detail: true });
+    if (!Array.isArray(folderContents)) folderContents = await window.protectedGlobals.ReadFolder(relPath, { detail: true }); // retry
+    if (!Array.isArray(folderContents)) throw new Error(`Error message: ${String(folderContents || "unknown error")}`);
     const returnArray = [];
     for (const entry of folderContents) {
       if (entry.type === "file") returnArray.push(entry.path);
@@ -1411,15 +1413,6 @@
 
             return;
           }
-          if (e.data.messageToWorker) {
-            const worker = window.protectedGlobals.workers[appObj.id];
-            if (worker) {
-              worker.postMessage({ messageToWorker: true, data: e.data.message });
-            } else {
-              e.source.postMessage({ error: "No worker found for app " + appObj.id }, "*");
-            }
-            return;
-          }
           if (e.data.setAskUserBeforeClose) {
             instance.askUserBeforeClose = !!e.data.value;
             return;
@@ -1531,7 +1524,7 @@
             iframe.contentWindow.postMessage({ liveInstanceIndex: liveInstanceIndex, requestId: e.data.requestId }, "*");
           } else if (e.data.getTheme) {
             iframe.contentWindow.postMessage({ requestId: e.data.requestId, theme: window.protectedGlobals.data.dark ? "dark" : "light" }, "*");
-          } else if (e.data.getAvaliableAppsToLaunch) {
+          } else if (e.data.getAvailableAppsToLaunch) {
             iframe.contentWindow.postMessage({ requestId: e.data.requestId, result: JSON.parse(JSON.stringify(window.protectedGlobals.apps)) }, "*");
           }
         });
@@ -1634,16 +1627,6 @@
       entryObj.functionName = functionName;
       jsFile = entryObj.jsFile || "";
       if (jsFile) createIframeContainerAppFunction(entryObj);
-      if (entryObj.headlessJsFile) {
-        let scriptText = await window.protectedGlobals.ReadFile(folderPath + "/" + entryObj.headlessJsFile, { text: true, direct: true });
-        let blob = new Blob([scriptText], { type: "text/javascript" });
-        let url = URL.createObjectURL(blob);
-        const worker = new Worker(url, { name: entryObj.headlessJsFile, source: entryObj.id });
-        worker.onmessage = (e) => {
-          if (e.data?.type === 'launchApp') window.protectedGlobals.launchApp(entryObj.id, e.data?.args);
-        };
-        window.protectedGlobals.workers[entryObj.id] = worker;
-      }
     }
 
     console.log("Found icon file for app " + folderName + ": " + iconFile);

@@ -351,7 +351,7 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
         }
         let appName = e.detail.appName;
         if (!window.protectedGlobals.appPerms[appName]) {
-            window.protectedGlobals.appPerms[appName] = { storage: "ask", notification: "ask", launch: "ask" };
+            window.protectedGlobals.appPerms[appName] = { storage: "ask", notification: "ask", launchApp: "ask" };
         }
         if (e.detail.data?.alert) {
             if (window.protectedGlobals.appPerms[appName].notification === "ask") {
@@ -682,14 +682,14 @@ async function showAppPermissionPrompt(appName, permissionType, diffmsg = false,
         const keyWasProvided = !!key;
         const externalWriteRequest = keyWasProvided && isExternalKeyAllowed(path, key, appName);
         const invalidHandleRequest = keyWasProvided && !externalWriteRequest;
-        const isReadOnlyRequest = !e.detail.data.readFile && !e.detail.data.readFolder && !e.detail.data.folderExists && !e.detail.data.fileExists;
+        const nonReadOnlyRequest = !e.detail.data.readFile && !e.detail.data.readFolder && !e.detail.data.folderExists && !e.detail.data.fileExists;
 
         if (invalidHandleRequest) {
             source.postMessage({ error: "Invalid handle for filesystem access", requestId: requestId }, "*");
             return;
         }
 
-        if (isReadOnlyRequest) {
+        if (nonReadOnlyRequest) {
             if (externalWriteRequest) {
                 sendProtectedResponse(true);
             } else if (window.protectedGlobals.appPerms[appName].storage === "true") {

@@ -861,7 +861,7 @@ window.taskManager = function (posX = 50, posY = 50) {
       td.colSpan = 4;
       td.style.padding = "12px";
       td.style.opacity = "0.8";
-      td.textContent = "No task entries available.";
+      td.textContent = "Main Process is Active, No Secondary Processes Detected.";
       tr.appendChild(td);
       tbody.appendChild(tr);
       return;

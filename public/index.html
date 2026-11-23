@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Learn</title>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6422991308381167" crossorigin="anonymous"></script>
     <style>
         :root {
             --bg-1: #0f172a;
@@ -165,243 +166,25 @@
             <p>
               Discord:
             </p>
-            <a href="https://discord.gg/MXxNtJThDJ" onclick="playCompoundAudio()" target="_blank" rel="noreferrer">[Button] Join our Discord server for more info or updates.</a>
+            <a href="https://discord.gg/MXxNtJThDJ" target="_blank" rel="noreferrer">[Button] Join our Discord server for more info or updates.</a>
+            <p>
+              Developer Documentation:
+            </p>
+            <a href="developerdocumentation.html" target="_blank" rel="noreferrer">[Button] Learn how to develop apps for FlowAway GoldenBody.</a>
+            <p>
+              GitHub Repository:
+            </p>
+            <a href="https://github.com/FlowAway-GoldenBody/FlowAway-GoldenBody" target="_blank" rel="noreferrer">[Button] Check out the FlowAway GoldenBody GitHub repository.</a>
         </div>
     </div>
 
 
 <script>
     // ==========================================
-    // BACKGROUND MUSIC CONTROLLER
-    // ==========================================
-
-    const MUSIC_STORAGE_KEY = 'backgroundMusicTrack';
-
-    const MUSIC_TRACKS = {
-        puppy: {
-            name: "Onlypuppy's Theme",
-            url: "https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/onlypuppy'sTheme.mp3"
-        },
-
-        statefarm: {
-            name: "We Are The StateFarm Client",
-            url: "https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/weAreTheStatefarmClient.mp3"
-        }
-    };
-
-    let backgroundAudio = new Audio();
-    backgroundAudio.loop = true;
-    backgroundAudio.preload = 'auto';
-
-    let currentTrack = null;
-    let musicPlaying = false;
-    let musicButtons = {};
-
-    function saveMusicPreference(track) {
-        try {
-            if (track) {
-                localStorage.setItem(MUSIC_STORAGE_KEY, track);
-            } else {
-                localStorage.removeItem(MUSIC_STORAGE_KEY);
-            }
-        } catch (error) {
-            console.warn('Unable to save music preference:', error);
-        }
-    }
-
-    function getSavedMusicPreference() {
-        try {
-            const saved = localStorage.getItem(MUSIC_STORAGE_KEY);
-
-            return MUSIC_TRACKS[saved] ? saved : null;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    function updateMusicButtons() {
-        for (const [track, button] of Object.entries(musicButtons)) {
-            const active = currentTrack === track && musicPlaying;
-
-            button.setAttribute('aria-pressed', String(active));
-
-            button.textContent = active
-                ? MUSIC_TRACKS[track].name + ' (Playing)'
-                : MUSIC_TRACKS[track].name;
-        }
-    }
-
-    async function playBackgroundMusic(track, savePreference = true) {
-        if (!MUSIC_TRACKS[track]) return;
-
-        const selectedTrack = MUSIC_TRACKS[track];
-
-        // Already playing the selected song.
-        if (
-            currentTrack === track &&
-            !backgroundAudio.paused
-        ) {
-            return;
-        }
-
-        // Stop the previous song before switching.
-        backgroundAudio.pause();
-
-        // Only change the source when necessary.
-        if (currentTrack !== track) {
-            currentTrack = track;
-            backgroundAudio.src = selectedTrack.url;
-            backgroundAudio.load();
-        }
-
-        if (savePreference) {
-            saveMusicPreference(track);
-        }
-
-        musicPlaying = false;
-        updateMusicButtons();
-
-        try {
-            await backgroundAudio.play();
-
-            // Confirm that playback actually started.
-            musicPlaying = !backgroundAudio.paused;
-            updateMusicButtons();
-
-        } catch (error) {
-            musicPlaying = false;
-            updateMusicButtons();
-
-            console.warn('Background music could not play:', error);
-        }
-    }
-
-    function stopBackgroundMusic(savePreference = true) {
-        backgroundAudio.pause();
-
-        musicPlaying = false;
-
-        if (savePreference) {
-            saveMusicPreference(null);
-        }
-
-        updateMusicButtons();
-    }
-
-    function toggleBackgroundMusic(track) {
-        if (
-            currentTrack === track &&
-            !backgroundAudio.paused
-        ) {
-            stopBackgroundMusic(true);
-        } else {
-            playBackgroundMusic(track, true);
-        }
-    }
-
-    // Keep playback state synchronized with the actual audio element.
-    backgroundAudio.addEventListener('play', () => {
-        musicPlaying = true;
-        updateMusicButtons();
-    });
-
-    backgroundAudio.addEventListener('pause', () => {
-        musicPlaying = false;
-        updateMusicButtons();
-    });
-
-    backgroundAudio.addEventListener('ended', () => {
-        musicPlaying = false;
-        updateMusicButtons();
-    });
-
-    backgroundAudio.addEventListener('error', () => {
-        musicPlaying = false;
-        updateMusicButtons();
-
-        console.warn('Background music failed to load.');
-    });
-
-    // ==========================================
-    // MUSIC BUTTONS
-    // ==========================================
-
-    const musicToggle = document.createElement('button');
-
-    musicToggle.type = 'button';
-    musicToggle.className = 'action-btn secondary';
-    musicToggle.textContent = MUSIC_TRACKS.puppy.name;
-    musicToggle.dataset.musicControl = 'true';
-
-    musicToggle.onclick = () => {
-        toggleBackgroundMusic('puppy');
-    };
-
-    const music2 = document.createElement('button');
-
-    music2.type = 'button';
-    music2.className = 'action-btn secondary';
-    music2.textContent = MUSIC_TRACKS.statefarm.name;
-    music2.dataset.musicControl = 'true';
-
-    music2.onclick = () => {
-        toggleBackgroundMusic('statefarm');
-    };
-
-    musicButtons = {
-        puppy: musicToggle,
-        statefarm: music2
-    };
-
-    updateMusicButtons();
-
-    // ==========================================
-    // RESTORE PREVIOUS MUSIC PREFERENCE
-    // ==========================================
-
-    const savedTrack = getSavedMusicPreference();
-
-    if (savedTrack) {
-        // Do not attempt autoplay immediately.
-        // Browsers generally require user interaction.
-        const resumeMusic = (event) => {
-            // Avoid interfering with the music buttons themselves.
-            if (
-                event.target instanceof Element &&
-                event.target.closest('[data-music-control]')
-            ) {
-                return;
-            }
-
-            document.removeEventListener('pointerdown', resumeMusic);
-
-            playBackgroundMusic(savedTrack, false);
-        };
-
-        document.addEventListener('pointerdown', resumeMusic);
-    }
-
-    // ==========================================
-    // SHORT COMPOUND AUDIO
-    // ==========================================
-        function playAudio(url) {
-          let audio = new Audio(url);
-          audio.play();
-        }
-        function playCompoundAudio() {
-          playAudio('https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/enterMusic.wav');
-          setTimeout(() => {
-            playAudio("https://flowaway-goldenbody.github.io/CDN-For-FlowAway-GoldenBody/Karazhan'sDoors.wav");
-          }, 200);
-        }
-
-    // ==========================================
     // HOMEPAGE LAUNCHER
     // ==========================================
 
     function launchHomepage(newTab = false) {
-        playCompoundAudio();
-
         const width = window.screen.availWidth;
         const height = window.screen.availHeight;
 
@@ -443,9 +226,6 @@
     const launchRow = document.createElement('div');
     launchRow.className = 'launch-actions';
 
-    const musicRow = document.createElement('div');
-    musicRow.className = 'music-actions';
-
     const a = document.createElement('button');
 
     a.type = 'button';
@@ -466,12 +246,7 @@
 
     launchRow.appendChild(b);
 
-    musicRow.appendChild(musicToggle);
-    musicRow.appendChild(music2);
-
     actions.appendChild(launchRow);
-    actions.appendChild(musicRow);
-
 </script>
 
 </body>

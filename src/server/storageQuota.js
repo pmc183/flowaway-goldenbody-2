@@ -4,7 +4,6 @@ const path = require('path');
 
 const DEFAULT_QUOTA_BYTES = Number(process.env.STORAGE_QUOTA_BYTES) || 1 * 1024 * 1024 * 1024;
 const MIN_ENTRY_SIZE_BYTES = 4 * 1024;
-const userUsageCache = new Map();
 
 function getEntryDiskSizeBytes(size) {
   const numeric = Number(size);
@@ -58,44 +57,12 @@ async function getUserQuotaBytes(userRoot) {
 }
 
 async function getUserUsage(username, userRoot) {
-  const cached = userUsageCache.get(username);
-  if (cached && cached.userRoot === userRoot) {
-    return cached.bytes;
-  }
-  return refreshUserUsage(username, userRoot);
-}
-
-async function refreshUserUsage(username, userRoot) {
-  const bytes = await getDirectorySizeBytes(userRoot);
-  userUsageCache.set(username, { userRoot, bytes });
-  return bytes;
-}
-
-function adjustUserUsage(username, delta, userRoot = '') {
-  const cached = userUsageCache.get(username) || { userRoot, bytes: 0 };
-  if (!cached.userRoot && userRoot) {
-    cached.userRoot = userRoot;
-  }
-  cached.bytes = Math.max(0, cached.bytes + delta);
-  userUsageCache.set(username, cached);
-  return cached.bytes;
-}
-
-function invalidateUserUsage(username) {
-  userUsageCache.delete(username);
-}
-
-function setUserUsage(username, bytes, userRoot = '') {
-  userUsageCache.set(username, { userRoot, bytes: Math.max(0, Number(bytes) || 0) });
+  return getDirectorySizeBytes(userRoot);
 }
 
 module.exports = {
   DEFAULT_QUOTA_BYTES,
   getUserQuotaBytes,
   getUserUsage,
-  refreshUserUsage,
-  adjustUserUsage,
-  invalidateUserUsage,
-  setUserUsage,
   getUsernameFromUserRoot,
 };

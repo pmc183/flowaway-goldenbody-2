@@ -81,7 +81,7 @@ async function syncAppJsKey(appDirPath, masterKey) {
   }
 }
 
-async function copyDirRecursiveExcludeJsKey(srcDir, dstDir, forceUpdate = false) {
+async function copyDirRecursiveExcludeJsKey(srcDir, dstDir) {
   if (!srcDir || !(await pathExists(srcDir))) return;
   await fsp.mkdir(dstDir, { recursive: true });
   const entries = await fsp.readdir(srcDir, { withFileTypes: true });
@@ -90,10 +90,8 @@ async function copyDirRecursiveExcludeJsKey(srcDir, dstDir, forceUpdate = false)
     const srcPath = path.join(srcDir, entry.name);
     const dstPath = path.join(dstDir, entry.name);
     if (entry.isDirectory()) {
-      await copyDirRecursiveExcludeJsKey(srcPath, dstPath, forceUpdate);
+      await copyDirRecursiveExcludeJsKey(srcPath, dstPath);
     } else if (entry.isFile()) {
-      const ext = path.extname(entry.name).toLowerCase();
-      if (ext !== '.js' && !forceUpdate) continue;
       await fsp.mkdir(path.dirname(dstPath), { recursive: true });
       await fsp.copyFile(srcPath, dstPath);
     }
@@ -144,14 +142,15 @@ async function syncTemplateTree(srcDir, dstDir, { skipNames = new Set(), skipJsK
   }
 }
 
-async function syncTemplateAppTree(srcDir, dstDir) {
+async function syncTemplateAppTree(srcDir, dstDir, forceUpdate = false) {
   if (!srcDir || !(await pathExists(srcDir))) return;
 
   await fsp.mkdir(dstDir, { recursive: true });
   const entries = await fsp.readdir(srcDir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (entry.name.toLowerCase() === 'jskey.txt') continue;
+    const ext = path.extname(entry.name).toLowerCase();
+    if (entry.name.toLowerCase() === 'jskey.txt' || (ext !== '.js' && ext !== '.css' && ext !== '.html')) continue;
 
     const srcPath = path.join(srcDir, entry.name);
     const dstPath = path.join(dstDir, entry.name);
@@ -160,13 +159,12 @@ async function syncTemplateAppTree(srcDir, dstDir) {
       if (!(await pathExists(dstPath))) {
         await fsp.mkdir(dstPath, { recursive: true });
       }
-      await syncTemplateAppTree(srcPath, dstPath);
+      await syncTemplateAppTree(srcPath, dstPath, forceUpdate);
       continue;
     }
 
     if (!entry.isFile()) continue;
 
-    const ext = path.extname(entry.name).toLowerCase();
     if (!(await pathExists(dstPath)) || (await fileContentsDiffer(srcPath, dstPath))) {
       await fsp.mkdir(path.dirname(dstPath), { recursive: true });
       await fsp.copyFile(srcPath, dstPath);
@@ -183,10 +181,6 @@ async function updateUserSystemApps(username, forceUpdate = false) {
   const templateSystemFilesPath = path.join(USER_TEMPLATE_PATH, 'systemfiles');
   const templateAppsPath = path.join(templateSystemFilesPath, 'runtime', 'apps');
 
-  if (!(await pathExists(templateSystemFilesPath))) {
-    return { ok: false, updated: false, reason: 'missing_template_systemfiles', username };
-  }
-
   if (!/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
     return { ok: false, updated: false, reason: 'invalid_username' };
   }
@@ -201,7 +195,7 @@ async function updateUserSystemApps(username, forceUpdate = false) {
   const userMasterKey = await getUserMasterJsKey(userSystemfilesPath);
 
   if (!(await pathExists(userRootPath))) {
-    return { ok: false, updated: false, reason: 'missing_user_root', username };
+    await fsp.mkdir(userRootPath, { recursive: true });
   }
 
   await fsp.mkdir(userSystemfilesPath, { recursive: true });
@@ -244,9 +238,9 @@ async function updateUserSystemApps(username, forceUpdate = false) {
     const userAppPath = path.join(userAppsPath, appName);
     try {
       if (!(await pathExists(userAppPath))) {
-        await copyDirRecursiveExcludeJsKey(templateAppPath, userAppPath, forceUpdate);
+        await copyDirRecursiveExcludeJsKey(templateAppPath, userAppPath);
       } else {
-        await syncTemplateAppTree(templateAppPath, userAppPath);
+        await syncTemplateAppTree(templateAppPath, userAppPath, forceUpdate);
       }
 
       if (await appRequestsAdminPerm(userAppPath)) {

@@ -216,7 +216,7 @@
 - Fixed double window open in iframe apps when using ctrl+n
 - File name overflow handling. 
 - Fixed "All Files Loaded." style dont dynamic change
-- Added __goldenbodyAPI.getAvaliableAppsToLaunch() for iframe apps.
+- Added __goldenbodyAPI.getAvailableAppsToLaunch() for iframe apps.
 - Updated login/signup page so users wont think they got stuck by more state feedback.
 - Some annoying bugs fixed are not documented.
 
@@ -303,7 +303,7 @@
 - changed the UI for login screen.
 - added clearSystemInterval to flowaway.js, fixed some interval bugs.
 
-# V 2.8.0
+# V 2.8.1
 - moved /__public to /downloads
 - fixed terminal blocking all fs operations because of a buggy conditional
 - app installer can be opened by apps to update itself
@@ -317,7 +317,7 @@
 - removed password auth in fetchfiles.
 - fixed sequences of keyboard shortcuts listed in shortcuts tab to match actual 
 - fixed alt tabbing the overlay can't be cleared via clicking on it
-- removed the feature for apps autolaunch when typing their name in terminal, added an open cmd for that, typing their name will show the avaliable commands for the app.
+- removed the feature for apps autolaunch when typing their name in terminal, added an open cmd for that, typing their name will show the available commands for the app.
 - added permadelete option in deletefile/folder
 - removed password auth from files other than zmcd (login/signup), updatesystem, systemrecovery, and the 3 endpoints should only accept passwords
 - 1 account can only have 1 token that is valid
@@ -330,3 +330,19 @@
 - added view password in login dialog
 - removed root prefix in paths once and for all
 - added default perm for path perms
+
+# V 2.8.1
+- fixed spamming login log you in twice in login panel
+- removed redundant code in server system recovery script
+- rewritten server to create user root if missing. removed some absurd errors server gave to client due to AI made errors
+- reworked a bit of desktop shortcut deletion behavior
+- added retries for folder reads in apploader.js
+- added error logs whenever the client thrown an error, written in systemfiles/userprofile/logs/errorLogs.txt
+- removed cached quota accounting because it's causing problems
+- account deletion ask for user confirmation in login dialog
+- fixed errors in the dev docs
+- remade dev docs, it is now divided into sections
+- removed headless service support for apps because it is useless
+- fixed watcher lifecycle for terminal
+- remade file explorer to use modern APIs
+- added cut feature to file explorer
